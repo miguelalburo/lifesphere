@@ -1,1 +1,16 @@
+# Environmental variables (contains sensitive info)
+.env
+
+# Log files
 logs/
+
+# Python virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Coding agent related files
+.claude
