@@ -114,7 +114,7 @@ For tabular work, the two practical sources are:
 | `ssf_tumor_samples_brca.txt` | SSF tumour sample metadata |
 | `ssf_normal_controls_brca.txt` | SSF normal control metadata |
 
-**2. GDC `/cases` API endpoint** — harmonised, GDC-standardised clinical data returned as JSON (flattened to TSV in the download script). One row per case, covering demographics, diagnosis, staging, treatments, exposures, and sample types.
+**2. GDC `/cases` API endpoint** — harmonised, GDC-standardised clinical data returned as nested JSON. The download script writes one TSV per entity at its true grain rather than a single flattened row per case: `{base}.case.tsv` (1 row/case: base + demographic), plus `.diagnosis`, `.treatment`, `.pathology_detail`, `.follow_up`, `.molecular_test`, `.exposure`, `.family_history`, `.other_clinical_attribute`, `.sample`, `.aliquot`, and `.file`. Each child table carries `case_id` (and any parent id, e.g. `diagnosis_id` on treatments) to join back. This preserves the 1:many entities (follow-ups, treatments, aliquots, ...) that a single-row-per-case flatten would collapse.
 
 ### Download Script
 

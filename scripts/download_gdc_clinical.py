@@ -9,11 +9,17 @@ Usage:
 
 Exactly one of --project, --program, or --cases is required.
 
---project downloads the harmonized cases TSV for the project.
---program downloads the harmonized cases TSV for all cases in the program.
+Each fetch writes one TSV per entity: {base}.case.tsv (1 row/case), plus
+{base}.diagnosis.tsv, .treatment.tsv, .pathology_detail.tsv, .follow_up.tsv,
+.molecular_test.tsv, .exposure.tsv, .family_history.tsv,
+.other_clinical_attribute.tsv, .sample.tsv, .aliquot.tsv, .file.tsv at their
+true (1:many) grain.
+
+--project downloads the per-entity TSVs for the project.
+--program downloads the per-entity TSVs for all cases in the program.
 --biotab  (with --project or --program) also downloads BCR BioTab files and
-          merges clinical_patient data into the metadata TSV on case_id.
---cases   downloads a harmonized cases TSV for the given case UUIDs only
+          merges clinical_patient data into the case TSV on case_id.
+--cases   downloads the per-entity TSVs for the given case UUIDs only
           (comma- or tab-separated).
 """
 
@@ -36,7 +42,7 @@ def parse_args() -> argparse.Namespace:
     group.add_argument(
         "--project",
         metavar="PROJECT_ID",
-        help="GDC project ID (e.g. TCGA-PRAD). Downloads BioTab files + cases TSV.",
+        help="GDC project ID (e.g. TCGA-PRAD). Downloads per-entity TSVs (+ BioTab with --biotab).",
     )
     group.add_argument(
         "--program",
@@ -52,7 +58,7 @@ def parse_args() -> argparse.Namespace:
         "--biotab",
         action="store_true",
         default=False,
-        help="Download BCR BioTab files and merge clinical_patient data into the metadata TSV (with --project or --program).",
+        help="Download BCR BioTab files and merge clinical_patient data into the case TSV (with --project or --program).",
     )
     parser.add_argument("output_dir", help="Directory to save files into")
     return parser.parse_args()
@@ -71,9 +77,9 @@ def main() -> None:
             download_biotab(project_id, out_dir)
         download_cases_tsv(project_id, out_dir)
         if args.biotab:
-            print("\n[biotab merge] Merging clinical_patient data into metadata TSV...")
+            print("\n[biotab merge] Merging clinical_patient data into case TSV...")
             biotab_dir = out_dir / "biotab"
-            merge_biotab_into_metadata(biotab_dir, out_dir / f"{project_id}.metadata.tsv")
+            merge_biotab_into_metadata(biotab_dir, out_dir / f"{project_id}.case.tsv")
             shutil.rmtree(biotab_dir)
             print(f"  Removed {biotab_dir}")
 
@@ -85,9 +91,9 @@ def main() -> None:
             download_biotab(program, out_dir)
         download_cases_tsv_by_program(program, out_dir)
         if args.biotab:
-            print("\n[biotab merge] Merging clinical_patient data into metadata TSV...")
+            print("\n[biotab merge] Merging clinical_patient data into case TSV...")
             biotab_dir = out_dir / "biotab"
-            merge_biotab_into_metadata(biotab_dir, out_dir / f"{program}.metadata.tsv")
+            merge_biotab_into_metadata(biotab_dir, out_dir / f"{program}.case.tsv")
             shutil.rmtree(biotab_dir)
             print(f"  Removed {biotab_dir}")
 
