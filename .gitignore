@@ -12,5 +12,14 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Coding agent related files
+
+# THIRD PARTY 
+
+# Claude & coding agent related
 .claude
+
+# Obsidian
+*.obsidian
+
+# VSCode
+.vscode/
