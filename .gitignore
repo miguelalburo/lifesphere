@@ -1,6 +1,11 @@
 # Environmental variables (contains sensitive info)
 .env
 
+# Data
+data/raw/
+data/processed/
+data/interim/
+
 # Log files
 logs/
 
