@@ -69,7 +69,7 @@ def std_dir(tmp_path_factory) -> Path:
         [["c1", "TCGA-01", "s1", "TCGA-01_s", "Primary Tumor", "Tumor"],
          ["c2", "TCGA-02", "s2", "TCGA-02_s", "Primary Tumor", "Tumor"]])
 
-    run(raw, BASE, out)
+    run(raw, out)
     return out
 
 

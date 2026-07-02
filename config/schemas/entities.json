@@ -1,0 +1,101 @@
+[
+  {
+    "name": "subject",
+    "label": "Program",
+    "id_col": "program_name",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": [],
+    "dedup": true
+  },
+  {
+    "name": "subject",
+    "label": "Project",
+    "id_col": "project_id",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": ["project_name", "disease_type", "primary_site", "program_name"],
+    "dedup": true
+  },
+  {
+    "name": "subject",
+    "label": "Subject",
+    "id_col": "case_id",
+    "strip_prefix": "demographic_",
+    "drop": ["project_id", "project_name", "program_name"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "diagnosis",
+    "label": "Diagnosis",
+    "id_col": "diagnosis_id",
+    "strip_prefix": "diagnosis_",
+    "drop": ["case_id", "case_submitter_id"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "treatment",
+    "label": "Treatment",
+    "id_col": "treatment_id",
+    "strip_prefix": "treatment_",
+    "drop": ["case_id", "case_submitter_id", "diagnosis_id"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "pathology_detail",
+    "label": "PathologyDetail",
+    "id_col": "pathology_detail_id",
+    "strip_prefix": "pathology_detail_",
+    "drop": ["case_id", "case_submitter_id", "diagnosis_id"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "follow_up",
+    "label": "FollowUp",
+    "id_col": "follow_up_id",
+    "strip_prefix": "follow_up_",
+    "drop": ["case_id", "case_submitter_id"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "molecular_test",
+    "label": "MolecularTest",
+    "id_col": "molecular_test_id",
+    "strip_prefix": "molecular_test_",
+    "drop": ["case_id", "case_submitter_id", "parent_entity", "parent_id"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "exposure",
+    "label": "Exposure",
+    "id_col": "exposure_id",
+    "strip_prefix": "exposure_",
+    "drop": ["case_id", "case_submitter_id"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "family_history",
+    "label": "FamilyHistory",
+    "id_col": "family_history_id",
+    "strip_prefix": "family_history_",
+    "drop": ["case_id", "case_submitter_id"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "sample",
+    "label": "Sample",
+    "id_col": "sample_id",
+    "strip_prefix": "sample_",
+    "drop": ["case_id", "case_submitter_id"],
+    "keep": [],
+    "dedup": false
+  }
+]

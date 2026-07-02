@@ -1,33 +1,56 @@
-"""Stage 1 engine — apply the mapping in ``mapping.py`` to raw per-entity TSVs.
+"""Stage 1 engine — apply JSON schemas to raw per-entity TSVs.
 
-Reads ``{in_dir}/{base}.{entity}.tsv`` (the extractor's output) and writes
+Discovers entity files in ``<dataset_dir>`` by naming convention
+(``{base}.{entity}.tsv`` or ``.csv``), matches them against
+``config/schemas/entities.json`` and ``config/schemas/edges.json``, then writes
 graph-ready CSVs:
+
     {out_dir}/nodes/{Label}.csv     id + cleaned, renamed properties
     {out_dir}/edges/{LABEL}.csv     source_id, target_id
 
-Pure-``csv`` (no pandas), matching the extractor. Grain is preserved 1:1 from the
-source table, so no aggregation happens here.
+Only nodes and edges whose required files and columns are present are emitted.
+Placeholder scrubbing is driven by ``config/schemas/placeholders.json``.
+Pure-``csv`` (no pandas). Grain is preserved 1:1 from the source table.
 
-    python3 -m src.standardise.run <in_dir> <base> [--out <dir>]
-    python3 -m src.standardise.run data/raw/dlbc TCGA-DLBC
+    python3 -m src.standardise.run <dataset_dir> [--out <dir>] [--schemas <dir>]
+    python3 -m src.standardise.run data/raw/TCGA_COMBINED
 """
 
 import argparse
 import csv
+import json
 import sys
 from pathlib import Path
+from typing import Callable
 
-from .mapping import EDGE_SPECS, NODE_SPECS, PLACEHOLDERS, EdgeSpec, NodeSpec
+from .detect import match_edge_plans, match_node_plans, scan_files
 
-
-def _clean(value: str) -> str:
-    """Scrub placeholder tokens to empty."""
-    v = (value or "").strip()
-    return "" if v in PLACEHOLDERS else v
+_DEFAULT_SCHEMA_DIR = Path(__file__).parent.parent.parent / "config" / "schemas"
 
 
-def _src_path(in_dir: Path, base: str, entity: str) -> Path:
-    return in_dir / f"{base}.{entity}.tsv"
+def load_schemas(schema_dir: Path) -> tuple[list[dict], list[dict]]:
+    with open(schema_dir / "entities.json") as f:
+        entity_schemas = json.load(f)
+    with open(schema_dir / "edges.json") as f:
+        edge_schemas = json.load(f)
+    return entity_schemas, edge_schemas
+
+
+def load_placeholders(schema_dir: Path) -> frozenset[str]:
+    """Load placeholder tokens from placeholders.json; falls back to empty set."""
+    p = schema_dir / "placeholders.json"
+    if not p.exists():
+        print(f"  ! {p} not found — no placeholder scrubbing applied", file=sys.stderr)
+        return frozenset()
+    with open(p) as f:
+        return frozenset(json.load(f))
+
+
+def _make_clean(placeholders: frozenset[str]) -> Callable[[str], str]:
+    def clean(value: str) -> str:
+        v = (value or "").strip()
+        return "" if v in placeholders else v
+    return clean
 
 
 def _rename(col: str, strip_prefix: str) -> str:
@@ -36,60 +59,71 @@ def _rename(col: str, strip_prefix: str) -> str:
     return col
 
 
-def standardise_node(spec: NodeSpec, in_dir: Path, base: str, out_dir: Path) -> int:
-    src = _src_path(in_dir, base, spec.source)
-    if not src.exists():
-        print(f"  ! skip node {spec.label}: missing {src.name}", file=sys.stderr)
-        return 0
-
+def standardise_node(
+    schema: dict,
+    src: Path,
+    out_dir: Path,
+    clean: Callable[[str], str],
+    delimiter: str = "\t",
+) -> int:
     with open(src, newline="") as f:
-        reader = csv.DictReader(f, delimiter="\t")
+        reader = csv.DictReader(f, delimiter=delimiter)
         header = reader.fieldnames or []
 
-        if spec.keep:
-            prop_cols = [c for c in spec.keep if c in header]
-        else:
-            prop_cols = [c for c in header if c != spec.id_col and c not in spec.drop]
+        id_col = schema["id_col"]
+        keep = schema.get("keep") or []
+        drop = set(schema.get("drop") or [])
+        strip_prefix = schema.get("strip_prefix", "")
+        dedup = schema.get("dedup", False)
 
-        out_header = ["id"] + [_rename(c, spec.strip_prefix) for c in prop_cols]
-        out_path = out_dir / "nodes" / f"{spec.label}.csv"
+        if keep:
+            prop_cols = [c for c in keep if c in header and c != id_col]
+        else:
+            prop_cols = [c for c in header if c != id_col and c not in drop]
+
+        out_header = ["id"] + [_rename(c, strip_prefix) for c in prop_cols]
+        out_path = out_dir / "nodes" / f"{schema['label']}.csv"
         seen: set = set()
         n = 0
         with open(out_path, "w", newline="") as out:
             writer = csv.writer(out)
             writer.writerow(out_header)
             for row in reader:
-                node_id = _clean(row.get(spec.id_col, ""))
+                node_id = clean(row.get(id_col, ""))
                 if not node_id:
                     continue
-                if spec.dedup:
+                if dedup:
                     if node_id in seen:
                         continue
                     seen.add(node_id)
-                writer.writerow([node_id] + [_clean(row.get(c, "")) for c in prop_cols])
+                writer.writerow([node_id] + [clean(row.get(c, "")) for c in prop_cols])
                 n += 1
     return n
 
 
-def standardise_edge(spec: EdgeSpec, in_dir: Path, base: str, out_dir: Path) -> int:
-    src = _src_path(in_dir, base, spec.source)
-    if not src.exists():
-        print(f"  ! skip edge {spec.label}: missing {src.name}", file=sys.stderr)
-        return 0
-
-    out_path = out_dir / "edges" / f"{spec.label}.csv"
+def standardise_edge(
+    schema: dict,
+    src: Path,
+    out_dir: Path,
+    clean: Callable[[str], str],
+    delimiter: str = "\t",
+) -> int:
+    out_path = out_dir / "edges" / f"{schema['label']}.csv"
+    source_id = schema["source_id"]
+    target_id = schema["target_id"]
+    dedup = schema.get("dedup", False)
     seen: set = set()
     n = 0
     with open(src, newline="") as f, open(out_path, "w", newline="") as out:
-        reader = csv.DictReader(f, delimiter="\t")
+        reader = csv.DictReader(f, delimiter=delimiter)
         writer = csv.writer(out)
         writer.writerow(["source_id", "target_id"])
         for row in reader:
-            s = _clean(row.get(spec.source_id, ""))
-            t = _clean(row.get(spec.target_id, ""))
+            s = clean(row.get(source_id, ""))
+            t = clean(row.get(target_id, ""))
             if not s or not t:
                 continue
-            if spec.dedup:
+            if dedup:
                 key = (s, t)
                 if key in seen:
                     continue
@@ -99,31 +133,39 @@ def standardise_edge(spec: EdgeSpec, in_dir: Path, base: str, out_dir: Path) -> 
     return n
 
 
-def run(in_dir: Path, base: str, out_dir: Path) -> None:
+def run(in_dir: Path, out_dir: Path, schema_dir: Path = _DEFAULT_SCHEMA_DIR) -> None:
     (out_dir / "nodes").mkdir(parents=True, exist_ok=True)
     (out_dir / "edges").mkdir(parents=True, exist_ok=True)
 
-    print(f"Standardising {base} from {in_dir} -> {out_dir}")
+    entity_schemas, edge_schemas = load_schemas(schema_dir)
+    clean = _make_clean(load_placeholders(schema_dir))
+    found = scan_files(in_dir)
+
+    node_plans = match_node_plans(found, entity_schemas)
+    edge_plans = match_edge_plans(found, edge_schemas)
+
+    print(f"Standardising {in_dir} -> {out_dir}")
     print("  nodes:")
-    for spec in NODE_SPECS:
-        n = standardise_node(spec, in_dir, base, out_dir)
-        print(f"    {spec.label:<16} {n:>7} rows")
+    for plan in node_plans:
+        n = standardise_node(plan["schema"], plan["path"], out_dir, clean, plan["delimiter"])
+        print(f"    {plan['schema']['label']:<16} {n:>7} rows")
     print("  edges:")
-    for spec in EDGE_SPECS:
-        n = standardise_edge(spec, in_dir, base, out_dir)
-        print(f"    {spec.label:<20} {n:>7} rows")
+    for plan in edge_plans:
+        n = standardise_edge(plan["schema"], plan["path"], out_dir, clean, plan["delimiter"])
+        print(f"    {plan['schema']['label']:<20} {n:>7} rows")
     print("Done.")
 
 
 def main(argv: list[str] = None) -> int:
-    p = argparse.ArgumentParser(description="Standardise raw GDC per-entity TSVs into KG node/edge CSVs.")
-    p.add_argument("in_dir", type=Path, help="Directory holding {base}.{entity}.tsv files")
-    p.add_argument("base", help="File base name, e.g. TCGA-DLBC or TCGA")
+    p = argparse.ArgumentParser(description="Standardise raw per-entity TSVs into KG node/edge CSVs.")
+    p.add_argument("in_dir", type=Path, help="Directory holding {base}.{entity}.tsv/.csv files")
     p.add_argument("--out", type=Path, default=None,
-                   help="Output dir (default: data/standardised/{base})")
+                   help="Output dir (default: data/standardised/<in_dir_name>)")
+    p.add_argument("--schemas", type=Path, default=_DEFAULT_SCHEMA_DIR,
+                   help="Directory containing entities.json, edges.json, placeholders.json")
     args = p.parse_args(argv)
-    out_dir = args.out or Path("data/standardised") / args.base
-    run(args.in_dir, args.base, out_dir)
+    out_dir = args.out or Path("data/standardised") / args.in_dir.name
+    run(args.in_dir, out_dir, args.schemas)
     return 0
 
 

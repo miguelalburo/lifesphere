@@ -1,0 +1,72 @@
+[
+  {
+    "label": "HAS_PROJECT",
+    "source_entity": "subject",
+    "source_id": "program_name",
+    "target_id": "project_id",
+    "dedup": true
+  },
+  {
+    "label": "ENROLLS",
+    "source_entity": "subject",
+    "source_id": "project_id",
+    "target_id": "case_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_DIAGNOSIS",
+    "source_entity": "diagnosis",
+    "source_id": "case_id",
+    "target_id": "diagnosis_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_TREATMENT",
+    "source_entity": "treatment",
+    "source_id": "diagnosis_id",
+    "target_id": "treatment_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_PATHOLOGY",
+    "source_entity": "pathology_detail",
+    "source_id": "diagnosis_id",
+    "target_id": "pathology_detail_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_FOLLOWUP",
+    "source_entity": "follow_up",
+    "source_id": "case_id",
+    "target_id": "follow_up_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_MOLECULAR_TEST",
+    "source_entity": "molecular_test",
+    "source_id": "parent_id",
+    "target_id": "molecular_test_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_EXPOSURE",
+    "source_entity": "exposure",
+    "source_id": "case_id",
+    "target_id": "exposure_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_FAMILY_HISTORY",
+    "source_entity": "family_history",
+    "source_id": "case_id",
+    "target_id": "family_history_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_SAMPLE",
+    "source_entity": "sample",
+    "source_id": "case_id",
+    "target_id": "sample_id",
+    "dedup": false
+  }
+]

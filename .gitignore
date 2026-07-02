@@ -3,7 +3,7 @@
 
 # Data
 data/raw/
-data/processed/
+data/standardised/
 data/interim/
 
 # Log files
