@@ -85,6 +85,13 @@ sample:
   input_label: Sample
   # props: sample_type, tissue_type, tumor_descriptor, preservation_method, days_to_collection
 
+experimental group:                     # coarse control|treatment arm, derived from sample_type
+  represented_as: node
+  is_a: entity
+  preferred_id: group_id
+  input_label: ExperimentalGroup
+  # props: group_label
+
 # ─────────────────────────────── Edges ───────────────────────────────
 # Direction parent -> child. source/target reference the node classes above.
 
@@ -158,6 +165,13 @@ subject to sample:
   input_label: HAS_SAMPLE
   source: subject
   target: sample
+
+sample to experimental group:
+  represented_as: edge
+  is_a: association
+  input_label: IN_GROUP
+  source: sample
+  target: experimental group
 
 # ───────────────────────── Omics layer ─────────────────────────
 # Measurements are REIFIED into per-assay observation nodes rather than stored on
@@ -313,3 +327,208 @@ gene to protein:
   input_label: ENCODES
   source: gene
   target: protein
+
+# ─────────────────── Single-cell & spatial layer ───────────────────
+# A single-cell / spatial run adds an observational unit BELOW the sample: the
+# dense cell x feature matrix stays external (matrix_uri on Assay); the graph holds
+# the assay, per-cell annotations, spatial topology, and tractable aggregates
+# (pseudobulk per sample x cell type, cell-set composition). See
+# docs/dev_guides/kg_data_model.md. Inert until src/extract/*_reshape.py emits the
+# assay/cell/cell_set/cell_type/cell_state/tissue_region/pseudobulk TSVs.
+
+# ── Assay + observational units ──
+
+assay:
+  represented_as: node
+  is_a: entity
+  preferred_id: assay_id
+  input_label: Assay
+  # props: modality, platform, chemistry, n_cells, matrix_uri, pipeline_version
+
+cell:
+  represented_as: node
+  is_a: entity
+  preferred_id: cell_id
+  input_label: Cell
+  # props: x, y (spatial), n_genes, total_counts, pct_mito
+
+# CellSet: a reproducible group of cells (cluster / cell-type population) — the
+# scalable single-cell unit (NO per-cell nodes for dissociated scRNA). Per-cell
+# `Cell` nodes above are kept for SPATIAL assays, where x,y + ADJACENT_TO matter.
+cell set:
+  represented_as: node
+  is_a: entity
+  preferred_id: cell_set_id
+  input_label: CellSet
+  # props: n_cells, grouping_basis, method, resolution
+
+# ── Shared reference dimensions (deduplicated) ──
+
+cell type:
+  represented_as: node
+  is_a: entity
+  preferred_id: cell_type_id            # Cell Ontology CL:####
+  input_label: CellType
+  # props: cell_type_name
+
+# context-specific state (Exhausted, Hypoxic); separate node — never a CellType prop
+cell state:
+  represented_as: node
+  is_a: entity
+  preferred_id: cell_state_id
+  input_label: CellState
+  # props: cell_state_name
+
+tissue region:
+  represented_as: node
+  is_a: entity
+  preferred_id: region_id               # UBERON or per-assay niche id
+  input_label: TissueRegion
+  # props: region_name
+
+# ── Aggregate observation nodes (tractable grain) ──
+
+pseudobulk expression:
+  represented_as: node
+  is_a: entity
+  preferred_id: pseudobulk_id           # {sample_id}:{cell_type_id}:{gene_ensembl}
+  input_label: PseudobulkExpression
+  # props: tpm, mean_expr, pct_expressing
+
+# ── Single-cell & spatial edges (all plain: source_id, target_id) ──
+
+sample to assay:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_ASSAY
+  source: sample
+  target: assay
+
+assay to cell:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_CELL
+  source: assay
+  target: cell
+
+cell to cell type:
+  represented_as: edge
+  is_a: association
+  input_label: IS_CELL_TYPE
+  source: cell
+  target: cell type
+
+cell to tissue region:
+  represented_as: edge
+  is_a: association
+  input_label: IN_REGION
+  source: cell
+  target: tissue region
+
+# spatial neighbourhood (cell <-> cell); distance is not carried (plain edge)
+cell to cell:
+  represented_as: edge
+  is_a: association
+  input_label: ADJACENT_TO
+  source: cell
+  target: cell
+
+sample to pseudobulk:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_PSEUDOBULK
+  source: sample
+  target: pseudobulk expression
+
+pseudobulk to gene:
+  represented_as: edge
+  is_a: association
+  input_label: PSEUDOBULK_OF_GENE
+  source: pseudobulk expression
+  target: gene
+
+pseudobulk to cell type:
+  represented_as: edge
+  is_a: association
+  input_label: PSEUDOBULK_OF_CELL_TYPE
+  source: pseudobulk expression
+  target: cell type
+
+# sample participation in a cell set — counts/fractions are ASSOCIATION properties
+sample to cell set:
+  represented_as: edge
+  is_a: association
+  input_label: CONTRIBUTES_TO
+  source: sample
+  target: cell set
+  properties:
+    contributed_cell_count: int
+    fraction_of_sample_cells: float
+
+# cell-type annotation carries ontology-mapping provenance as edge properties
+cell set to cell type:
+  represented_as: edge
+  is_a: association
+  input_label: ANNOTATED_AS_CELL_TYPE
+  source: cell set
+  target: cell type
+  properties:
+    source_value: str
+    ontology_mapping_status: str
+
+cell set to cell state:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_CELL_STATE
+  source: cell set
+  target: cell state
+
+# cell-type marker gene; score is not carried (plain edge)
+cell type to gene:
+  represented_as: edge
+  is_a: association
+  input_label: MARKER_GENE
+  source: cell type
+  target: gene
+
+# ─────────────── Reference & provenance layer ───────────────
+# Disease: stable ontology-backed concept (MONDO/NCIt) that a Diagnosis record
+# points to — enables cross-dataset disease queries. ProcessedDataOutput: an
+# external file/matrix pointer (checksum, format, path) shared by observations and
+# generated by an assay; unifies bulk file_id + single-cell matrix provenance.
+
+disease:
+  represented_as: node
+  is_a: entity
+  preferred_id: disease_id              # MONDO / NCIt / DOID
+  input_label: Disease
+  # props: disease_name, ontology_source
+
+processed data output:
+  represented_as: node
+  is_a: entity
+  preferred_id: output_id
+  input_label: ProcessedDataOutput
+  # props: file_format, file_path, checksum, matrix_shape
+
+diagnosis to disease:
+  represented_as: edge
+  is_a: association
+  input_label: OF_DISEASE
+  source: diagnosis
+  target: disease
+
+assay to output:
+  represented_as: edge
+  is_a: association
+  input_label: GENERATED_OUTPUT
+  source: assay
+  target: processed data output
+
+# observation -> external output it was materialised from (polymorphic source)
+observation to output:
+  represented_as: edge
+  is_a: association
+  input_label: FROM_OUTPUT
+  source: [expression, methylation, variant call, protein expression]
+  target: processed data output

@@ -6,7 +6,7 @@ Discovers entity files in ``<dataset_dir>`` by naming convention
 graph-ready CSVs:
 
     {out_dir}/nodes/{Label}.csv     id + cleaned, renamed properties
-    {out_dir}/edges/{LABEL}.csv     source_id, target_id
+    {out_dir}/edges/{LABEL}.csv     source_id, target_id [+ declared edge props]
 
 Only nodes and edges whose required files and columns are present are emitted.
 Placeholder scrubbing is driven by ``config/schemas/placeholders.json``.
@@ -120,10 +120,17 @@ def standardise_edge(
     n = 0
     with open(src, newline="") as f, open(out_path, "w", newline="") as out:
         reader = csv.DictReader(f, delimiter=delimiter)
+        header = reader.fieldnames or []
         if alias_map:
-            reader.fieldnames = canonicalise(reader.fieldnames or [], alias_map)
+            header = canonicalise(header, alias_map)
+            reader.fieldnames = header
+        # Optional edge properties: declared columns that qualify the *association*
+        # (e.g. cell counts on CONTRIBUTES_TO, ontology-mapping provenance on
+        # ANNOTATED_AS_CELL_TYPE) rather than either endpoint node. Absent columns are
+        # dropped so a plain edge stays two-column and back-compatible.
+        prop_cols = [c for c in (schema.get("props") or []) if c in header]
         writer = csv.writer(out)
-        writer.writerow(["source_id", "target_id"])
+        writer.writerow(["source_id", "target_id", *prop_cols])
         for row in reader:
             s = clean(row.get(source_id, ""))
             t = clean(row.get(target_id, ""))
@@ -134,7 +141,7 @@ def standardise_edge(
                 if key in seen:
                     continue
                 seen.add(key)
-            writer.writerow([s, t])
+            writer.writerow([s, t, *(clean(row.get(c, "")) for c in prop_cols)])
             n += 1
     return n
 

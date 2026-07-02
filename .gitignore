@@ -24,11 +24,14 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Test output
+tests/output/*
 
 # THIRD PARTY 
 
 # Claude & coding agent related
 .claude
+CLAUDE.md
 
 # Obsidian
 *.obsidian
@@ -40,3 +43,4 @@ __pycache__/
 *.excalidraw.md
 docs/excalidraw/*
 docs/excalidraw/Drawing 2026-06-30 20.24.43.excalidraw.md
+

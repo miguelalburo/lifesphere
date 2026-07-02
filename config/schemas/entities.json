@@ -31,7 +31,7 @@
     "label": "Diagnosis",
     "id_col": "diagnosis_id",
     "strip_prefix": "diagnosis_",
-    "drop": ["case_id", "case_submitter_id"],
+    "drop": ["case_id", "case_submitter_id", "disease_id"],
     "keep": [],
     "dedup": false
   },
@@ -94,9 +94,18 @@
     "label": "Sample",
     "id_col": "sample_id",
     "strip_prefix": "sample_",
-    "drop": ["case_id", "case_submitter_id"],
+    "drop": ["case_id", "case_submitter_id", "group_id", "group_label"],
     "keep": [],
     "dedup": false
+  },
+  {
+    "name": "sample",
+    "label": "ExperimentalGroup",
+    "id_col": "group_id",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": ["group_label"],
+    "dedup": true
   },
 
   {
@@ -180,5 +189,88 @@
     "drop": ["case_id", "sample_id", "uniprot"],
     "keep": [],
     "dedup": false
+  },
+
+  {
+    "name": "assay",
+    "label": "Assay",
+    "id_col": "assay_id",
+    "strip_prefix": "",
+    "drop": ["case_id", "sample_id", "output_id"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "cell",
+    "label": "Cell",
+    "id_col": "cell_id",
+    "strip_prefix": "",
+    "drop": ["assay_id", "cell_type_id", "region_id"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "cell_type",
+    "label": "CellType",
+    "id_col": "cell_type_id",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": [],
+    "dedup": true
+  },
+  {
+    "name": "cell_set",
+    "label": "CellSet",
+    "id_col": "cell_set_id",
+    "strip_prefix": "",
+    "drop": ["cell_type_id", "cell_state_id", "source_value", "ontology_mapping_status"],
+    "keep": [],
+    "dedup": true
+  },
+  {
+    "name": "cell_state",
+    "label": "CellState",
+    "id_col": "cell_state_id",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": [],
+    "dedup": true
+  },
+  {
+    "name": "tissue_region",
+    "label": "TissueRegion",
+    "id_col": "region_id",
+    "strip_prefix": "",
+    "drop": ["assay_id"],
+    "keep": [],
+    "dedup": true
+  },
+  {
+    "name": "pseudobulk",
+    "label": "PseudobulkExpression",
+    "id_col": "pseudobulk_id",
+    "strip_prefix": "",
+    "drop": ["case_id", "sample_id", "cell_type_id", "gene_ensembl"],
+    "keep": [],
+    "dedup": false
+  },
+
+  {
+    "name": "disease",
+    "label": "Disease",
+    "id_col": "disease_id",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": [],
+    "dedup": true
+  },
+  {
+    "name": "processed_output",
+    "label": "ProcessedDataOutput",
+    "id_col": "output_id",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": [],
+    "dedup": true
   }
 ]

@@ -69,6 +69,13 @@
     "target_id": "sample_id",
     "dedup": false
   },
+  {
+    "label": "IN_GROUP",
+    "source_entity": "sample",
+    "source_id": "sample_id",
+    "target_id": "group_id",
+    "dedup": false
+  },
 
   {
     "label": "HAS_EXPRESSION",
@@ -146,6 +153,115 @@
     "source_entity": "gene_protein",
     "source_id": "gene_ensembl",
     "target_id": "uniprot",
+    "dedup": true
+  },
+
+  {
+    "label": "HAS_ASSAY",
+    "source_entity": "assay",
+    "source_id": "sample_id",
+    "target_id": "assay_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_CELL",
+    "source_entity": "cell",
+    "source_id": "assay_id",
+    "target_id": "cell_id",
+    "dedup": false
+  },
+  {
+    "label": "IS_CELL_TYPE",
+    "source_entity": "cell",
+    "source_id": "cell_id",
+    "target_id": "cell_type_id",
+    "dedup": false
+  },
+  {
+    "label": "IN_REGION",
+    "source_entity": "cell",
+    "source_id": "cell_id",
+    "target_id": "region_id",
+    "dedup": false
+  },
+  {
+    "label": "ADJACENT_TO",
+    "source_entity": "adjacency",
+    "source_id": "cell_id_a",
+    "target_id": "cell_id_b",
+    "dedup": true
+  },
+  {
+    "label": "HAS_PSEUDOBULK",
+    "source_entity": "pseudobulk",
+    "source_id": "sample_id",
+    "target_id": "pseudobulk_id",
+    "dedup": false
+  },
+  {
+    "label": "PSEUDOBULK_OF_GENE",
+    "source_entity": "pseudobulk",
+    "source_id": "pseudobulk_id",
+    "target_id": "gene_ensembl",
+    "dedup": false
+  },
+  {
+    "label": "PSEUDOBULK_OF_CELL_TYPE",
+    "source_entity": "pseudobulk",
+    "source_id": "pseudobulk_id",
+    "target_id": "cell_type_id",
+    "dedup": false
+  },
+  {
+    "label": "CONTRIBUTES_TO",
+    "source_entity": "cell_set_membership",
+    "source_id": "sample_id",
+    "target_id": "cell_set_id",
+    "props": ["contributed_cell_count", "fraction_of_sample_cells"],
+    "dedup": false
+  },
+  {
+    "label": "ANNOTATED_AS_CELL_TYPE",
+    "source_entity": "cell_set",
+    "source_id": "cell_set_id",
+    "target_id": "cell_type_id",
+    "props": ["source_value", "ontology_mapping_status"],
+    "dedup": false
+  },
+  {
+    "label": "HAS_CELL_STATE",
+    "source_entity": "cell_set",
+    "source_id": "cell_set_id",
+    "target_id": "cell_state_id",
+    "dedup": false
+  },
+  {
+    "label": "MARKER_GENE",
+    "source_entity": "cell_type_marker",
+    "source_id": "cell_type_id",
+    "target_id": "gene_ensembl",
+    "dedup": true
+  },
+
+  {
+    "label": "OF_DISEASE",
+    "source_entity": "diagnosis",
+    "source_id": "diagnosis_id",
+    "target_id": "disease_id",
+    "dedup": false
+  },
+  {
+    "label": "GENERATED_OUTPUT",
+    "source_entity": "assay",
+    "source_id": "assay_id",
+    "target_id": "output_id",
+    "dedup": false
+  },
+  {
+    "label": "FROM_OUTPUT",
+    "source_entity": "observation_output",
+    "source_id": "observation_id",
+    "target_id": "output_id",
     "dedup": true
   }
 ]

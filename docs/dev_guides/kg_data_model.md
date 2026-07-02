@@ -52,6 +52,7 @@ column set of each source TSV carries through (prefix-stripped) unless pruned.
 | **Exposure** | `exposure_id` | `exposure` | tobacco_smoking_status, pack_years_smoked, alcohol_history, bmi |
 | **FamilyHistory** | `family_history_id` | `family_history` | relationship_primary_diagnosis, relative_with_cancer_history |
 | **Sample** | `sample_id` (= aliquot) | `sample` (aliquot grain) | type, tissue_type, tumor_descriptor, specimen_type, preservation_method, days_to_collection; provenance: gdc_sample_id, gdc_sample_submitter_id, portion_id, analyte_id, analyte_type |
+| **ExperimentalGroup** | `group_id` (dedup) | `sample` (derived from `sample_type`) | group_label (control/treatment arm) |
 
 `other_clinical_attribute` is empty for TCGA and has no node type. The `file` table
 (908k rows, provenance) is **not** a backbone node; it feeds omics-edge provenance later.
@@ -75,6 +76,7 @@ already present in a single source TSV (no joins needed).
 | `HAS_EXPOSURE` | Subject → Exposure | `exposure` | case_id → exposure_id |
 | `HAS_FAMILY_HISTORY` | Subject → FamilyHistory | `family_history` | case_id → family_history_id |
 | `HAS_SAMPLE` | Subject → Sample | `sample` | case_id → sample_id |
+| `IN_GROUP` | Sample → ExperimentalGroup | `sample` | sample_id → group_id |
 
 **Backbone shape.** GDC has no FK from Sample to Diagnosis; both are children of the case.
 So Diagnosis and Sample are **parallel branches off Subject**, not a chain. (A tumour↔sample
@@ -146,6 +148,33 @@ descriptors + ids but no slide/analyte QC; surfacing it needs the extractor emit
 first (add slide and analyte QC), tracked separately from this model.
 
 ---
+
+## Single-cell, spatial & provenance layer (draft-3 adoptions)
+
+Concepts adopted from `docs/other/neo4j_updated_schema_draft_3.md` (2026-07-02):
+
+- **CellSet, not per-cell nodes, for dissociated scRNA.** A `CellSet` is a reproducible
+  cell group (cluster / cell-type population); sample participation is
+  `(Sample)-[:CONTRIBUTES_TO {contributed_cell_count, fraction_of_sample_cells}]->(CellSet)`,
+  and annotation is `(CellSet)-[:ANNOTATED_AS_CELL_TYPE {source_value,
+  ontology_mapping_status}]->(CellType)`. This replaces the earlier `Cluster` +
+  `CellTypeProportion` nodes. Per-unit `Cell` nodes (x,y, `ADJACENT_TO`) are kept **only
+  for spatial**, where topology is the point.
+- **CellState** is its own node (`(CellSet)-[:HAS_CELL_STATE]->(CellState)`), never a
+  `CellType` property (avoids global-overwrite / combinatorial-explosion).
+- **Disease** as a stable ontology-backed node (`(Diagnosis)-[:OF_DISEASE]->(Disease)`),
+  splitting the disease concept from the GDC diagnosis record for cross-dataset queries.
+- **ProcessedDataOutput** as a first-class external-file pointer (checksum/format/path),
+  linked `(Assay)-[:GENERATED_OUTPUT]->` and `(Observation)-[:FROM_OUTPUT]->`, unifying
+  bulk `file_id` and single-cell matrix provenance.
+
+**Edge properties are now supported** by the standardiser: an `edges.json` entry may
+declare `"props": [...]`, which `standardise_edge` emits after `source_id,target_id`
+(placeholder-scrubbed; absent columns dropped). This enables the `CONTRIBUTES_TO` /
+`ANNOTATED_AS_CELL_TYPE` qualifiers above. Deferred: `MARKER_GENE` score and
+`ADJACENT_TO` distance (reify or add typed edge-prop declarations if needed). The whole
+layer is inert until the single-cell reshaper emits its TSVs (see
+`docs/todo/020726_singlecell_scaffold.md`).
 
 ## BioCypher encoding
 

@@ -2,7 +2,7 @@
 """
 Integration tester for the omics extraction pipeline.
 
-Reads the case UUIDs from ``test/case_uuids.txt`` and runs the full extraction
+Reads the case UUIDs from ``tests/case_uuids.txt`` and runs the full extraction
 (``scripts/download_gdc.py``) for those cases with all three omics
 types enabled, then checks that each concatenated ``cases.<omics>.tsv`` table
 was produced and is non-empty.
@@ -10,8 +10,8 @@ was produced and is non-empty.
 This hits the live GDC API and downloads real files via ``gdc-client``, so it is
 kept out of the unit-test suite (tests/) and run manually:
 
-    python test/run_omics_extraction.py                # -> test/output/
-    python test/run_omics_extraction.py /some/out_dir  # custom output dir
+    python tests/run_omics_extraction.py                # -> tests/output/
+    python tests/run_omics_extraction.py /some/out_dir  # custom output dir
 """
 
 import subprocess

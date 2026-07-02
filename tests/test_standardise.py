@@ -202,3 +202,52 @@ def test_alias_renaming_end_to_end(tmp_path, aliased_schema_dir):
     # Edges built off the canonical FK names.
     enrolls = _read(out / "edges" / "ENROLLS.csv")
     assert enrolls == [{"source_id": "TCGA-BRCA", "target_id": "c1"}]
+
+
+# --------------------------------------------------------------------------- #
+# Edge properties                                                             #
+# --------------------------------------------------------------------------- #
+
+def test_edge_props_emitted_scrubbed_and_missing_dropped(tmp_path):
+    """Declared edge props are emitted (placeholder-scrubbed); absent ones dropped."""
+    from src.standardise.run import _make_clean, standardise_edge
+
+    raw = tmp_path / "in.tsv"
+    _write_tsv(raw,
+        ["sample_id", "cell_set_id", "contributed_cell_count", "fraction_of_sample_cells"],
+        [["s1", "cs1", "120", "0.18"],
+         ["s2", "cs1", "[Not Available]", "0.07"]])
+    (tmp_path / "edges").mkdir()
+
+    schema = {
+        "label": "CONTRIBUTES_TO",
+        "source_id": "sample_id",
+        "target_id": "cell_set_id",
+        # 'missing_col' is declared but not in the file -> dropped from output
+        "props": ["contributed_cell_count", "fraction_of_sample_cells", "missing_col"],
+        "dedup": False,
+    }
+    clean = _make_clean(frozenset({"[Not Available]"}))
+    n = standardise_edge(schema, raw, tmp_path, clean)
+    assert n == 2
+
+    rows = _read(tmp_path / "edges" / "CONTRIBUTES_TO.csv")
+    assert list(rows[0].keys()) == [
+        "source_id", "target_id", "contributed_cell_count", "fraction_of_sample_cells"
+    ]
+    assert rows[0]["contributed_cell_count"] == "120"
+    assert rows[1]["contributed_cell_count"] == ""     # placeholder scrubbed to empty
+
+
+def test_plain_edge_stays_two_column(tmp_path):
+    """An edge schema with no props declared emits exactly source_id,target_id."""
+    from src.standardise.run import _make_clean, standardise_edge
+
+    raw = tmp_path / "in.tsv"
+    _write_tsv(raw, ["case_id", "diagnosis_id", "extra"], [["c1", "d1", "ignored"]])
+    (tmp_path / "edges").mkdir()
+    schema = {"label": "HAS_DIAGNOSIS", "source_id": "case_id",
+              "target_id": "diagnosis_id", "dedup": False}
+    standardise_edge(schema, raw, tmp_path, _make_clean(frozenset()))
+    rows = _read(tmp_path / "edges" / "HAS_DIAGNOSIS.csv")
+    assert list(rows[0].keys()) == ["source_id", "target_id"]
