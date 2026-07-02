@@ -1,0 +1,188 @@
+# BioCypher schema — LifeSphere KG
+#
+# Custom lightweight ontology: our own labels, Biolink used only as a structural
+# root (`entity` for nodes, `association` for edges) with no semantic commitment.
+# The model this encodes is documented in docs/dev_guides/kg_data_model.md.
+#
+# Node/edge content properties are intentionally NOT filtered here: every column the
+# standardiser emits (prefix-stripped) passes through to the graph. Key properties
+# are noted in comments per entry. `preferred_id` names the id column the adapter
+# supplies; `input_label` is the label the adapter tags each element with.
+
+# ─────────────────────────────── Nodes ───────────────────────────────
+
+program:
+  represented_as: node
+  is_a: entity
+  preferred_id: program_name
+  input_label: Program
+
+project:
+  represented_as: node
+  is_a: entity
+  preferred_id: project_id
+  input_label: Project
+  # props: project_name, disease_type, primary_site, program_name
+
+subject:                                # standardised rename of GDC `case`
+  represented_as: node
+  is_a: entity
+  preferred_id: case_id
+  input_label: Subject
+  # props: submitter_id, disease_type, primary_site + folded demographic_*
+  #        (sex_at_birth, race, ethnicity, vital_status, age_at_index, ...)
+
+diagnosis:
+  represented_as: node
+  is_a: entity
+  preferred_id: diagnosis_id
+  input_label: Diagnosis
+  # props: primary_diagnosis, ajcc_pathologic_stage, tumor_grade, morphology, ...
+
+treatment:
+  represented_as: node
+  is_a: entity
+  preferred_id: treatment_id
+  input_label: Treatment
+  # props: treatment_type, therapeutic_agents, treatment_intent_type, treatment_outcome
+
+pathology detail:
+  represented_as: node
+  is_a: entity
+  preferred_id: pathology_detail_id
+  input_label: PathologyDetail
+
+follow up:
+  represented_as: node
+  is_a: entity
+  preferred_id: follow_up_id
+  input_label: FollowUp
+  # props: days_to_follow_up, disease_response, progression_or_recurrence, ...
+
+molecular test:
+  represented_as: node
+  is_a: entity
+  preferred_id: molecular_test_id
+  input_label: MolecularTest
+  # props: gene_symbol, molecular_analysis_method, test_result, variant_type (ER/PR/HER2)
+
+exposure:
+  represented_as: node
+  is_a: entity
+  preferred_id: exposure_id
+  input_label: Exposure
+
+family history:
+  represented_as: node
+  is_a: entity
+  preferred_id: family_history_id
+  input_label: FamilyHistory
+
+sample:
+  represented_as: node
+  is_a: entity
+  preferred_id: sample_id
+  input_label: Sample
+  # props: sample_type, tissue_type, tumor_descriptor, preservation_method, days_to_collection
+
+# ─────────────────────────────── Edges ───────────────────────────────
+# Direction parent -> child. source/target reference the node classes above.
+
+program to project:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_PROJECT
+  source: program
+  target: project
+
+project to subject:
+  represented_as: edge
+  is_a: association
+  input_label: ENROLLS
+  source: project
+  target: subject
+
+subject to diagnosis:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_DIAGNOSIS
+  source: subject
+  target: diagnosis
+
+diagnosis to treatment:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_TREATMENT
+  source: diagnosis
+  target: treatment
+
+diagnosis to pathology:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_PATHOLOGY
+  source: diagnosis
+  target: pathology detail
+
+subject to follow up:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_FOLLOWUP
+  source: subject
+  target: follow up
+
+# parent is Diagnosis OR FollowUp, selected by molecular_test.parent_entity
+has molecular test:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_MOLECULAR_TEST
+  source: [diagnosis, follow up]
+  target: molecular test
+
+subject to exposure:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_EXPOSURE
+  source: subject
+  target: exposure
+
+subject to family history:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_FAMILY_HISTORY
+  source: subject
+  target: family history
+
+subject to sample:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_SAMPLE
+  source: subject
+  target: sample
+
+# ───────────────────────── Omics layer (STUB) ─────────────────────────
+# Not emitted yet — no omics extractor. Feature nodes reused across samples;
+# measurements ride on valued edges from Sample. Uncomment + wire adapters when
+# omics parsing lands (see docs/dev_guides/kg_data_model.md#omics-layer-stub).
+#
+# gene:
+#   represented_as: node
+#   is_a: entity
+#   preferred_id: ensembl
+#   input_label: Gene
+# cpg site:
+#   represented_as: node
+#   is_a: entity
+#   preferred_id: cpg
+#   input_label: CpGSite
+# sample to gene expression:
+#   represented_as: edge
+#   is_a: association
+#   input_label: EXPRESSES          # props: tpm, fpkm, aliquot_id, file_id
+#   source: sample
+#   target: gene
+# sample to methylation:
+#   represented_as: edge
+#   is_a: association
+#   input_label: METHYLATED_AT      # props: beta_value, aliquot_id, file_id
+#   source: sample
+#   target: cpg site

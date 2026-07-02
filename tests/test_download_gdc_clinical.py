@@ -44,30 +44,42 @@ def _path(out: Path, entity: str) -> Path:
 
 
 def test_all_entity_tsvs_created(download_dir):
+    """Every emitter's TSV exists, except aliquot (merged into sample post-hoc)."""
     from src.extract.entities import EMITTERS
     for emitter in EMITTERS:
+        if emitter.NAME == "aliquot":
+            continue
         p = _path(download_dir, emitter.NAME)
         assert p.exists(), f"Expected output TSV not found: {p.name}"
 
 
-def test_case_tsv_has_rows(download_dir):
-    rows = _read(_path(download_dir, "case"))
-    assert len(rows) > 0, "case TSV has no data rows"
+def test_aliquot_merged_into_sample(download_dir):
+    """Post-processing removes aliquot.tsv and rewrites sample.tsv at aliquot grain."""
+    assert not _path(download_dir, "aliquot").exists(), "aliquot.tsv should be consumed by the merge"
+    header = next(csv.reader(open(_path(download_dir, "sample")), delimiter="\t"))
+    # aliquot_id -> sample_id (PK); sample_id -> gdc_sample_id (provenance).
+    assert "sample_id" in header and "gdc_sample_id" in header
+    assert "aliquot_id" not in header
+
+
+def test_subject_tsv_has_rows(download_dir):
+    rows = _read(_path(download_dir, "subject"))
+    assert len(rows) > 0, "subject TSV has no data rows"
 
 
 def test_case_id_is_unique(download_dir):
-    rows = _read(_path(download_dir, "case"))
+    rows = _read(_path(download_dir, "subject"))
     ids = [r["case_id"] for r in rows]
-    assert len(ids) == len(set(ids)), "case_id is not unique in case TSV"
+    assert len(ids) == len(set(ids)), "case_id is not unique in subject TSV"
 
 
 @pytest.mark.parametrize("entity", [
-    "case", "diagnosis", "treatment", "pathology_detail", "follow_up",
+    "subject", "diagnosis", "treatment", "pathology_detail", "follow_up",
     "molecular_test", "exposure", "family_history", "other_clinical_attribute",
-    "sample", "aliquot", "file",
+    "file",
 ])
 def test_columns_match_emitter(download_dir, entity):
-    """Each TSV's header must exactly match its emitter's declared COLUMNS."""
+    """Each TSV's header must match its emitter's COLUMNS (sample is post-processed)."""
     from src.extract.entities import EMITTERS
     emitter = next(e for e in EMITTERS if e.NAME == entity)
     with open(_path(download_dir, entity)) as f:
@@ -79,21 +91,20 @@ def test_columns_match_emitter(download_dir, entity):
 
 
 def test_child_rows_link_back_to_case(download_dir):
-    """Every child-table case_id must exist in the case table."""
-    case_ids = {r["case_id"] for r in _read(_path(download_dir, "case"))}
-    for entity in ("diagnosis", "treatment", "follow_up", "sample", "aliquot", "file"):
+    """Every child-table case_id must exist in the subject table."""
+    case_ids = {r["case_id"] for r in _read(_path(download_dir, "subject"))}
+    for entity in ("diagnosis", "treatment", "follow_up", "sample", "file"):
         rows = _read(_path(download_dir, entity))
         orphans = {r["case_id"] for r in rows} - case_ids
-        assert not orphans, f"{entity}: {len(orphans)} case_id(s) not present in case TSV"
+        assert not orphans, f"{entity}: {len(orphans)} case_id(s) not present in subject TSV"
 
 
 def test_multiplicity_preserved(download_dir):
     """The whole point of the refactor: 1:many entities must not be collapsed."""
-    n_cases = len(_read(_path(download_dir, "case")))
+    n_cases = len(_read(_path(download_dir, "subject")))
     n_follow_ups = len(_read(_path(download_dir, "follow_up")))
     n_treatments = len(_read(_path(download_dir, "treatment")))
-    n_samples = len(_read(_path(download_dir, "sample")))
-    n_aliquots = len(_read(_path(download_dir, "aliquot")))
+    n_samples = len(_read(_path(download_dir, "sample")))  # aliquot grain post-merge
 
     # TCGA-DLBC cases have many follow_ups and treatments each.
     assert n_follow_ups > n_cases, (
@@ -102,8 +113,9 @@ def test_multiplicity_preserved(download_dir):
     assert n_treatments > n_cases, (
         f"treatment rows ({n_treatments}) not > cases ({n_cases}) — multiplicity lost"
     )
-    assert n_aliquots > n_samples > 0, (
-        f"expected aliquots ({n_aliquots}) > samples ({n_samples}) > 0"
+    # Sample is now aliquot grain, so many samples per case survive.
+    assert n_samples > n_cases > 0, (
+        f"expected merged samples ({n_samples}) > cases ({n_cases}) > 0"
     )
 
 

@@ -1,8 +1,13 @@
-"""Case-level table: one row per case (base fields + 1:1 demographic)."""
+"""Subject-level table: one row per case (base fields + 1:1 demographic).
+
+Emitted as ``{base}.subject.tsv`` — "Subject" is the KG naming convention for a
+GDC case (see docs/dev_guides/kg_data_model.md). The keys stay ``case_id`` /
+``case_submitter_id`` so child tables still join back on them.
+"""
 
 from ._base import Iter, data_dict, prefixed
 
-NAME = "case"
+NAME = "subject"
 
 _BASE_FIELDS = [
     "case_id", "submitter_id",

@@ -11,6 +11,7 @@ import csv
 from pathlib import Path
 
 from . import gdc_api
+from .biospecimen import merge_sample_aliquot
 from .entities import EMITTERS, EXPAND
 
 
@@ -60,6 +61,9 @@ def write_entities(hits: list[dict], out_dir: Path, base_name: str) -> None:
                     writer.writerow(row)
                     n += 1
         print(f"  {out_path.name:42s} {n:7d} rows × {len(emitter.COLUMNS)} cols")
+
+    # Post-processing: collapse biospecimen to aliquot grain (sample <- aliquot).
+    merge_sample_aliquot(out_dir, base_name)
 
 
 def download_cases_tsv(project_id: str, out_dir: Path) -> None:

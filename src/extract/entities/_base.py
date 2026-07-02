@@ -14,7 +14,8 @@ Emitter contract, per module:
     iter_rows(case: dict) -> Iterator[dict]
 
 Every child table starts with ``case_id`` + ``case_submitter_id`` so it can be
-joined back to ``.case.tsv``; deeper tables also carry their parent ids.
+joined back to ``.subject.tsv`` (the case table); deeper tables also carry their
+parent ids.
 """
 
 import json

@@ -9,11 +9,12 @@ Usage:
 
 Exactly one of --project, --program, or --cases is required.
 
-Each fetch writes one TSV per entity: {base}.case.tsv (1 row/case), plus
+Each fetch writes one TSV per entity: {base}.subject.tsv (1 row/case), plus
 {base}.diagnosis.tsv, .treatment.tsv, .pathology_detail.tsv, .follow_up.tsv,
 .molecular_test.tsv, .exposure.tsv, .family_history.tsv,
-.other_clinical_attribute.tsv, .sample.tsv, .aliquot.tsv, .file.tsv at their
-true (1:many) grain.
+.other_clinical_attribute.tsv, .file.tsv at their true (1:many) grain, and
+{base}.sample.tsv at aliquot grain (sample descriptors merged onto each aliquot;
+.aliquot.tsv is consumed by that post-processing step).
 
 --project downloads the per-entity TSVs for the project.
 --program downloads the per-entity TSVs for all cases in the program.
@@ -79,7 +80,7 @@ def main() -> None:
         if args.biotab:
             print("\n[biotab merge] Merging clinical_patient data into case TSV...")
             biotab_dir = out_dir / "biotab"
-            merge_biotab_into_metadata(biotab_dir, out_dir / f"{project_id}.case.tsv")
+            merge_biotab_into_metadata(biotab_dir, out_dir / f"{project_id}.subject.tsv")
             shutil.rmtree(biotab_dir)
             print(f"  Removed {biotab_dir}")
 
@@ -93,7 +94,7 @@ def main() -> None:
         if args.biotab:
             print("\n[biotab merge] Merging clinical_patient data into case TSV...")
             biotab_dir = out_dir / "biotab"
-            merge_biotab_into_metadata(biotab_dir, out_dir / f"{program}.case.tsv")
+            merge_biotab_into_metadata(biotab_dir, out_dir / f"{program}.subject.tsv")
             shutil.rmtree(biotab_dir)
             print(f"  Removed {biotab_dir}")
 
