@@ -46,6 +46,49 @@ def fetch_by_ids(case_ids: list[str]) -> list[dict]:
     return _fetch({"op": "in", "content": {"field": "case_id", "value": case_ids}})
 
 
+def _derive_program_project(hits: list[dict], out_dir: Path, base_name: str) -> None:
+    """Write {base_name}.project.tsv and {base_name}.program.tsv from case hits."""
+    from collections import defaultdict
+
+    project_cases: dict[str, dict] = {}  # project_id -> {project_name, program_name, n_cases}
+    for case in hits:
+        proj = case.get("project") or {}
+        pid = proj.get("project_id", "")
+        if pid not in project_cases:
+            project_cases[pid] = {
+                "project_id":   pid,
+                "project_name": proj.get("name", ""),
+                "program_name": (proj.get("program") or {}).get("name", ""),
+                "n_cases":      0,
+            }
+        project_cases[pid]["n_cases"] += 1
+
+    project_path = out_dir / f"{base_name}.project.tsv"
+    project_cols = ["project_id", "project_name", "program_name", "n_cases"]
+    rows = sorted(project_cases.values(), key=lambda r: r["project_id"])
+    with open(project_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=project_cols, delimiter="\t")
+        writer.writeheader()
+        writer.writerows(rows)
+    print(f"  {project_path.name:42s} {len(rows):7d} rows × {len(project_cols)} cols")
+
+    program_cases: dict[str, dict] = defaultdict(lambda: {"n_projects": 0, "n_cases": 0})
+    for r in rows:
+        pg = r["program_name"]
+        program_cases[pg]["program_name"] = pg
+        program_cases[pg]["n_projects"] += 1
+        program_cases[pg]["n_cases"] += r["n_cases"]
+
+    program_path = out_dir / f"{base_name}.program.tsv"
+    program_cols = ["program_name", "n_projects", "n_cases"]
+    pg_rows = sorted(program_cases.values(), key=lambda r: r["program_name"])
+    with open(program_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=program_cols, delimiter="\t")
+        writer.writeheader()
+        writer.writerows(pg_rows)
+    print(f"  {program_path.name:42s} {len(pg_rows):7d} rows × {len(program_cols)} cols")
+
+
 def write_entities(hits: list[dict], out_dir: Path, base_name: str) -> None:
     """Write one {base_name}.{entity}.tsv per registered emitter."""
     for emitter in EMITTERS:
@@ -64,6 +107,8 @@ def write_entities(hits: list[dict], out_dir: Path, base_name: str) -> None:
 
     # Post-processing: collapse biospecimen to aliquot grain (sample <- aliquot).
     merge_sample_aliquot(out_dir, base_name)
+    # Post-processing: aggregate project and program summary tables.
+    _derive_program_project(hits, out_dir, base_name)
 
 
 def download_cases_tsv(project_id: str, out_dir: Path) -> None:

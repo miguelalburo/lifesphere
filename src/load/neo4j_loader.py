@@ -14,6 +14,7 @@ NEO4J_DATABASE env vars.
 
 import argparse
 import csv
+import json
 import logging
 import os
 from pathlib import Path
@@ -25,28 +26,34 @@ from neo4j.exceptions import ClientError
 log = logging.getLogger(__name__)
 
 BATCH_SIZE = 500
+_DEFAULT_SCHEMA_DIR = Path(__file__).parent.parent.parent / "config" / "schemas"
 
-# Maps edge CSV stem → (source_label, target_label).
-# None source_label = any label; used for HAS_MOLECULAR_TEST whose parent
-# can be Diagnosis or FollowUp (GDC UUIDs are globally unique so MATCH still
-# hits exactly one node without the label constraint).
-EDGE_SCHEMA: dict[str, tuple[str | None, str | None]] = {
-    "ENROLLS":            ("Project",   "Subject"),
-    "HAS_DIAGNOSIS":      ("Subject",   "Diagnosis"),
-    "HAS_EXPOSURE":       ("Subject",   "Exposure"),
-    "HAS_FAMILY_HISTORY": ("Subject",   "FamilyHistory"),
-    "HAS_FOLLOWUP":       ("Subject",   "FollowUp"),
-    "HAS_MOLECULAR_TEST": ("FollowUp",   "MolecularTest"),  # all TCGA mol tests nest under FollowUp
-    "HAS_PATHOLOGY":      ("Diagnosis", "PathologyDetail"),
-    "HAS_PROJECT":        ("Program",   "Project"),
-    "HAS_SAMPLE":         ("Subject",   "Sample"),
-    "HAS_TREATMENT":      ("Diagnosis", "Treatment"),
-}
 
-NODE_LABELS = [
-    "Diagnosis", "Exposure", "FamilyHistory", "FollowUp", "MolecularTest",
-    "PathologyDetail", "Program", "Project", "Sample", "Subject", "Treatment",
-]
+def load_schema(
+    schema_dir: Path,
+) -> tuple[list[str], dict[str, tuple[str | None, str | None]]]:
+    """Derive node labels and edge endpoint labels from the JSON schema configs.
+
+    Returns:
+        node_labels: ordered unique list of node labels (from entities.json).
+        edge_schema: maps each edge label → (source_node_label, target_node_label).
+            A None label means the endpoint is polymorphic — Cypher will match on id
+            alone, without a label constraint (GDC UUIDs are globally unique).
+    """
+    with open(schema_dir / "entities.json") as f:
+        entities: list[dict] = json.load(f)
+    with open(schema_dir / "edges.json") as f:
+        edges: list[dict] = json.load(f)
+
+    # id_col → node label; used to resolve edge source/target labels.
+    id_to_label: dict[str, str] = {e["id_col"]: e["label"] for e in entities}
+
+    node_labels = list(dict.fromkeys(e["label"] for e in entities))
+    edge_schema: dict[str, tuple[str | None, str | None]] = {
+        e["label"]: (id_to_label.get(e["source_id"]), id_to_label.get(e["target_id"]))
+        for e in edges
+    }
+    return node_labels, edge_schema
 
 
 def _iter_batches(path: Path, size: int) -> Iterator[list[dict]]:
@@ -69,10 +76,12 @@ class Neo4jLoader:
         password: str,
         database: str,
         batch_size: int = BATCH_SIZE,
+        schema_dir: Path = _DEFAULT_SCHEMA_DIR,
     ):
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
         self.database = database
         self.batch_size = batch_size
+        self.node_labels, self.edge_schema = load_schema(schema_dir)
 
     def close(self) -> None:
         self.driver.close()
@@ -82,7 +91,7 @@ class Neo4jLoader:
 
     def create_constraints(self) -> None:
         with self._session() as session:
-            for label in NODE_LABELS:
+            for label in self.node_labels:
                 try:
                     # Neo4j 5+ syntax
                     session.run(
@@ -121,7 +130,7 @@ class Neo4jLoader:
     def load_edges(self, edges_dir: Path) -> None:
         for path in sorted(edges_dir.glob("*.csv")):
             rel_type = path.stem
-            src_label, tgt_label = EDGE_SCHEMA.get(rel_type, (None, None))
+            src_label, tgt_label = self.edge_schema.get(rel_type, (None, None))
 
             src_pat = f"(a:{src_label} {{id: row.src}})" if src_label else "(a {id: row.src})"
             tgt_pat = f"(b:{tgt_label} {{id: row.tgt}})" if tgt_label else "(b {id: row.tgt})"
@@ -148,9 +157,10 @@ class Neo4jLoader:
             log.info("  %s: %d edges", rel_type, total)
 
 
-def clear(uri: str, user: str, password: str, database: str, batch_size: int) -> None:
+def clear(uri: str, user: str, password: str, database: str, batch_size: int,
+          schema_dir: Path = _DEFAULT_SCHEMA_DIR) -> None:
     """Delete all data then drop all constraints and indexes for a full schema reset."""
-    loader = Neo4jLoader(uri, user, password, database, batch_size)
+    loader = Neo4jLoader(uri, user, password, database, batch_size, schema_dir)
     try:
         with loader._session() as session:
             log.info("Deleting relationships...")
@@ -201,8 +211,9 @@ def run(
     password: str,
     database: str,
     batch_size: int,
+    schema_dir: Path = _DEFAULT_SCHEMA_DIR,
 ) -> None:
-    loader = Neo4jLoader(uri, user, password, database, batch_size)
+    loader = Neo4jLoader(uri, user, password, database, batch_size, schema_dir)
     try:
         log.info("Creating uniqueness constraints...")
         loader.create_constraints()
@@ -237,6 +248,8 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--password",   default=os.getenv("NEO4J_PASSWORD", "password"))
     pc.add_argument("--database",   default=os.getenv("NEO4J_DATABASE", "neo4j"))
     pc.add_argument("--batch-size", type=int, default=BATCH_SIZE)
+    pc.add_argument("--schemas",    type=Path, default=_DEFAULT_SCHEMA_DIR,
+                    help="Directory containing entities.json and edges.json")
 
     # --- load subcommand (default behaviour) ---
     pl = sub.add_parser("load", help="Load standardised CSVs into Neo4j.")
@@ -247,13 +260,16 @@ def main(argv: list[str] | None = None) -> int:
     pl.add_argument("--database",   default=os.getenv("NEO4J_DATABASE", "neo4j"))
     pl.add_argument("--batch-size", type=int, default=BATCH_SIZE,
                     help="Rows per Cypher transaction (default: 500)")
+    pl.add_argument("--schemas",    type=Path, default=_DEFAULT_SCHEMA_DIR,
+                    help="Directory containing entities.json and edges.json")
 
     args = p.parse_args(argv)
 
     if args.command == "clear":
-        clear(args.uri, args.user, args.password, args.database, args.batch_size)
+        clear(args.uri, args.user, args.password, args.database, args.batch_size, args.schemas)
     elif args.command == "load":
-        run(args.input_dir, args.uri, args.user, args.password, args.database, args.batch_size)
+        run(args.input_dir, args.uri, args.user, args.password, args.database, args.batch_size,
+            args.schemas)
     else:
         p.print_help()
         return 1
