@@ -1,0 +1,3 @@
+case_id	case_submitter_id	sample_id	sample_type	sample_tissue_type
+C1	TCGA-XX-0001	S1	Primary Tumor	Tumor
+C2	TCGA-XX-0002	S2	Primary Tumor	Tumor

@@ -1,0 +1,3 @@
+case_id	sample_id	variant_call_id	variant_id	vaf	consequence	impact	aliquot_id	file_id
+C1	S1	VC-S1-V1	V1	0.35	missense_variant	MODERATE	S1	F5
+C2	S2	VC-S2-V1	V1	0.41	missense_variant	MODERATE	S2	F6

@@ -97,5 +97,88 @@
     "drop": ["case_id", "case_submitter_id"],
     "keep": [],
     "dedup": false
+  },
+
+  {
+    "name": "gene",
+    "label": "Gene",
+    "id_col": "ensembl",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": [],
+    "dedup": true
+  },
+  {
+    "name": "cpg_site",
+    "label": "CpGSite",
+    "id_col": "cpg",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": [],
+    "dedup": true
+  },
+  {
+    "name": "variant",
+    "label": "Variant",
+    "id_col": "variant_id",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": [],
+    "dedup": true
+  },
+  {
+    "name": "protein",
+    "label": "Protein",
+    "id_col": "uniprot",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": [],
+    "dedup": true
+  },
+  {
+    "name": "pathway",
+    "label": "Pathway",
+    "id_col": "pathway_id",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": [],
+    "dedup": true
+  },
+
+  {
+    "name": "gene_expression",
+    "label": "Expression",
+    "id_col": "expression_id",
+    "strip_prefix": "",
+    "drop": ["case_id", "sample_id", "gene_ensembl"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "methylation",
+    "label": "Methylation",
+    "id_col": "methylation_id",
+    "strip_prefix": "",
+    "drop": ["case_id", "sample_id", "cpg"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "somatic_mutation",
+    "label": "VariantCall",
+    "id_col": "variant_call_id",
+    "strip_prefix": "",
+    "drop": ["case_id", "sample_id", "variant_id"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "protein_expression",
+    "label": "ProteinExpression",
+    "id_col": "protein_expression_id",
+    "strip_prefix": "",
+    "drop": ["case_id", "sample_id", "uniprot"],
+    "keep": [],
+    "dedup": false
   }
 ]

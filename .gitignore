@@ -9,6 +9,10 @@ data/interim/
 # Log files
 logs/
 
+# BioCypher generated output
+biocypher-out/
+biocypher-log/
+
 # Python virtual environment
 .venv/
 

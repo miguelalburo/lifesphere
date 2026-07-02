@@ -85,21 +85,45 @@ whether the edge originates from a Diagnosis or a FollowUp; `parent_id` is the s
 
 ---
 
-## Omics layer (stub — not yet built)
+## Omics layer
 
-No omics extractor exists yet, so no omics nodes/edges are emitted in this pass. The agreed
-pattern, to implement when omics parsing lands:
+The omics ontology is modelled and wired through the standardise + load pipelines. **This pass
+plumbs the model with a synthetic fixture** (`tests/fixtures/omics_smoke`); real GDC omics-file
+parsing and real Omnipath ingestion are still deferred (see *Deferred* below).
 
-- **Shared feature nodes**, reused across all samples: `Gene` (Ensembl id), `CpGSite` (cg#),
-  `Variant` (HGVS/dbSNP), `Protein` (UniProt), `Pathway`.
-- **Measurements on valued edges** from Sample — never one node per gene×sample:
-  - `Sample ─EXPRESSES {tpm, fpkm}→ Gene`
-  - `Sample ─METHYLATED_AT {beta_value}→ CpGSite`
-  - `Sample ─HAS_VARIANT {vaf, consequence, impact}→ Gene` (or Variant)
-  - `Sample ─HAS_PROTEIN_EXPRESSION {value}→ Protein` (RPPA)
-  - each edge carries `aliquot_id` / `file_id` for provenance to the assay.
-- **Static biology** (Omnipath): `Gene ─IN_PATHWAY→ Pathway`, `Gene ─ENCODES→ Protein`.
-  `CpGSite` nodes carry chromosome-specific position properties.
+**Measurements are reified into per-assay observation nodes** — *not* stored as edge
+properties. Each measurement is one node carrying its value(s) + provenance, wired between the
+Sample and the shared feature it measures:
+
+```
+(Sample)-[:HAS_EXPRESSION]->(Expression {tpm, fpkm, aliquot_id, file_id})-[:OF_GENE]->(Gene)
+(Sample)-[:HAS_METHYLATION]->(Methylation {beta_value, ...})-[:AT_CPG]->(CpGSite)
+(Sample)-[:HAS_VARIANT_CALL]->(VariantCall {vaf, consequence, impact, ...})-[:OF_VARIANT]->(Variant)
+(Sample)-[:HAS_PROTEIN_EXPRESSION]->(ProteinExpression {value, ...})-[:OF_PROTEIN]->(Protein)
+```
+
+- **Shared feature nodes** — a deduplicated reference dimension reused across all samples:
+  `Gene` (Ensembl id), `CpGSite` (cg#), `Variant` (`variant_id`, keeps `gene_ensembl`),
+  `Protein` (UniProt), `Pathway`. `CpGSite`/`Variant` carry chromosome-specific position props.
+- **Observation nodes** — per-assay, one per sample×feature: `Expression`, `Methylation`,
+  `VariantCall`, `ProteinExpression`. Every observation carries `aliquot_id` / `file_id` for
+  provenance to the assay file.
+- **Static biology** (Omnipath): `Variant ─VARIANT_IN_GENE→ Gene`, `Gene ─IN_PATHWAY→ Pathway`,
+  `Gene ─ENCODES→ Protein`. All edges are plain (no properties).
+
+**Why reify instead of valued edges.** The measurement count is identical either way (one
+element per sample×feature); reification adds a node + a hop but buys robust node-property
+indexing in Neo4j, room to link an observation out to further provenance (File/assay/platform),
+and it means **no engine change** — measurement values live on nodes (which already pass
+properties through), so every edge stays a plain `source_id,target_id` pair.
+
+**Reference files vs measurement files.** Feature nodes come from dedicated reference TSVs
+(`{base}.gene.tsv`, `.cpg_site.tsv`, `.variant.tsv`, `.protein.tsv`, `.pathway.tsv`) — one
+source file per node label, since `standardise_node()` opens output `"w"` and two plans writing
+the same label would clobber. Each measurement TSV (`{base}.gene_expression.tsv`,
+`.methylation.tsv`, `.somatic_mutation.tsv`, `.protein_expression.tsv`) yields its observation
+node **and** both of its edges (the same one-file→node+edges pattern as `subject.tsv`). Static
+biology comes from `{base}.gene_pathway.tsv` and `{base}.gene_protein.tsv` (edge-only).
 
 **Sample = aliquot.** The Sample node is the **aliquot** (the analysed unit omics files map
 to), produced by a post-processing merge in the extractor (`src/extract/biospecimen.py`):
@@ -107,10 +131,12 @@ sample-level descriptors are grafted onto every aliquot row, `aliquot_id` become
 `sample_id`, and the originating GDC sample is retained as `gdc_sample_id`. `portion_id` /
 `analyte_*` ride along as provenance. See `docs/other/gdc_extraction_notes.md`.
 
-**Dependency — biospecimen QC.** QC (percent tumour cells, RIN, 260/280) wanted on the omics
-edges / Sample is **not yet extracted** — the merged `sample.tsv` carries descriptors + ids but
-no slide/analyte QC. Surfacing it needs the extractor emitters extended first (add slide and
-analyte QC), tracked separately from this model.
+**Deferred.** (1) Real GDC omics-file download + parsing (expression TSV / MAF·VCF / methylation
+beta) into observations — this pass uses the synthetic fixture only. (2) Real Omnipath
+ingestion for the static-biology edges. (3) Biospecimen QC (percent tumour cells, RIN, 260/280)
+wanted on the observations / Sample is **not yet extracted** — the merged `sample.tsv` carries
+descriptors + ids but no slide/analyte QC; surfacing it needs the extractor emitters extended
+first (add slide and analyte QC), tracked separately from this model.
 
 ---
 

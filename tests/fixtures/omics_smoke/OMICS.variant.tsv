@@ -1,0 +1,3 @@
+variant_id	gene_ensembl	chromosome	position	ref	alt	hgvsp
+V1	ENSG001	17	7577120	C	T	p.R175H
+V2	ENSG002	17	43094464	G	A	p.E23K

@@ -68,5 +68,84 @@
     "source_id": "case_id",
     "target_id": "sample_id",
     "dedup": false
+  },
+
+  {
+    "label": "HAS_EXPRESSION",
+    "source_entity": "gene_expression",
+    "source_id": "sample_id",
+    "target_id": "expression_id",
+    "dedup": false
+  },
+  {
+    "label": "OF_GENE",
+    "source_entity": "gene_expression",
+    "source_id": "expression_id",
+    "target_id": "gene_ensembl",
+    "dedup": false
+  },
+  {
+    "label": "HAS_METHYLATION",
+    "source_entity": "methylation",
+    "source_id": "sample_id",
+    "target_id": "methylation_id",
+    "dedup": false
+  },
+  {
+    "label": "AT_CPG",
+    "source_entity": "methylation",
+    "source_id": "methylation_id",
+    "target_id": "cpg",
+    "dedup": false
+  },
+  {
+    "label": "HAS_VARIANT_CALL",
+    "source_entity": "somatic_mutation",
+    "source_id": "sample_id",
+    "target_id": "variant_call_id",
+    "dedup": false
+  },
+  {
+    "label": "OF_VARIANT",
+    "source_entity": "somatic_mutation",
+    "source_id": "variant_call_id",
+    "target_id": "variant_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_PROTEIN_EXPRESSION",
+    "source_entity": "protein_expression",
+    "source_id": "sample_id",
+    "target_id": "protein_expression_id",
+    "dedup": false
+  },
+  {
+    "label": "OF_PROTEIN",
+    "source_entity": "protein_expression",
+    "source_id": "protein_expression_id",
+    "target_id": "uniprot",
+    "dedup": false
+  },
+
+  {
+    "label": "VARIANT_IN_GENE",
+    "source_entity": "variant",
+    "source_id": "variant_id",
+    "target_id": "gene_ensembl",
+    "dedup": true
+  },
+  {
+    "label": "IN_PATHWAY",
+    "source_entity": "gene_pathway",
+    "source_id": "gene_ensembl",
+    "target_id": "pathway_id",
+    "dedup": true
+  },
+  {
+    "label": "ENCODES",
+    "source_entity": "gene_protein",
+    "source_id": "gene_ensembl",
+    "target_id": "uniprot",
+    "dedup": true
   }
 ]

@@ -159,30 +159,157 @@ subject to sample:
   source: subject
   target: sample
 
-# ───────────────────────── Omics layer (STUB) ─────────────────────────
-# Not emitted yet — no omics extractor. Feature nodes reused across samples;
-# measurements ride on valued edges from Sample. Uncomment + wire adapters when
-# omics parsing lands (see docs/dev_guides/kg_data_model.md#omics-layer-stub).
-#
-# gene:
-#   represented_as: node
-#   is_a: entity
-#   preferred_id: ensembl
-#   input_label: Gene
-# cpg site:
-#   represented_as: node
-#   is_a: entity
-#   preferred_id: cpg
-#   input_label: CpGSite
-# sample to gene expression:
-#   represented_as: edge
-#   is_a: association
-#   input_label: EXPRESSES          # props: tpm, fpkm, aliquot_id, file_id
-#   source: sample
-#   target: gene
-# sample to methylation:
-#   represented_as: edge
-#   is_a: association
-#   input_label: METHYLATED_AT      # props: beta_value, aliquot_id, file_id
-#   source: sample
-#   target: cpg site
+# ───────────────────────── Omics layer ─────────────────────────
+# Measurements are REIFIED into per-assay observation nodes rather than stored on
+# valued edges: (Sample)-[:HAS_EXPRESSION]->(Expression{tpm,...})-[:OF_GENE]->(Gene).
+# Feature nodes (Gene, CpGSite, Variant, Protein, Pathway) are shared reference
+# dimensions, deduplicated and reused across all samples. See
+# docs/dev_guides/kg_data_model.md#omics-layer.
+
+# ── Feature nodes (shared, deduplicated reference dimension) ──
+
+gene:
+  represented_as: node
+  is_a: entity
+  preferred_id: ensembl
+  input_label: Gene
+  # props: gene_symbol, biotype, chromosome
+
+cpg site:
+  represented_as: node
+  is_a: entity
+  preferred_id: cpg
+  input_label: CpGSite
+  # props: chromosome, position, gene_symbol
+
+variant:
+  represented_as: node
+  is_a: entity
+  preferred_id: variant_id
+  input_label: Variant
+  # props: chromosome, position, ref, alt, hgvsp, gene_ensembl
+
+protein:
+  represented_as: node
+  is_a: entity
+  preferred_id: uniprot
+  input_label: Protein
+  # props: protein_name, gene_symbol
+
+pathway:
+  represented_as: node
+  is_a: entity
+  preferred_id: pathway_id
+  input_label: Pathway
+  # props: pathway_name, source
+
+# ── Observation nodes (one per sample × feature measurement) ──
+
+expression:
+  represented_as: node
+  is_a: entity
+  preferred_id: expression_id
+  input_label: Expression
+  # props: tpm, fpkm, aliquot_id, file_id
+
+methylation:
+  represented_as: node
+  is_a: entity
+  preferred_id: methylation_id
+  input_label: Methylation
+  # props: beta_value, aliquot_id, file_id
+
+variant call:
+  represented_as: node
+  is_a: entity
+  preferred_id: variant_call_id
+  input_label: VariantCall
+  # props: vaf, consequence, impact, aliquot_id, file_id
+
+protein expression:
+  represented_as: node
+  is_a: entity
+  preferred_id: protein_expression_id
+  input_label: ProteinExpression
+  # props: value, aliquot_id, file_id
+
+# ── Omics edges (all plain: source_id, target_id) ──
+
+sample to expression:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_EXPRESSION
+  source: sample
+  target: expression
+
+expression to gene:
+  represented_as: edge
+  is_a: association
+  input_label: OF_GENE
+  source: expression
+  target: gene
+
+sample to methylation:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_METHYLATION
+  source: sample
+  target: methylation
+
+methylation to cpg:
+  represented_as: edge
+  is_a: association
+  input_label: AT_CPG
+  source: methylation
+  target: cpg site
+
+sample to variant call:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_VARIANT_CALL
+  source: sample
+  target: variant call
+
+variant call to variant:
+  represented_as: edge
+  is_a: association
+  input_label: OF_VARIANT
+  source: variant call
+  target: variant
+
+sample to protein expression:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_PROTEIN_EXPRESSION
+  source: sample
+  target: protein expression
+
+protein expression to protein:
+  represented_as: edge
+  is_a: association
+  input_label: OF_PROTEIN
+  source: protein expression
+  target: protein
+
+# ── Static biology (Omnipath-shaped annotations) ──
+
+variant to gene:
+  represented_as: edge
+  is_a: association
+  input_label: VARIANT_IN_GENE
+  source: variant
+  target: gene
+
+gene to pathway:
+  represented_as: edge
+  is_a: association
+  input_label: IN_PATHWAY
+  source: gene
+  target: pathway
+
+gene to protein:
+  represented_as: edge
+  is_a: association
+  input_label: ENCODES
+  source: gene
+  target: protein
