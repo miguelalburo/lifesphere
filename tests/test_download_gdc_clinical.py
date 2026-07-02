@@ -1,5 +1,5 @@
 """
-Integration test for scripts/download_gdc_clinical.py.
+Integration test for scripts/download_gdc.py.
 
 Requires internet access to the GDC API (~10-30 s).
 Uses TCGA-DLBC (~48 cases) to keep runtime short. TCGA-DLBC cases have multiple
@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = PROJECT_ROOT / "scripts" / "download_gdc_clinical.py"
+SCRIPT = PROJECT_ROOT / "scripts" / "download_gdc.py"
 TEST_PROJECT = "TCGA-DLBC"
 
 

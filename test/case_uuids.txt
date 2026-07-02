@@ -1,0 +1,6 @@
+# Case UUIDs used by run_omics_extraction.py
+# Both cases are from TCGA-CHOL and have all three omics types available
+# (expression, variation, methylation) as open-access files.
+# Format: <case_uuid> <tab> <case_submitter_id>   (only the first token is read)
+41b97b11-acaa-4fbc-b3b0-0abc1bcac13b	TCGA-3X-AAV9
+fe57b639-db7a-460f-adfe-552f1e034e46	TCGA-3X-AAVA

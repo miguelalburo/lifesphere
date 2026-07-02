@@ -3,11 +3,16 @@
 Download clinical/biospecimen tab-delimited files from GDC.
 
 Usage:
-  python download_gdc_clinical.py --project TCGA-PRAD [--biotab] <output_dir>
-  python download_gdc_clinical.py --program TCGA                  <output_dir>
-  python download_gdc_clinical.py --cases uuid1,uuid2             <output_dir>
+  python download_gdc.py --project TCGA-PRAD [--biotab] <output_dir>
+  python download_gdc.py --program TCGA                  <output_dir>
+  python download_gdc.py --cases uuid1,uuid2             <output_dir>
 
 Exactly one of --project, --program, or --cases is required.
+
+Add any of --expression, --variation, --methylation to also download the
+matching open-access omics files (via gdc-client) for the same set of cases
+into {output_dir}/omics/{type}/, each with a {type}.files.tsv file<->case map.
+Missing data types are skipped silently ("if available").
 
 Each fetch writes one TSV per entity: {base}.subject.tsv (1 row/case), plus
 {base}.diagnosis.tsv, .treatment.tsv, .pathology_detail.tsv, .follow_up.tsv,
@@ -31,8 +36,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.extract import download_biotab, download_cases_tsv, download_cases_tsv_by_program, download_cases_tsv_by_ids
+from src.extract import (
+    download_biotab,
+    download_cases_tsv,
+    download_cases_tsv_by_program,
+    download_cases_tsv_by_ids,
+    download_omics,
+)
 from src.extract.biotab_merge import merge_biotab_into_metadata
+
+OMICS_TYPES = ("expression", "variation", "methylation")
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,6 +74,24 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Download BCR BioTab files and merge clinical_patient data into the case TSV (with --project or --program).",
     )
+    parser.add_argument(
+        "--expression",
+        action="store_true",
+        default=False,
+        help="Also download open-access gene expression quantification files for the queried cases.",
+    )
+    parser.add_argument(
+        "--variation",
+        action="store_true",
+        default=False,
+        help="Also download open-access masked somatic mutation (variation) files for the queried cases.",
+    )
+    parser.add_argument(
+        "--methylation",
+        action="store_true",
+        default=False,
+        help="Also download open-access methylation beta value files for the queried cases.",
+    )
     parser.add_argument("output_dir", help="Directory to save files into")
     return parser.parse_args()
 
@@ -83,6 +114,7 @@ def main() -> None:
             merge_biotab_into_metadata(biotab_dir, out_dir / f"{project_id}.subject.tsv")
             shutil.rmtree(biotab_dir)
             print(f"  Removed {biotab_dir}")
+        omics_selector = ("project", project_id, project_id)
 
     elif args.program:
         program = args.program.upper()
@@ -97,12 +129,20 @@ def main() -> None:
             merge_biotab_into_metadata(biotab_dir, out_dir / f"{program}.subject.tsv")
             shutil.rmtree(biotab_dir)
             print(f"  Removed {biotab_dir}")
+        omics_selector = ("program", program, program)
 
     else:
         case_ids = [c.strip() for c in args.cases.replace("\t", ",").split(",") if c.strip()]
         print(f"Cases   : {len(case_ids)} UUIDs")
         print(f"Output  : {out_dir}")
         download_cases_tsv_by_ids(case_ids, out_dir)
+        omics_selector = ("cases", case_ids, "cases")
+
+    omics_types = [t for t in OMICS_TYPES if getattr(args, t)]
+    if omics_types:
+        mode, value, base_name = omics_selector
+        print(f"\n[omics] Requested: {', '.join(omics_types)}")
+        download_omics(omics_types, mode, value, out_dir, base_name)
 
     print("\nDone.")
 

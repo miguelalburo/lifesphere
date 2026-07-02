@@ -118,10 +118,10 @@ For tabular work, the two practical sources are:
 
 ### Download Script
 
-`scripts/download_gdc_clinical.py` takes a project ID and output directory and downloads both sources:
+`scripts/download_gdc.py` takes a project ID and output directory and downloads both sources:
 
 ```bash
-python3 scripts/download_gdc_clinical.py TCGA-PRAD ~/Downloads/tcga-prad-clinical
+python3 scripts/download_gdc.py TCGA-PRAD ~/Downloads/tcga-prad-clinical
 ```
 
 Output structure:

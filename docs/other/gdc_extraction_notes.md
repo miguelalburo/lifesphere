@@ -1,6 +1,6 @@
 # GDC Cases Extraction Notes
 
-How `scripts/download_gdc_clinical.py` pulls harmonised clinical/biospecimen data
+How `scripts/download_gdc.py` pulls harmonised clinical/biospecimen data
 from the GDC `/cases` endpoint, and the shape of what it writes.
 
 API base: `https://api.gdc.cancer.gov/` — see also [`gdc_formats.md`](gdc_formats.md).
