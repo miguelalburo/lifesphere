@@ -51,8 +51,9 @@ def test_feature_nodes_deduped(std_dir):
 
 
 def test_observation_grain_preserved(std_dir):
-    # One observation node per sample x feature measurement (no collapsing).
-    assert len(_node(std_dir, "Expression")) == 4
+    # One observation node per measurement (no collapsing): 4 bulk sample x gene
+    # rows + 2 pseudobulk sample x cell_type x gene rows, all Expression nodes.
+    assert len(_node(std_dir, "Expression")) == 6
     assert len(_node(std_dir, "Methylation")) == 3
     assert len(_node(std_dir, "VariantCall")) == 2
     assert len(_node(std_dir, "ProteinExpression")) == 2
@@ -82,6 +83,7 @@ def test_omics_edge_referential_integrity(std_dir):
     checks = [
         ("HAS_EXPRESSION", "Sample", "Expression"),
         ("OF_GENE", "Expression", "Gene"),
+        ("OF_CELL_TYPE", "Expression", "CellType"),
         ("HAS_METHYLATION", "Sample", "Methylation"),
         ("AT_CPG", "Methylation", "CpGSite"),
         ("HAS_VARIANT_CALL", "Sample", "VariantCall"),
@@ -106,3 +108,22 @@ def test_sample_observation_feature_chain_resolves(std_dir):
     of_gene = {(r["source_id"], r["target_id"]) for r in _edge(std_dir, "OF_GENE")}
     assert ("S1", "EXP-S1-ENSG001") in has_expr
     assert ("EXP-S1-ENSG001", "ENSG001") in of_gene
+
+
+def test_pseudobulk_folds_into_expression(std_dir):
+    """Pseudobulk is an Expression node with assay_type=pseudobulk + an OF_CELL_TYPE
+    edge; bulk rows share the node label but carry no cell-type edge."""
+    expr = {r["id"]: r for r in _node(std_dir, "Expression")}
+    bulk, pseudo = expr["EXP-S1-ENSG001"], expr["PB-S1-CT1-ENSG001"]
+
+    assert bulk["assay_type"] == "bulk"
+    assert pseudo["assay_type"] == "pseudobulk"
+    # Pseudobulk-only stats ride through as node props; the cell_type FK does not.
+    assert pseudo["mean_expr"] == "9.9" and pseudo["pct_expressing"] == "0.62"
+    assert "cell_type_id" not in pseudo
+
+    # OF_CELL_TYPE materialises for pseudobulk rows only (bulk rows leave the FK blank).
+    of_cell_type = {(r["source_id"], r["target_id"]) for r in _edge(std_dir, "OF_CELL_TYPE")}
+    assert of_cell_type == {("PB-S1-CT1-ENSG001", "CL:0000236"),
+                            ("PB-S1-CT1-ENSG002", "CL:0000236")}
+    assert not any(src.startswith("EXP-") for src, _ in of_cell_type)

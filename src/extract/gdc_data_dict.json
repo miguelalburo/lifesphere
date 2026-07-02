@@ -11,6 +11,7 @@
     "country_of_birth",
     "country_of_residence_at_enrollment",
     "days_to_birth",
+    "days_to_death",
     "education_level",
     "marital_status",
     "occupation_duration_years",

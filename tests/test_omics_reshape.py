@@ -61,6 +61,7 @@ def test_reshape_expression_dedups_genes_and_strips_version(tmp_path):
     assert o["expression_id"] == "f1:ENSG000001"          # deterministic surrogate
     assert o["sample_id"] == "al1" and o["gene_ensembl"] == "ENSG000001"
     assert o["tpm"] == "5.5" and o["fpkm"] == "2.2"
+    assert o["assay_type"] == "bulk"                       # discriminates from pseudobulk
 
 
 def test_reshape_methylation(tmp_path):

@@ -60,7 +60,11 @@ def _ensembl(gene_id: str) -> str:
 # --------------------------------------------------------------------------- #
 
 _GENE_COLS = ["ensembl", "symbol", "gene_type"]
-_EXPR_COLS = ["expression_id", "sample_id", "gene_ensembl",
+# ``assay_type`` discriminates bulk (sample x gene) from pseudobulk (sample x
+# cell_type x gene) rows in the shared Expression node; the single-cell reshaper
+# appends pseudobulk rows to the same observation file with assay_type=pseudobulk,
+# a cell_type_id FK, and mean_expr/pct_expressing.
+_EXPR_COLS = ["expression_id", "sample_id", "gene_ensembl", "assay_type",
               "tpm", "fpkm", "fpkm_uq", "unstranded", "file_id"]
 
 
@@ -88,6 +92,7 @@ def reshape_expression(concat_path: Path, out_dir: Path, base: str) -> tuple[int
                 "expression_id": f"{file_id}:{ensembl}",
                 "sample_id": row.get("aliquot_id", ""),
                 "gene_ensembl": ensembl,
+                "assay_type": "bulk",
                 "tpm": row.get("tpm_unstranded", ""),
                 "fpkm": row.get("fpkm_unstranded", ""),
                 "fpkm_uq": row.get("fpkm_uq_unstranded", ""),

@@ -12,11 +12,17 @@ The layer is inert until a reshaper emits its TSVs.
       fraction_of_sample_cells), `cell_state`. Annotation provenance rides on
       ANNOTATED_AS_CELL_TYPE (props: source_value, ontology_mapping_status).
 - [ ] Spatial → keep per-unit `cell` (x,y) + `adjacency` (ADJACENT_TO) + `tissue_region`.
-- [ ] Also emit `pseudobulk`, `cell_type` (CL), and `observation_output` (obs_id,
-      output_id) for FROM_OUTPUT.
+- [ ] Emit pseudobulk **into the Expression observation file** (`{base}.gene_expression.tsv`),
+      NOT a separate node: append rows with `assay_type=pseudobulk`,
+      `expression_id={sample_id}:{cell_type_id}:{gene_ensembl}`, the `cell_type_id` FK, and
+      `mean_expr`/`pct_expressing`. The generic `OF_CELL_TYPE` edge then wires them to CellType
+      (bulk rows leave `cell_type_id` blank, so it emits for pseudobulk rows only). The bulk
+      reshaper already stamps `assay_type=bulk`; keep both writers on the same column schema.
+- [ ] Also emit `cell_type` (CL) and `observation_output` (obs_id, output_id) for FROM_OUTPUT.
 - [ ] `disease` reference + `disease_id` FK on diagnosis (extractor maps
       primary_diagnosis → MONDO/NCIt) to activate OF_DISEASE.
-- [ ] IDs: `cell_set_id`, `cell_id = {assay_id}:{barcode}`, `pseudobulk_id` per schema.
+- [ ] IDs: `cell_set_id`, `cell_id = {assay_id}:{barcode}`, and pseudobulk
+      `expression_id = {sample_id}:{cell_type_id}:{gene_ensembl}` per schema.
 - [ ] Add `aliases.json` entries (barcode/cell_id, leiden/seurat_clusters→cell_set).
 - [ ] Unit tests + reshape→standardise→validate integration (mirror
       `tests/test_omics_reshape.py`); then run schema-verify.

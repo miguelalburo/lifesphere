@@ -153,6 +153,14 @@ first (add slide and analyte QC), tracked separately from this model.
 
 Concepts adopted from `docs/other/neo4j_updated_schema_draft_3.md` (2026-07-02):
 
+- **Pseudobulk folds into `Expression`, not a separate node.** A pseudobulk value is a
+  cell-type-stratified gene-expression observation, so it is the same reified `Expression`
+  node as bulk RNA-seq, distinguished by `assay_type` (`bulk` | `pseudobulk`) and an extra
+  `(Expression)-[:OF_CELL_TYPE]->(CellType)` edge. Bulk grain is `sample × gene`; pseudobulk
+  grain is `sample × cell_type × gene` (`expression_id = {sample_id}:{cell_type_id}:{gene_ensembl}`),
+  carrying `mean_expr` / `pct_expressing` alongside `tpm`. Because `standardise_edge` skips
+  blank FKs, `OF_CELL_TYPE` materialises only for pseudobulk rows (bulk rows leave
+  `cell_type_id` empty). Query bulk-only with `WHERE e.assay_type = 'bulk'`.
 - **CellSet, not per-cell nodes, for dissociated scRNA.** A `CellSet` is a reproducible
   cell group (cluster / cell-type population); sample participation is
   `(Sample)-[:CONTRIBUTES_TO {contributed_cell_count, fraction_of_sample_cells}]->(CellSet)`,
@@ -175,6 +183,34 @@ declare `"props": [...]`, which `standardise_edge` emits after `source_id,target
 `ADJACENT_TO` distance (reify or add typed edge-prop declarations if needed). The whole
 layer is inert until the single-cell reshaper emits its TSVs (see
 `docs/todo/020726_singlecell_scaffold.md`).
+
+## Survival-outcome layer
+
+GDC ships **no** precomputed survival endpoint (there is no `OS`/`OS.time` column). The
+three standard endpoints are **derived per-subject** by `src/extract/survival_reshape.py`
+(a post-extract reshape, same role as `omics_reshape.py`) and modelled as **subclasses of a
+common `SurvivalOutcome`** — they share one property schema (`outcome_type`, `event`,
+`time_days`) via `is_a: survival outcome` in `schema_config.yaml`.
+
+| Node (`is_a: survival outcome`) | Source TSV | Edge | event = 1 when | time_days |
+|---|---|---|---|---|
+| `OverallSurvival` (`os_id`) | `overall_survival` | `HAS_OVERALL_SURVIVAL` | subject died | `days_to_death`, else last contact (censored) |
+| `ProgressionFreeInterval` (`pfi_id`) | `progression_free_interval` | `HAS_PROGRESSION_FREE_INTERVAL` | progression, recurrence, or death | earliest of those, else last contact |
+| `DiseaseFreeInterval` (`dfi_id`) | `disease_free_interval` | `HAS_DISEASE_FREE_INTERVAL` | recurrence | `days_to_recurrence`, else last contact |
+
+All three edges run `Subject → outcome` on `case_id → {os,pfi,dfi}_id`. `last contact` =
+`max(diagnosis.days_to_last_follow_up, follow_up.days_to_follow_up)`. Surrogate ids are
+deterministic (`{case_id}:OS|PFI|DFI`); a subject with no usable time for an outcome is
+skipped (not emitted with a null time). **Each subclass keeps a distinct `id_col`** because
+the loader (`neo4j_loader.load_schema`) keys node labels by `id_col` — a shared id column
+would collapse the three labels.
+
+Rules follow the TCGA Clinical Data Resource (Liu et al., Cell 2018) adapted to GDC
+harmonized fields. Caveats: OS requires `demographic.days_to_death` (added to
+`gdc_data_dict.json`; a dead subject missing it censors rather than dropping); TCGA-CDR
+restricts DFI to subjects tumor-free after therapy, but GDC carries no clean initial
+tumor-free flag, so DFI here is a recurrence-based approximation over all subjects. Tested
+via `tests/test_survival_reshape.py`.
 
 ## BioCypher encoding
 

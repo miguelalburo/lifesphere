@@ -13,6 +13,7 @@ from pathlib import Path
 from . import gdc_api
 from .biospecimen import merge_sample_aliquot
 from .entities import EMITTERS, EXPAND
+from .survival_reshape import reshape_survival
 
 
 def _fetch(filters: dict) -> list[dict]:
@@ -109,6 +110,8 @@ def write_entities(hits: list[dict], out_dir: Path, base_name: str) -> None:
     merge_sample_aliquot(out_dir, base_name)
     # Post-processing: aggregate project and program summary tables.
     _derive_program_project(hits, out_dir, base_name)
+    # Post-processing: derive per-subject survival outcomes (OS / PFI / DFI).
+    reshape_survival(out_dir, base_name)
 
 
 def download_cases_tsv(project_id: str, out_dir: Path) -> None:

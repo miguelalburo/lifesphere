@@ -224,7 +224,9 @@ expression:
   is_a: entity
   preferred_id: expression_id
   input_label: Expression
-  # props: tpm, fpkm, aliquot_id, file_id
+  # props: assay_type (bulk|pseudobulk), tpm, fpkm, aliquot_id, file_id;
+  #        pseudobulk rows add mean_expr, pct_expressing + an OF_CELL_TYPE edge.
+  #        Grain: bulk = sample x gene; pseudobulk = sample x cell_type x gene.
 
 methylation:
   represented_as: node
@@ -262,6 +264,15 @@ expression to gene:
   input_label: OF_GENE
   source: expression
   target: gene
+
+# pseudobulk-grain expression carries a cell_type_id FK -> this edge; bulk rows leave
+# it blank, so standardise_edge emits OF_CELL_TYPE only for the pseudobulk observations
+expression to cell type:
+  represented_as: edge
+  is_a: association
+  input_label: OF_CELL_TYPE
+  source: expression
+  target: cell type
 
 sample to methylation:
   represented_as: edge
@@ -332,9 +343,10 @@ gene to protein:
 # A single-cell / spatial run adds an observational unit BELOW the sample: the
 # dense cell x feature matrix stays external (matrix_uri on Assay); the graph holds
 # the assay, per-cell annotations, spatial topology, and tractable aggregates
-# (pseudobulk per sample x cell type, cell-set composition). See
-# docs/dev_guides/kg_data_model.md. Inert until src/extract/*_reshape.py emits the
-# assay/cell/cell_set/cell_type/cell_state/tissue_region/pseudobulk TSVs.
+# (cell-set composition; pseudobulk is folded into the Expression node as cell-type-
+# stratified rows, not a separate node). See docs/dev_guides/kg_data_model.md. Inert
+# until src/extract/*_reshape.py emits the
+# assay/cell/cell_set/cell_type/cell_state/tissue_region TSVs.
 
 # ── Assay + observational units ──
 
@@ -386,14 +398,11 @@ tissue region:
   input_label: TissueRegion
   # props: region_name
 
-# ── Aggregate observation nodes (tractable grain) ──
-
-pseudobulk expression:
-  represented_as: node
-  is_a: entity
-  preferred_id: pseudobulk_id           # {sample_id}:{cell_type_id}:{gene_ensembl}
-  input_label: PseudobulkExpression
-  # props: tpm, mean_expr, pct_expressing
+# ── Aggregate observations ──
+# Pseudobulk (sample x cell_type x gene) is NOT a separate node: it is folded into
+# the Expression node as cell-type-stratified rows (assay_type=pseudobulk, an
+# expression_id of {sample_id}:{cell_type_id}:{gene_ensembl}, and an OF_CELL_TYPE
+# edge to CellType). See the `expression` node + `expression to cell type` edge above.
 
 # ── Single-cell & spatial edges (all plain: source_id, target_id) ──
 
@@ -432,27 +441,6 @@ cell to cell:
   input_label: ADJACENT_TO
   source: cell
   target: cell
-
-sample to pseudobulk:
-  represented_as: edge
-  is_a: association
-  input_label: HAS_PSEUDOBULK
-  source: sample
-  target: pseudobulk expression
-
-pseudobulk to gene:
-  represented_as: edge
-  is_a: association
-  input_label: PSEUDOBULK_OF_GENE
-  source: pseudobulk expression
-  target: gene
-
-pseudobulk to cell type:
-  represented_as: edge
-  is_a: association
-  input_label: PSEUDOBULK_OF_CELL_TYPE
-  source: pseudobulk expression
-  target: cell type
 
 # sample participation in a cell set — counts/fractions are ASSOCIATION properties
 sample to cell set:
@@ -532,3 +520,54 @@ observation to output:
   input_label: FROM_OUTPUT
   source: [expression, methylation, variant call, protein expression]
   target: processed data output
+
+# --------------------------------------------------------------------------- #
+# Survival outcomes (derived per-subject by src/extract/survival_reshape.py).
+# OS / PFI / DFI share one property schema (event, time_days, outcome_type) and
+# are modelled as subclasses of an abstract `survival outcome`.
+# --------------------------------------------------------------------------- #
+survival outcome:
+  represented_as: node
+  is_a: entity
+  preferred_id: survival_id
+  input_label: SurvivalOutcome
+  # props: outcome_type, event (1=event, 0=censored), time_days
+
+overall survival:
+  represented_as: node
+  is_a: survival outcome
+  preferred_id: os_id
+  input_label: OverallSurvival
+
+progression free interval:
+  represented_as: node
+  is_a: survival outcome
+  preferred_id: pfi_id
+  input_label: ProgressionFreeInterval
+
+disease free interval:
+  represented_as: node
+  is_a: survival outcome
+  preferred_id: dfi_id
+  input_label: DiseaseFreeInterval
+
+subject to overall survival:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_OVERALL_SURVIVAL
+  source: subject
+  target: overall survival
+
+subject to progression free interval:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_PROGRESSION_FREE_INTERVAL
+  source: subject
+  target: progression free interval
+
+subject to disease free interval:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_DISEASE_FREE_INTERVAL
+  source: subject
+  target: disease free interval

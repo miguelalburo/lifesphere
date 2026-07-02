@@ -92,6 +92,13 @@
     "dedup": false
   },
   {
+    "label": "OF_CELL_TYPE",
+    "source_entity": "gene_expression",
+    "source_id": "expression_id",
+    "target_id": "cell_type_id",
+    "dedup": false
+  },
+  {
     "label": "HAS_METHYLATION",
     "source_entity": "methylation",
     "source_id": "sample_id",
@@ -192,27 +199,6 @@
     "dedup": true
   },
   {
-    "label": "HAS_PSEUDOBULK",
-    "source_entity": "pseudobulk",
-    "source_id": "sample_id",
-    "target_id": "pseudobulk_id",
-    "dedup": false
-  },
-  {
-    "label": "PSEUDOBULK_OF_GENE",
-    "source_entity": "pseudobulk",
-    "source_id": "pseudobulk_id",
-    "target_id": "gene_ensembl",
-    "dedup": false
-  },
-  {
-    "label": "PSEUDOBULK_OF_CELL_TYPE",
-    "source_entity": "pseudobulk",
-    "source_id": "pseudobulk_id",
-    "target_id": "cell_type_id",
-    "dedup": false
-  },
-  {
     "label": "CONTRIBUTES_TO",
     "source_entity": "cell_set_membership",
     "source_id": "sample_id",
@@ -263,5 +249,26 @@
     "source_id": "observation_id",
     "target_id": "output_id",
     "dedup": true
+  },
+  {
+    "label": "HAS_OVERALL_SURVIVAL",
+    "source_entity": "overall_survival",
+    "source_id": "case_id",
+    "target_id": "os_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_PROGRESSION_FREE_INTERVAL",
+    "source_entity": "progression_free_interval",
+    "source_id": "case_id",
+    "target_id": "pfi_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_DISEASE_FREE_INTERVAL",
+    "source_entity": "disease_free_interval",
+    "source_id": "case_id",
+    "target_id": "dfi_id",
+    "dedup": false
   }
 ]

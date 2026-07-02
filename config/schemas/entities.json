@@ -159,7 +159,7 @@
     "label": "Expression",
     "id_col": "expression_id",
     "strip_prefix": "",
-    "drop": ["case_id", "sample_id", "gene_ensembl"],
+    "drop": ["case_id", "sample_id", "gene_ensembl", "cell_type_id"],
     "keep": [],
     "dedup": false
   },
@@ -245,15 +245,6 @@
     "keep": [],
     "dedup": true
   },
-  {
-    "name": "pseudobulk",
-    "label": "PseudobulkExpression",
-    "id_col": "pseudobulk_id",
-    "strip_prefix": "",
-    "drop": ["case_id", "sample_id", "cell_type_id", "gene_ensembl"],
-    "keep": [],
-    "dedup": false
-  },
 
   {
     "name": "disease",
@@ -272,5 +263,38 @@
     "drop": [],
     "keep": [],
     "dedup": true
+  },
+  {
+    "name": "overall_survival",
+    "label": "OverallSurvival",
+    "id_col": "os_id",
+    "strip_prefix": "",
+    "drop": [
+      "case_id"
+    ],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "progression_free_interval",
+    "label": "ProgressionFreeInterval",
+    "id_col": "pfi_id",
+    "strip_prefix": "",
+    "drop": [
+      "case_id"
+    ],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "disease_free_interval",
+    "label": "DiseaseFreeInterval",
+    "id_col": "dfi_id",
+    "strip_prefix": "",
+    "drop": [
+      "case_id"
+    ],
+    "keep": [],
+    "dedup": false
   }
 ]
