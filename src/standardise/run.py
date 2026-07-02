@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 from typing import Callable
 
+from .aliases import canonicalise, load_alias_map
 from .detect import match_edge_plans, match_node_plans, scan_files
 
 _DEFAULT_SCHEMA_DIR = Path(__file__).parent.parent.parent / "config" / "schemas"
@@ -65,10 +66,12 @@ def standardise_node(
     out_dir: Path,
     clean: Callable[[str], str],
     delimiter: str = "\t",
+    alias_map: dict[str, str] | None = None,
 ) -> int:
     with open(src, newline="") as f:
         reader = csv.DictReader(f, delimiter=delimiter)
-        header = reader.fieldnames or []
+        header = canonicalise(reader.fieldnames or [], alias_map) if alias_map else (reader.fieldnames or [])
+        reader.fieldnames = header
 
         id_col = schema["id_col"]
         keep = schema.get("keep") or []
@@ -107,6 +110,7 @@ def standardise_edge(
     out_dir: Path,
     clean: Callable[[str], str],
     delimiter: str = "\t",
+    alias_map: dict[str, str] | None = None,
 ) -> int:
     out_path = out_dir / "edges" / f"{schema['label']}.csv"
     source_id = schema["source_id"]
@@ -116,6 +120,8 @@ def standardise_edge(
     n = 0
     with open(src, newline="") as f, open(out_path, "w", newline="") as out:
         reader = csv.DictReader(f, delimiter=delimiter)
+        if alias_map:
+            reader.fieldnames = canonicalise(reader.fieldnames or [], alias_map)
         writer = csv.writer(out)
         writer.writerow(["source_id", "target_id"])
         for row in reader:
@@ -139,19 +145,24 @@ def run(in_dir: Path, out_dir: Path, schema_dir: Path = _DEFAULT_SCHEMA_DIR) -> 
 
     entity_schemas, edge_schemas = load_schemas(schema_dir)
     clean = _make_clean(load_placeholders(schema_dir))
+    alias_map = load_alias_map(schema_dir)
     found = scan_files(in_dir)
 
-    node_plans = match_node_plans(found, entity_schemas)
-    edge_plans = match_edge_plans(found, edge_schemas)
+    node_plans = match_node_plans(found, entity_schemas, alias_map)
+    edge_plans = match_edge_plans(found, edge_schemas, alias_map)
 
     print(f"Standardising {in_dir} -> {out_dir}")
     print("  nodes:")
     for plan in node_plans:
-        n = standardise_node(plan["schema"], plan["path"], out_dir, clean, plan["delimiter"])
+        n = standardise_node(
+            plan["schema"], plan["path"], out_dir, clean, plan["delimiter"], alias_map
+        )
         print(f"    {plan['schema']['label']:<16} {n:>7} rows")
     print("  edges:")
     for plan in edge_plans:
-        n = standardise_edge(plan["schema"], plan["path"], out_dir, clean, plan["delimiter"])
+        n = standardise_edge(
+            plan["schema"], plan["path"], out_dir, clean, plan["delimiter"], alias_map
+        )
         print(f"    {plan['schema']['label']:<20} {n:>7} rows")
     print("Done.")
 

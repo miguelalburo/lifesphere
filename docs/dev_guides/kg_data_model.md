@@ -131,8 +131,15 @@ sample-level descriptors are grafted onto every aliquot row, `aliquot_id` become
 `sample_id`, and the originating GDC sample is retained as `gdc_sample_id`. `portion_id` /
 `analyte_*` ride along as provenance. See `docs/other/gdc_extraction_notes.md`.
 
-**Deferred.** (1) Real GDC omics-file download + parsing (expression TSV / MAF·VCF / methylation
-beta) into observations — this pass uses the synthetic fixture only. (2) Real Omnipath
+**Omics bridge (2026-07-02).** `src/extract/omics_reshape.py` now turns each raw concatenated
+matrix (`{base}.{type}.matrix.tsv`) into the standardiser-ready feature + observation TSVs, and
+`omics.py` captures the file→aliquot mapping so observations carry the Sample (`sample_id`).
+Covers expression (`gene` + `gene_expression`), methylation (`cpg_site` + `methylation`), and
+variation/MAF (`variant` + `somatic_mutation`, per-row tumour aliquot as `sample_id`). Verified
+reshape→standardise→validate on synthetic matrices; **not yet run on a live gdc-client download**.
+
+**Deferred.** (1) Run the omics bridge on a real GDC download (needs network + gdc-client);
+protein/RPPA (`protein_expression`) is modelled but has no extractor yet. (2) Real Omnipath
 ingestion for the static-biology edges. (3) Biospecimen QC (percent tumour cells, RIN, 260/280)
 wanted on the observations / Sample is **not yet extracted** — the merged `sample.tsv` carries
 descriptors + ids but no slide/analyte QC; surfacing it needs the extractor emitters extended

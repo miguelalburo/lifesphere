@@ -13,14 +13,17 @@ import csv
 import sys
 from pathlib import Path
 
+from .aliases import canonicalise
+
 
 def _delimiter(filepath: Path) -> str:
     return "," if filepath.suffix.lower() == ".csv" else "\t"
 
 
-def _read_header(filepath: Path) -> list[str]:
+def _read_header(filepath: Path, alias_map: dict[str, str] | None = None) -> list[str]:
     with open(filepath, newline="") as f:
-        return next(csv.reader(f, delimiter=_delimiter(filepath)), [])
+        header = next(csv.reader(f, delimiter=_delimiter(filepath)), [])
+    return canonicalise(header, alias_map) if alias_map else header
 
 
 def scan_files(dataset_dir: Path) -> dict[str, Path]:
@@ -47,11 +50,14 @@ def scan_files(dataset_dir: Path) -> dict[str, Path]:
     return found
 
 
-def match_node_plans(found: dict[str, Path], schemas: list[dict]) -> list[dict]:
+def match_node_plans(
+    found: dict[str, Path], schemas: list[dict], alias_map: dict[str, str] | None = None
+) -> list[dict]:
     """Return one plan per schema where the entity file exists and id_col is present.
 
     A single file can satisfy multiple schemas (e.g. subject.tsv feeds Program,
-    Project, and Subject nodes).
+    Project, and Subject nodes).  Headers are canonicalised via ``alias_map`` before
+    the id_col presence check, so aliased columns still match.
 
     Each plan: ``{"schema": dict, "path": Path, "delimiter": str}``
     """
@@ -65,7 +71,7 @@ def match_node_plans(found: dict[str, Path], schemas: list[dict]) -> list[dict]:
             )
             continue
         filepath = found[entity_name]
-        header = _read_header(filepath)
+        header = _read_header(filepath, alias_map)
         id_col = schema["id_col"]
         if id_col not in header:
             print(
@@ -77,8 +83,12 @@ def match_node_plans(found: dict[str, Path], schemas: list[dict]) -> list[dict]:
     return plans
 
 
-def match_edge_plans(found: dict[str, Path], schemas: list[dict]) -> list[dict]:
+def match_edge_plans(
+    found: dict[str, Path], schemas: list[dict], alias_map: dict[str, str] | None = None
+) -> list[dict]:
     """Return one plan per edge schema where the source file exists with both FK columns.
+
+    Headers are canonicalised via ``alias_map`` before the FK presence check.
 
     Each plan: ``{"schema": dict, "path": Path, "delimiter": str}``
     """
@@ -92,7 +102,7 @@ def match_edge_plans(found: dict[str, Path], schemas: list[dict]) -> list[dict]:
             )
             continue
         filepath = found[entity_name]
-        header = _read_header(filepath)
+        header = _read_header(filepath, alias_map)
         missing = [c for c in (schema["source_id"], schema["target_id"]) if c not in header]
         if missing:
             print(

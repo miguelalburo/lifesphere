@@ -6,13 +6,17 @@ Program/Project dedup, placeholder scrub, and edge referential integrity.
 """
 
 import csv
+import json
+import shutil
 from pathlib import Path
 
 import pytest
 
+from src.standardise.aliases import canonicalise, load_alias_map
 from src.standardise.run import run
 
 BASE = "TEST-XX"
+_REAL_SCHEMA_DIR = Path(__file__).resolve().parents[1] / "config" / "schemas"
 
 
 def _write_tsv(path: Path, header: list[str], rows: list[list[str]]) -> None:
@@ -135,3 +139,66 @@ def test_molecular_test_routing(std_dir):
     parents = {r["source_id"] for r in _edge(std_dir, "HAS_MOLECULAR_TEST")}
     assert parents == {"d1", "f1"}
     assert parents <= (diag_ids | fu_ids)
+
+
+# --------------------------------------------------------------------------- #
+# Column-alias detection                                                       #
+# --------------------------------------------------------------------------- #
+
+def test_load_alias_map_missing_file(tmp_path):
+    """A schema dir without aliases.json yields an empty (no-op) map."""
+    assert load_alias_map(tmp_path) == {}
+
+
+def test_load_alias_map_normalises_and_inverts(tmp_path):
+    (tmp_path / "aliases.json").write_text(
+        json.dumps({"case_id": ["BCR_Patient_UUID", " case_uuid "]})
+    )
+    amap = load_alias_map(tmp_path)
+    assert amap == {"bcr_patient_uuid": "case_id", "case_uuid": "case_id"}
+
+
+def test_canonicalise_renames_known_leaves_unknown():
+    amap = {"bcr_patient_uuid": "case_id"}
+    assert canonicalise(["BCR_Patient_UUID", "other"], amap) == ["case_id", "other"]
+
+
+@pytest.fixture(scope="module")
+def aliased_schema_dir(tmp_path_factory) -> Path:
+    """Real schemas plus a custom aliases.json for an alternately-named source."""
+    d = tmp_path_factory.mktemp("schemas")
+    for fname in ("entities.json", "edges.json", "placeholders.json"):
+        shutil.copy(_REAL_SCHEMA_DIR / fname, d / fname)
+    (d / "aliases.json").write_text(
+        json.dumps({
+            "case_id": ["bcr_patient_uuid"],
+            "project_id": ["project.project_id"],
+            "program_name": ["program.name"],
+        })
+    )
+    return d
+
+
+def test_alias_renaming_end_to_end(tmp_path, aliased_schema_dir):
+    """A subject file using aliased headers still matches schemas and links up."""
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    out = tmp_path / "std"
+    _write_tsv(raw / f"{BASE}.subject.tsv",
+        ["bcr_patient_uuid", "submitter_id", "disease_type", "primary_site",
+         "project.project_id", "project_name", "program.name",
+         "demographic_vital_status"],
+        [["c1", "TCGA-01", "Adeno", "Breast", "TCGA-BRCA",
+          "Breast Invasive Carcinoma", "TCGA", "Alive"]])
+
+    run(raw, out, aliased_schema_dir)
+
+    # Subject node keyed by the canonicalised case_id, not the alias.
+    subjects = _read(out / "nodes" / "Subject.csv")
+    assert [s["id"] for s in subjects] == ["c1"]
+    # Program/Project resolved from aliased columns.
+    assert [p["id"] for p in _read(out / "nodes" / "Program.csv")] == ["TCGA"]
+    assert [p["id"] for p in _read(out / "nodes" / "Project.csv")] == ["TCGA-BRCA"]
+    # Edges built off the canonical FK names.
+    enrolls = _read(out / "edges" / "ENROLLS.csv")
+    assert enrolls == [{"source_id": "TCGA-BRCA", "target_id": "c1"}]

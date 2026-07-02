@@ -116,7 +116,12 @@ class Neo4jLoader:
                     for r in batch:
                         node_id = r.pop("id", "")
                         if node_id:
-                            rows.append({"id": node_id, "props": r})
+                            # Drop empty attributes per node: a column blank for
+                            # this row is omitted entirely rather than stored as ""
+                            # — so a node carries only the properties it actually
+                            # has, even when siblings of the same label define more.
+                            props = {k: v for k, v in r.items() if v != ""}
+                            rows.append({"id": node_id, "props": props})
                     if rows:
                         session.run(
                             f"UNWIND $rows AS row "
@@ -142,6 +147,7 @@ class Neo4jLoader:
             )
 
             total = 0
+            created = 0
             with self._session() as session:
                 for batch in _iter_batches(path, self.batch_size):
                     rows = []
@@ -152,9 +158,19 @@ class Neo4jLoader:
                             props = {k: v for k, v in r.items() if v}
                             rows.append({"src": src, "tgt": tgt, "props": props})
                     if rows:
-                        session.run(cypher, rows=rows)
+                        summary = session.run(cypher, rows=rows).consume()
+                        created += summary.counters.relationships_created
                         total += len(rows)
-            log.info("  %s: %d edges", rel_type, total)
+            # created < total on a fresh load means endpoint nodes were missing and
+            # MATCH silently dropped the edge — run `python -m src.load.validate` to
+            # locate the dangling ids.
+            if created < total:
+                log.warning(
+                    "  %s: %d edges attempted, %d created (%d unmatched — missing endpoints?)",
+                    rel_type, total, created, total - created,
+                )
+            else:
+                log.info("  %s: %d edges", rel_type, total)
 
 
 def clear(uri: str, user: str, password: str, database: str, batch_size: int,
@@ -262,12 +278,36 @@ def main(argv: list[str] | None = None) -> int:
                     help="Rows per Cypher transaction (default: 500)")
     pl.add_argument("--schemas",    type=Path, default=_DEFAULT_SCHEMA_DIR,
                     help="Directory containing entities.json and edges.json")
+    pl.add_argument("--validate", action="store_true",
+                    help="Check referential integrity before loading.")
+    pl.add_argument("--strict", action="store_true",
+                    help="With --validate, abort the load if any edge has a dangling endpoint.")
+
+    # --- validate subcommand (offline, no DB) ---
+    pv = sub.add_parser("validate", help="Check referential integrity of the CSVs (no DB).")
+    pv.add_argument("input_dir", type=Path, help="Dir with nodes/ and edges/ subdirs")
+    pv.add_argument("--schemas", type=Path, default=_DEFAULT_SCHEMA_DIR)
+    pv.add_argument("--strict", action="store_true",
+                    help="Exit non-zero if any edge has a dangling endpoint.")
 
     args = p.parse_args(argv)
 
+    # Imported lazily to avoid a module-load import cycle (validate imports
+    # load_schema / _DEFAULT_SCHEMA_DIR from this module).
+    from .validate import format_report, main as validate_main, validate
+
     if args.command == "clear":
         clear(args.uri, args.user, args.password, args.database, args.batch_size, args.schemas)
+    elif args.command == "validate":
+        return validate_main([str(args.input_dir), "--schemas", str(args.schemas)]
+                             + (["--strict"] if args.strict else []))
     elif args.command == "load":
+        if args.validate:
+            reports = validate(args.input_dir, args.schemas)
+            log.info("Referential-integrity check:\n%s", format_report(reports))
+            if args.strict and any(not r.ok for r in reports):
+                log.error("Dangling endpoints found — aborting load (--strict).")
+                return 1
         run(args.input_dir, args.uri, args.user, args.password, args.database, args.batch_size,
             args.schemas)
     else:

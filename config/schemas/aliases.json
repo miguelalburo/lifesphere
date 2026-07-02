@@ -1,0 +1,6 @@
+{
+  "case_id": ["bcr_patient_uuid", "case_uuid", "patient_uuid"],
+  "sample_id": ["bcr_sample_uuid", "sample_uuid"],
+  "project_id": ["project.project_id", "cases.project.project_id"],
+  "program_name": ["program.name", "project.program.name"]
+}

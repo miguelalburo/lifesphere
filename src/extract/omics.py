@@ -13,11 +13,17 @@ data type(s), write a gdc-client manifest, and download the files into a
 temporary staging dir.
 
 A post-processing step then concatenates every per-sample file of a type
-vertically into one long ``{out_dir}/{base}.{type}.tsv`` table, prefixing each row
-with ``case_id``/``case_submitter_id``/``file_id`` so the stacked measurements
-stay attributable to their case and source file. The staging dir is removed
-afterwards, so the only omics output is that flat matrix, written directly into
-``out_dir`` alongside the clinical entity tables (``{base}.diagnosis.tsv``, ...).
+vertically into one long ``{out_dir}/{base}.{type}.matrix.tsv`` table, prefixing
+each row with ``case_id``/``case_submitter_id``/``file_id``/``aliquot_id`` so the
+stacked measurements stay attributable to their case, source file and aliquot.
+
+A second post-process (``omics_reshape.py``) then splits that flat matrix into the
+standardiser-ready shape: a deduped feature reference TSV (``{base}.gene.tsv``,
+``.cpg_site.tsv``, ``.variant.tsv``) plus a per-assay observation TSV
+(``{base}.gene_expression.tsv``, ``.methylation.tsv``, ``.somatic_mutation.tsv``)
+carrying the aliquot ``sample_id`` and feature FK. These sit in ``out_dir`` next to
+the clinical entity tables; the raw ``.matrix.tsv`` is kept for provenance and is
+ignored by the standardiser as an unknown entity. The staging dir is removed.
 
 Only open-access files are requested, so no GDC token is required. Files that are
 not available for a given case set are simply skipped ("if available").
@@ -32,6 +38,7 @@ from pathlib import Path
 
 from . import gdc_api
 from .biotab import write_manifest
+from .omics_reshape import reshape_omics_type
 
 # omics type -> GDC (data_category, data_type) selector.
 OMICS_SPECS: dict[str, dict[str, str]] = {
@@ -81,7 +88,12 @@ def fetch_files(omics_type: str, case_filter: dict) -> list[dict]:
     while total is None or from_pos < total:
         payload = {
             "filters": filters,
-            "fields": ",".join([*_FILE_FIELDS, "cases.case_id", "cases.submitter_id"]),
+            "fields": ",".join([
+                *_FILE_FIELDS,
+                "cases.case_id", "cases.submitter_id",
+                # aliquot uuid = the Sample node id omics measurements attach to.
+                "cases.samples.portions.analytes.aliquots.aliquot_id",
+            ]),
             "size": 500,
             "from": from_pos,
         }
@@ -115,8 +127,9 @@ def _run_gdc_client(manifest_path: Path, dest_dir: Path) -> None:
 # Post-processing: concatenate per-sample downloads into one long TSV per type.
 # ---------------------------------------------------------------------------
 
-# Row-identity columns prepended to every concatenated record.
-_ID_COLS = ["case_id", "case_submitter_id", "file_id"]
+# Row-identity columns prepended to every concatenated record. aliquot_id is the
+# Sample node id (Sample = aliquot); the reshape step uses it as the omics sample_id.
+_ID_COLS = ["case_id", "case_submitter_id", "file_id", "aliquot_id"]
 
 
 def _open_text(path: Path):
@@ -126,13 +139,27 @@ def _open_text(path: Path):
     return open(path, newline="")
 
 
-def _file_meta(hits: list[dict]) -> dict[str, tuple[str, str, str]]:
-    """file_id -> (case_id, case_submitter_id, file_name) using each file's first case."""
-    meta: dict[str, tuple[str, str, str]] = {}
+def _first_aliquot(case: dict) -> str:
+    """Dig out the aliquot uuid from a file's nested case→sample→…→aliquot tree."""
+    for sample in case.get("samples") or []:
+        for portion in sample.get("portions") or []:
+            for analyte in portion.get("analytes") or []:
+                for aliquot in analyte.get("aliquots") or []:
+                    if aliquot.get("aliquot_id"):
+                        return aliquot["aliquot_id"]
+    return ""
+
+
+def _file_meta(hits: list[dict]) -> dict[str, tuple[str, str, str, str]]:
+    """file_id -> (case_id, case_submitter_id, file_name, aliquot_id) via first case."""
+    meta: dict[str, tuple[str, str, str, str]] = {}
     for h in hits:
         cases = h.get("cases") or [{}]
         c = cases[0]
-        meta[h["file_id"]] = (c.get("case_id", ""), c.get("submitter_id", ""), h.get("file_name", ""))
+        meta[h["file_id"]] = (
+            c.get("case_id", ""), c.get("submitter_id", ""),
+            h.get("file_name", ""), _first_aliquot(c),
+        )
     return meta
 
 
@@ -169,8 +196,8 @@ def concatenate_omics_type(omics_type: str, dest_dir: Path, meta: dict, out_path
     """
     # Resolve which files actually landed on disk (dest_dir/{file_id}/{file_name}).
     present = [
-        (fid, dest_dir / fid / fname, ci, cs)
-        for fid, (ci, cs, fname) in meta.items()
+        (fid, dest_dir / fid / fname, ci, cs, aliquot)
+        for fid, (ci, cs, fname, aliquot) in meta.items()
         if (dest_dir / fid / fname).exists()
     ]
     if not present:
@@ -187,8 +214,9 @@ def concatenate_omics_type(omics_type: str, dest_dir: Path, meta: dict, out_path
     with open(out_path, "w", newline="") as out:
         writer = csv.DictWriter(out, fieldnames=columns, delimiter="\t", extrasaction="ignore")
         writer.writeheader()
-        for fid, path, case_id, case_submitter_id in present:
-            ident = {"case_id": case_id, "case_submitter_id": case_submitter_id, "file_id": fid}
+        for fid, path, case_id, case_submitter_id, aliquot_id in present:
+            ident = {"case_id": case_id, "case_submitter_id": case_submitter_id,
+                     "file_id": fid, "aliquot_id": aliquot_id}
             if omics_type == "methylation":
                 with _open_text(path) as f:
                     for line in f:
@@ -220,9 +248,9 @@ def download_omics_type(omics_type: str, case_filter: dict, out_dir: Path, base_
     print(f"  Found {len(hits)} files ({total_size / 1024 / 1024:.1f} MB).")
 
     # Download into a temporary staging dir; gdc-client lays files out as
-    # {staging}/{file_id}/{file_name}. We concatenate from there, then remove it
-    # so the only output is the flat {base}.{type}.tsv matrix, written directly
-    # into out_dir alongside the clinical entity tables (cases.diagnosis.tsv, ...).
+    # {staging}/{file_id}/{file_name}. We concatenate from there into a raw
+    # {base}.{type}.matrix.tsv, then reshape that into standardiser-ready feature +
+    # observation TSVs, and finally remove the staging dir.
     staging = out_dir / f".{omics_type}_staging"
     if staging.exists():
         shutil.rmtree(staging)
@@ -233,8 +261,15 @@ def download_omics_type(omics_type: str, case_filter: dict, out_dir: Path, base_
 
     try:
         _run_gdc_client(manifest_path, staging)
-        concat_path = out_dir / f"{base_name}.{omics_type}.tsv"
-        concatenate_omics_type(omics_type, staging, _file_meta(hits), concat_path)
+        # Raw matrix gets a `.matrix.tsv` name so it (a) never collides with a
+        # reshaped observation file (methylation's obs entity is also "methylation")
+        # and (b) is ignored by the standardiser as an unknown entity.
+        concat_path = out_dir / f"{base_name}.{omics_type}.matrix.tsv"
+        n = concatenate_omics_type(omics_type, staging, _file_meta(hits), concat_path)
+        if n:
+            # Reshape the flat matrix into standardiser-ready feature + observation
+            # TSVs (Sample→Observation→Feature); see src/extract/omics_reshape.py.
+            reshape_omics_type(omics_type, concat_path, out_dir, base_name)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
 
