@@ -6,9 +6,6 @@ data/raw/
 data/standardised/
 data/interim/
 
-# Omics integration tester output
-test/output/
-
 # Log files
 logs/
 

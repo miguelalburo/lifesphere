@@ -296,5 +296,71 @@
     ],
     "keep": [],
     "dedup": false
+  },
+  {
+    "name": "analysis",
+    "label": "Analysis",
+    "id_col": "analysis_id",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": [],
+    "dedup": true
+  },
+  {
+    "name": "contrast",
+    "label": "Contrast",
+    "id_col": "contrast_id",
+    "strip_prefix": "",
+    "drop": [
+      "analysis_id"
+    ],
+    "keep": [],
+    "dedup": true
+  },
+  {
+    "name": "differential_expression",
+    "label": "DifferentialExpression",
+    "id_col": "de_id",
+    "strip_prefix": "",
+    "drop": [
+      "contrast_id",
+      "gene_ensembl"
+    ],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "differential_methylation",
+    "label": "DifferentialMethylation",
+    "id_col": "dmp_id",
+    "strip_prefix": "",
+    "drop": [
+      "contrast_id",
+      "cpg"
+    ],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "association",
+    "label": "Association",
+    "id_col": "assoc_id",
+    "strip_prefix": "",
+    "drop": [
+      "contrast_id",
+      "variant_id",
+      "trait_id"
+    ],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "trait",
+    "label": "Trait",
+    "id_col": "trait_id",
+    "strip_prefix": "",
+    "drop": [],
+    "keep": [],
+    "dedup": true
   }
 ]

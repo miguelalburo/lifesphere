@@ -571,3 +571,127 @@ subject to disease free interval:
   input_label: HAS_DISEASE_FREE_INTERVAL
   source: subject
   target: disease free interval
+
+# --------------------------------------------------------------------------- #
+# Analysis-result layer (derived; produced by src/standardise/analysis_reshape.py).
+# A differential/association result is REIFIED like a measurement, but anchored to a
+# Contrast (a cohort comparison) instead of a Sample, and reuses the shared feature
+# dimension the omics layer populates:
+#   (Analysis)-[:PRODUCED]->(Contrast)-[:HAS_DIFFERENTIAL_EXPRESSION] ->(DifferentialExpression) -[:FOR_GENE]   ->(Gene)
+#                                      -[:HAS_DIFFERENTIAL_METHYLATION]->(DifferentialMethylation)-[:FOR_CPG]    ->(CpGSite)
+#                                      -[:HAS_ASSOCIATION]             ->(Association)             -[:FOR_VARIANT]->(Variant)
+#                                                                                                  -[:FOR_TRAIT]  ->(Trait)
+# Result nodes are subclasses of an abstract `analysis result` (mirrors `survival
+# outcome`); each subclass needs a distinct preferred_id because the loader keys labels
+# by id column. Each Contrast->result edge has its own label because Stage 1 writes one
+# edges/{LABEL}.csv per schema entry (same reason FOR_* differ from the measurement
+# edges OF_GENE/AT_CPG/OF_VARIANT) — but the FOR_* edges target the SAME shared feature
+# nodes. GWAS uses `import_max_pvalue` in the manifest to threshold to hits worth a node
+# (keep full summary stats as a ProcessedDataOutput), the discipline single-cell uses.
+# --------------------------------------------------------------------------- #
+
+analysis:                               # provenance root: how the result was produced
+  represented_as: node
+  is_a: entity
+  preferred_id: analysis_id
+  input_label: Analysis
+  # props: method (DESeq2|limma|edgeR|PLINK), software_version, genome_build
+
+contrast:                               # what was compared — the result anchor
+  represented_as: node
+  is_a: entity
+  preferred_id: contrast_id
+  input_label: Contrast
+  # props: group_a, group_b, group_a_n, group_b_n, stratify_on (clinical variable)
+
+trait:                                  # GWAS phenotype — shared, ontology-mapped dim
+  represented_as: node
+  is_a: entity
+  preferred_id: trait_id                # EFO / MONDO / free label
+  input_label: Trait
+  # props: trait_name, trait_source
+
+analysis result:                        # abstract superclass (see `survival outcome`)
+  represented_as: node
+  is_a: entity
+  preferred_id: result_id
+  input_label: AnalysisResult
+  # props: pvalue, direction, significant
+
+differential expression:
+  represented_as: node
+  is_a: analysis result
+  preferred_id: de_id
+  input_label: DifferentialExpression
+  # props: log2fc, base_mean, pvalue, padj, direction (up|down|ns), significant
+
+differential methylation:
+  represented_as: node
+  is_a: analysis result
+  preferred_id: dmp_id
+  input_label: DifferentialMethylation
+  # props: delta_beta, log2fc, pvalue, padj, status (hyper|hypo|ns), significant
+
+association:                            # a GWAS variant–trait association
+  represented_as: node
+  is_a: analysis result
+  preferred_id: assoc_id
+  input_label: Association
+  # props: effect, effect_type (beta|or), se, effect_allele, other_allele, eaf, n,
+  #        pvalue, direction (pos|neg|ns), significant
+
+analysis to contrast:
+  represented_as: edge
+  is_a: association
+  input_label: PRODUCED
+  source: analysis
+  target: contrast
+
+contrast to differential expression:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_DIFFERENTIAL_EXPRESSION
+  source: contrast
+  target: differential expression
+
+differential expression to gene:        # same shared Gene node as omics OF_GENE
+  represented_as: edge
+  is_a: association
+  input_label: FOR_GENE
+  source: differential expression
+  target: gene
+
+contrast to differential methylation:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_DIFFERENTIAL_METHYLATION
+  source: contrast
+  target: differential methylation
+
+differential methylation to cpg:        # same shared CpGSite node as omics AT_CPG
+  represented_as: edge
+  is_a: association
+  input_label: FOR_CPG
+  source: differential methylation
+  target: cpg site
+
+contrast to association:
+  represented_as: edge
+  is_a: association
+  input_label: HAS_ASSOCIATION
+  source: contrast
+  target: association
+
+association to variant:                 # same shared Variant node as omics OF_VARIANT
+  represented_as: edge
+  is_a: association
+  input_label: FOR_VARIANT
+  source: association
+  target: variant
+
+association to trait:
+  represented_as: edge
+  is_a: association
+  input_label: FOR_TRAIT
+  source: association
+  target: trait

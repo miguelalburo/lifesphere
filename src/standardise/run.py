@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Callable
 
 from .aliases import canonicalise, load_alias_map
+from .analysis_reshape import reshape_analysis
 from .detect import match_edge_plans, match_node_plans, scan_files
 
 _DEFAULT_SCHEMA_DIR = Path(__file__).parent.parent.parent / "config" / "schemas"
@@ -149,6 +150,11 @@ def standardise_edge(
 def run(in_dir: Path, out_dir: Path, schema_dir: Path = _DEFAULT_SCHEMA_DIR) -> None:
     (out_dir / "nodes").mkdir(parents=True, exist_ok=True)
     (out_dir / "edges").mkdir(parents=True, exist_ok=True)
+
+    # Stage-2 derived layer: fold any differential-analysis results into standardiser-
+    # ready per-entity TSVs before file discovery, so the generic engine emits their
+    # nodes/edges with no special-casing. No-op when no analysis manifest is present.
+    reshape_analysis(in_dir)
 
     entity_schemas, edge_schemas = load_schemas(schema_dir)
     clean = _make_clean(load_placeholders(schema_dir))

@@ -270,5 +270,61 @@
     "source_id": "case_id",
     "target_id": "dfi_id",
     "dedup": false
+  },
+  {
+    "label": "PRODUCED",
+    "source_entity": "contrast",
+    "source_id": "analysis_id",
+    "target_id": "contrast_id",
+    "dedup": true
+  },
+  {
+    "label": "HAS_DIFFERENTIAL_EXPRESSION",
+    "source_entity": "differential_expression",
+    "source_id": "contrast_id",
+    "target_id": "de_id",
+    "dedup": false
+  },
+  {
+    "label": "FOR_GENE",
+    "source_entity": "differential_expression",
+    "source_id": "de_id",
+    "target_id": "gene_ensembl",
+    "dedup": false
+  },
+  {
+    "label": "HAS_DIFFERENTIAL_METHYLATION",
+    "source_entity": "differential_methylation",
+    "source_id": "contrast_id",
+    "target_id": "dmp_id",
+    "dedup": false
+  },
+  {
+    "label": "FOR_CPG",
+    "source_entity": "differential_methylation",
+    "source_id": "dmp_id",
+    "target_id": "cpg",
+    "dedup": false
+  },
+  {
+    "label": "HAS_ASSOCIATION",
+    "source_entity": "association",
+    "source_id": "contrast_id",
+    "target_id": "assoc_id",
+    "dedup": false
+  },
+  {
+    "label": "FOR_VARIANT",
+    "source_entity": "association",
+    "source_id": "assoc_id",
+    "target_id": "variant_id",
+    "dedup": false
+  },
+  {
+    "label": "FOR_TRAIT",
+    "source_entity": "association",
+    "source_id": "assoc_id",
+    "target_id": "trait_id",
+    "dedup": false
   }
 ]

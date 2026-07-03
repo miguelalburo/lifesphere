@@ -24,6 +24,7 @@ import html
 import json
 import re
 from collections import defaultdict, deque
+from datetime import datetime
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parent.parent
@@ -135,6 +136,7 @@ def parse_schema(path: Path) -> tuple[dict, list]:
                 "label": b["fields"].get("input_label", b["key"]),
                 "id": b["fields"].get("preferred_id", ""),
                 "props": _split_props(b["props"]),
+                "is_a": b["fields"].get("is_a", ""),
             }
         elif kind == "edge":
             edges.append({
@@ -165,21 +167,40 @@ def classify(labels: set[str], adjacency: dict[str, set]) -> dict[str, str]:
     return layer
 
 
+def _abstract_keys(nodes: dict) -> set[str]:
+    """Keys of abstract 'template' superclasses — a node used as another node's
+    ``is_a`` parent. BioCypher never emits a standalone instance of these: they only
+    contribute an inherited label to their subclasses (e.g. ``SurvivalOutcome`` is a
+    label carried by ``OverallSurvival``/``ProgressionFreeInterval``/… nodes, never a
+    node of its own). They must not be drawn as their own node here, mirroring their
+    absence from the real Neo4j KG. ``is_a: entity`` is ignored — ``entity`` is the
+    BioCypher root and has no block of its own."""
+    return {
+        parent
+        for n in nodes.values()
+        for parent in _split_list(n.get("is_a", ""))
+        if parent in nodes
+    }
+
+
 def build(nodes: dict, edges: list) -> tuple[list, list, dict, set]:
     label_of = {key: n["label"] for key, n in nodes.items()}
+    abstract = _abstract_keys(nodes)
+    abstract_labels = {label_of[k] for k in abstract}
+
     adjacency: dict[str, set] = defaultdict(set)
     edge_rows: list[tuple[str, str, str, list]] = []
     for e in edges:
         for s in e["sources"]:
             for t in e["targets"]:
                 sl, tl = label_of.get(s), label_of.get(t)
-                if not sl or not tl:
+                if not sl or not tl or sl in abstract_labels or tl in abstract_labels:
                     continue
                 edge_rows.append((sl, tl, e["label"], e["props"]))
                 adjacency[sl].add(tl)
                 adjacency[tl].add(sl)
 
-    labels = set(label_of.values())
+    labels = {lbl for lbl in label_of.values() if lbl not in abstract_labels}
     for lbl in labels:
         adjacency.setdefault(lbl, set())
     layer = classify(labels, adjacency)
@@ -187,6 +208,12 @@ def build(nodes: dict, edges: list) -> tuple[list, list, dict, set]:
     vis_nodes, node_info = [], {}
     for n in nodes.values():
         lbl = n["label"]
+        if lbl in abstract_labels:
+            continue
+        # A concrete subclass inherits its parent's documented props (the reified
+        # schema is declared once on the abstract node, not redeclared per subclass).
+        inherited = [p for parent in _split_list(n.get("is_a", ""))
+                     if parent in nodes for p in nodes[parent]["props"]]
         name, colour = _LAYERS[layer[lbl]]
         vis_nodes.append({
             "id": lbl, "label": lbl, "shape": "dot", "size": 18,
@@ -194,7 +221,7 @@ def build(nodes: dict, edges: list) -> tuple[list, list, dict, set]:
                       "highlight": {"background": colour, "border": "#000"}},
         })
         node_info[lbl] = {"layer": name, "colour": colour,
-                          "id_prop": n["id"], "props": n["props"]}
+                          "id_prop": n["id"], "props": n["props"] or inherited}
 
     vis_edges = [{
         "from": sl, "to": tl, "label": el, "arrows": "to",
@@ -301,12 +328,25 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--config", type=Path, default=_REPO / "config" / "schema_config.yaml",
                     help="Path to the live BioCypher ontology (schema_config.yaml)")
-    ap.add_argument("--out", type=Path, default=_REPO / "docs" / "schema_graph.html",
-                    help="Output HTML path (default: docs/schema_graph.html)")
+    ap.add_argument("--out", type=Path, default=None,
+                    help="Output HTML path (default: docs/schema_graph_<YYYYMMDD_HHMMSS>.html)")
     args = ap.parse_args(argv)
+
+    # Default output is timestamped; in that mode we own the docs/schema_graph*.html
+    # namespace, so purge previous generations to keep a single current file.
+    purge_previous = args.out is None
+    if args.out is None:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        args.out = _REPO / "docs" / f"schema_graph_{stamp}.html"
 
     if not args.config.exists():
         ap.error(f"config not found: {args.config}")
+
+    if purge_previous:
+        for stale in sorted(args.out.parent.glob("schema_graph*.html")):
+            if stale != args.out:
+                stale.unlink()
+                print(f"Removed previous {stale.name}")
 
     nodes, edges = parse_schema(args.config)
     vis_nodes, vis_edges, node_info, present = build(nodes, edges)
