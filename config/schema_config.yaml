@@ -574,20 +574,18 @@ subject to disease free interval:
 
 # --------------------------------------------------------------------------- #
 # Analysis-result layer (derived; produced by src/standardise/analysis_reshape.py).
-# A differential/association result is REIFIED like a measurement, but anchored to a
-# Contrast (a cohort comparison) instead of a Sample, and reuses the shared feature
-# dimension the omics layer populates:
-#   (Analysis)-[:PRODUCED]->(Contrast)-[:HAS_DIFFERENTIAL_EXPRESSION] ->(DifferentialExpression) -[:FOR_GENE]   ->(Gene)
-#                                      -[:HAS_DIFFERENTIAL_METHYLATION]->(DifferentialMethylation)-[:FOR_CPG]    ->(CpGSite)
-#                                      -[:HAS_ASSOCIATION]             ->(Association)             -[:FOR_VARIANT]->(Variant)
-#                                                                                                  -[:FOR_TRAIT]  ->(Trait)
+# A differential result is REIFIED like a measurement, but anchored to a Contrast
+# (a cohort comparison) instead of a Sample, and reuses the shared feature dimension
+# the omics layer populates:
+#   (Analysis)-[:PRODUCED]->(Contrast)-[:HAS_DIFFERENTIAL_EXPRESSION] ->(DifferentialExpression) -[:FOR_GENE]->(Gene)
+#                                      -[:HAS_DIFFERENTIAL_METHYLATION]->(DifferentialMethylation)-[:FOR_CPG] ->(CpGSite)
 # Result nodes are subclasses of an abstract `analysis result` (mirrors `survival
 # outcome`); each subclass needs a distinct preferred_id because the loader keys labels
 # by id column. Each Contrast->result edge has its own label because Stage 1 writes one
 # edges/{LABEL}.csv per schema entry (same reason FOR_* differ from the measurement
 # edges MEASURES_GENE/MEASURES_CPG/OBSERVED_VARIANT) — but the FOR_* edges target the SAME shared feature
-# nodes. GWAS uses `import_max_pvalue` in the manifest to threshold to hits worth a node
-# (keep full summary stats as a ProcessedDataOutput), the discipline single-cell uses.
+# nodes. Trait information (GWAS phenotype) is treated as a subject/sample property,
+# not a graph node; GWAS association results are not loaded at this time.
 # --------------------------------------------------------------------------- #
 
 analysis:                               # provenance root: how the result was produced
@@ -603,13 +601,6 @@ contrast:                               # what was compared — the result ancho
   preferred_id: contrastId
   input_label: Contrast
   # props: group_a, group_b, group_a_n, group_b_n, stratify_on (clinical variable)
-
-trait:                                  # GWAS phenotype — shared, ontology-mapped dim
-  represented_as: node
-  is_a: entity
-  preferred_id: traitId                # EFO / MONDO / free label
-  input_label: Trait
-  # props: trait_name, trait_source
 
 analysis result:                        # abstract superclass (see `survival outcome`)
   represented_as: node
@@ -631,14 +622,6 @@ differential methylation:
   preferred_id: dmpId
   input_label: DifferentialMethylation
   # props: delta_beta, log2fc, pvalue, padj, status (hyper|hypo|ns), significant
-
-association:                            # a GWAS variant–trait association
-  represented_as: node
-  is_a: analysis result
-  preferred_id: assocId
-  input_label: Association
-  # props: effect, effect_type (beta|or), se, effect_allele, other_allele, eaf, n,
-  #        pvalue, direction (pos|neg|ns), significant
 
 analysis to contrast:
   represented_as: edge
@@ -675,23 +658,3 @@ differential methylation to cpg:        # same shared CpGSite node as omics MEAS
   source: differential methylation
   target: cpg site
 
-contrast to association:
-  represented_as: edge
-  is_a: association
-  input_label: HAS_ASSOCIATION
-  source: contrast
-  target: association
-
-association to variant:                 # same shared Variant node as omics OBSERVED_VARIANT
-  represented_as: edge
-  is_a: association
-  input_label: FOR_VARIANT
-  source: association
-  target: variant
-
-association to trait:
-  represented_as: edge
-  is_a: association
-  input_label: FOR_TRAIT
-  source: association
-  target: trait
