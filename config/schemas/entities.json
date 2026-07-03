@@ -340,27 +340,5 @@
     ],
     "keep": [],
     "dedup": false
-  },
-  {
-    "name": "association",
-    "label": "Association",
-    "id_col": "assoc_id",
-    "strip_prefix": "",
-    "drop": [
-      "contrast_id",
-      "variant_id",
-      "trait_id"
-    ],
-    "keep": [],
-    "dedup": false
-  },
-  {
-    "name": "trait",
-    "label": "Trait",
-    "id_col": "trait_id",
-    "strip_prefix": "",
-    "drop": [],
-    "keep": [],
-    "dedup": true
   }
 ]

@@ -305,26 +305,5 @@
     "source_id": "dmp_id",
     "target_id": "cpg",
     "dedup": false
-  },
-  {
-    "label": "HAS_ASSOCIATION",
-    "source_entity": "association",
-    "source_id": "contrast_id",
-    "target_id": "assoc_id",
-    "dedup": false
-  },
-  {
-    "label": "FOR_VARIANT",
-    "source_entity": "association",
-    "source_id": "assoc_id",
-    "target_id": "variant_id",
-    "dedup": false
-  },
-  {
-    "label": "FOR_TRAIT",
-    "source_entity": "association",
-    "source_id": "assoc_id",
-    "target_id": "trait_id",
-    "dedup": false
   }
 ]
