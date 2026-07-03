@@ -53,8 +53,7 @@ column set of each source TSV carries through (prefix-stripped) unless pruned.
 | **PathologyDetail** | `pathology_detail_id` | `pathology_detail` | percent_tumor_*, lymph-node counts, margin/invasion fields |
 | **FollowUp** | `follow_up_id` | `follow_up` | days_to_follow_up, disease_response, progression_or_recurrence, days_to_progression, days_to_recurrence |
 | **MolecularTest** | `molecular_test_id` | `molecular_test` | gene_symbol, molecular_analysis_method, test_result, variant_type, laboratory_test (ER/PR/HER2 biomarkers live here) |
-| **Exposure** | `exposure_id` | `exposure` | tobacco_smoking_status, pack_years_smoked, alcohol_history, bmi |
-| **FamilyHistory** | `family_history_id` | `family_history` | relationship_primary_diagnosis, relative_with_cancer_history |
+| **PhenotypeObservation** | `exposure_id` / `family_history_id` | `exposure`, `family_history` (both append into the same CSV) | exposure fields: tobacco_smoking_status, pack_years_smoked, alcohol_history, bmi; family-history fields: relationship_primary_diagnosis, relative_with_cancer_history |
 | **Sample** | `sample_id` (= aliquot) | `sample` (aliquot grain) | type, tissue_type, tumor_descriptor, specimen_type, preservation_method, days_to_collection; provenance: gdc_sample_id, gdc_sample_submitter_id, portion_id, analyte_id, analyte_type |
 | **ExperimentalCondition** | `group_id` (dedup) | `sample` (derived from `sample_type`) | group_label (control/treatment arm) |
 
@@ -77,8 +76,7 @@ already present in a single source TSV (no joins needed).
 | `HAS_PATHOLOGY` | Diagnosis → PathologyDetail | `pathology_detail` | diagnosis_id → pathology_detail_id |
 | `HAS_FOLLOWUP` | Subject → FollowUp | `follow_up` | case_id → follow_up_id |
 | `HAS_MOLECULAR_TEST` | Diagnosis **or** FollowUp → MolecularTest | `molecular_test` | parent_id → molecular_test_id (parent chosen by `parent_entity`) |
-| `HAS_EXPOSURE` | Subject → Exposure | `exposure` | case_id → exposure_id |
-| `HAS_FAMILY_HISTORY` | Subject → FamilyHistory | `family_history` | case_id → family_history_id |
+| `HAS_PHENOTYPE_OBSERVATION` | Subject → PhenotypeObservation | `exposure`, `family_history` (both append into `HAS_PHENOTYPE_OBSERVATION.csv`) | case_id → exposure_id / family_history_id |
 | `PROVIDED_SAMPLE` | Subject → Sample | `sample` | case_id → sample_id |
 | `HAS_CONDITION` | Sample → ExperimentalCondition | `sample` | sample_id → group_id |
 
@@ -125,8 +123,7 @@ properties through), so every edge stays a plain `source_id,target_id` pair.
 
 **Reference files vs measurement files.** Feature nodes come from dedicated reference TSVs
 (`{base}.gene.tsv`, `.cpg_site.tsv`, `.variant.tsv`, `.protein.tsv`, `.pathway.tsv`) — one
-source file per node label, since `standardise_node()` opens output `"w"` and two plans writing
-the same label would clobber. Each measurement TSV (`{base}.gene_expression.tsv`,
+source file per node label (feature nodes are deduplicated reference dimensions). Each measurement TSV (`{base}.gene_expression.tsv`,
 `.methylation.tsv`, `.somatic_mutation.tsv`, `.protein_expression.tsv`) yields its observation
 node **and** both of its edges (the same one-file→node+edges pattern as `subject.tsv`). Static
 biology comes from `{base}.gene_pathway.tsv` and `{base}.gene_protein.tsv` (edge-only).

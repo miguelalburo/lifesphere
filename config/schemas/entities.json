@@ -73,7 +73,7 @@
   },
   {
     "name": "exposure",
-    "label": "Exposure",
+    "label": "PhenotypeObservation",
     "id_col": "exposure_id",
     "strip_prefix": "exposure_",
     "drop": ["case_id", "case_submitter_id"],
@@ -82,7 +82,7 @@
   },
   {
     "name": "family_history",
-    "label": "FamilyHistory",
+    "label": "PhenotypeObservation",
     "id_col": "family_history_id",
     "strip_prefix": "family_history_",
     "drop": ["case_id", "case_submitter_id"],

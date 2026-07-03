@@ -80,17 +80,15 @@ def run(input_dir: Path, output_dir: Path, projects: list[str]) -> None:
 
     # --- Subject → child nodes ---
     diagnosis_ids   = filter_subject_edge("HAS_DIAGNOSIS")
-    exposure_ids    = filter_subject_edge("HAS_EXPOSURE")
-    fam_ids         = filter_subject_edge("HAS_FAMILY_HISTORY")
+    phenotype_ids   = filter_subject_edge("HAS_PHENOTYPE_OBSERVATION")
     followup_ids    = filter_subject_edge("HAS_FOLLOWUP")
     sample_ids      = filter_subject_edge("PROVIDED_SAMPLE")
 
-    _filter_csv(nodes_in / "Diagnosis.csv",     nodes_out / "Diagnosis.csv",     "id", diagnosis_ids)
-    _filter_csv(nodes_in / "Exposure.csv",      nodes_out / "Exposure.csv",      "id", exposure_ids)
-    _filter_csv(nodes_in / "FamilyHistory.csv", nodes_out / "FamilyHistory.csv", "id", fam_ids)
-    _filter_csv(nodes_in / "FollowUp.csv",      nodes_out / "FollowUp.csv",      "id", followup_ids)
-    _filter_csv(nodes_in / "Sample.csv",        nodes_out / "Sample.csv",        "id", sample_ids)
-    log.info("Diagnosis/Exposure/FamilyHistory/FollowUp/Sample nodes written")
+    _filter_csv(nodes_in / "Diagnosis.csv",           nodes_out / "Diagnosis.csv",           "id", diagnosis_ids)
+    _filter_csv(nodes_in / "PhenotypeObservation.csv", nodes_out / "PhenotypeObservation.csv", "id", phenotype_ids)
+    _filter_csv(nodes_in / "FollowUp.csv",            nodes_out / "FollowUp.csv",            "id", followup_ids)
+    _filter_csv(nodes_in / "Sample.csv",              nodes_out / "Sample.csv",              "id", sample_ids)
+    log.info("Diagnosis/PhenotypeObservation/FollowUp/Sample nodes written")
 
     # Helper: filter an edge file by a set of source IDs, collect target IDs
     def filter_edge(edge_name: str, source_ids: set[str]) -> set[str]:

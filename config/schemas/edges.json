@@ -49,14 +49,14 @@
     "dedup": false
   },
   {
-    "label": "HAS_EXPOSURE",
+    "label": "HAS_PHENOTYPE_OBSERVATION",
     "source_entity": "exposure",
     "source_id": "case_id",
     "target_id": "exposure_id",
     "dedup": false
   },
   {
-    "label": "HAS_FAMILY_HISTORY",
+    "label": "HAS_PHENOTYPE_OBSERVATION",
     "source_entity": "family_history",
     "source_id": "case_id",
     "target_id": "family_history_id",
