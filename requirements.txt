@@ -1,4 +1,5 @@
 pandas
 neo4j
 biocypher
+python-dotenv
 pytest

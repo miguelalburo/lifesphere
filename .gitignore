@@ -9,6 +9,9 @@ data/interim/
 # Log files
 logs/
 
+# Load ledger (tracks which datasets have been loaded into Neo4j)
+.load_ledger.json
+
 # BioCypher generated output
 biocypher-out/
 biocypher-log/

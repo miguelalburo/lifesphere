@@ -132,13 +132,33 @@ class Neo4jLoader:
                         total += len(rows)
             log.info("  %s: %d nodes", label, total)
 
+    def _endpoint_pattern(self, var: str, id_expr: str, label: str | None) -> str:
+        """Build a MATCH pattern for one edge endpoint that always uses an id index.
+
+        For a resolved label we key on that label directly. For a polymorphic
+        endpoint (label is None — e.g. HAS_MOLECULAR_TEST's parent, which may be a
+        Diagnosis or a FollowUp) we match against the disjunction of *all* known
+        node labels, e.g. ``(a:Program|Project|Subject|… {id: row.src})``. Every
+        label has a uniqueness constraint on ``id`` (see create_constraints), so the
+        planner resolves this as a union of index seeks rather than an AllNodesScan
+        across the whole graph. GDC ids are globally unique, so at most one label
+        matches.
+        """
+        if label:
+            labels = label
+        elif self.node_labels:
+            labels = "|".join(self.node_labels)
+        else:  # no schema labels at all — fall back to a label-less match
+            return f"({var} {{id: {id_expr}}})"
+        return f"({var}:{labels} {{id: {id_expr}}})"
+
     def load_edges(self, edges_dir: Path) -> None:
         for path in sorted(edges_dir.glob("*.csv")):
             rel_type = path.stem
             src_label, tgt_label = self.edge_schema.get(rel_type, (None, None))
 
-            src_pat = f"(a:{src_label} {{id: row.src}})" if src_label else "(a {id: row.src})"
-            tgt_pat = f"(b:{tgt_label} {{id: row.tgt}})" if tgt_label else "(b {id: row.tgt})"
+            src_pat = self._endpoint_pattern("a", "row.src", src_label)
+            tgt_pat = self._endpoint_pattern("b", "row.tgt", tgt_label)
             cypher = (
                 f"UNWIND $rows AS row "
                 f"MATCH {src_pat}, {tgt_pat} "

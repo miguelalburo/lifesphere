@@ -36,6 +36,60 @@ def _loader(monkeypatch, sink):
     return loader
 
 
+class _Counters:
+    relationships_created = 0
+
+
+class _Summary:
+    counters = _Counters()
+
+
+class _EdgeResult:
+    def consume(self):
+        return _Summary()
+
+
+class _EdgeSession:
+    """Like _FakeSession but returns a result with .consume() for edge loading."""
+
+    def __init__(self, sink: list):
+        self.sink = sink
+
+    def run(self, cypher, **params):
+        self.sink.append((cypher, params))
+        return _EdgeResult()
+
+
+def test_polymorphic_endpoint_matches_all_labels_via_index(tmp_path, monkeypatch):
+    """A None (polymorphic) endpoint expands to a label disjunction so the per-label
+    id index is used, instead of a label-less match that forces an AllNodesScan."""
+    edges = tmp_path / "edges"
+    edges.mkdir()
+    with open(edges / "HAS_MOLECULAR_TEST.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["source_id", "target_id"])
+        w.writerow(["s1", "t1"])
+
+    sink: list = []
+    loader = _loader(monkeypatch, sink)
+    loader.node_labels = ["Diagnosis", "FollowUp", "MolecularTest"]
+    loader.edge_schema = {"HAS_MOLECULAR_TEST": (None, "MolecularTest")}
+
+    @contextmanager
+    def edge_session():
+        yield _EdgeSession(sink)
+
+    monkeypatch.setattr(loader, "_session", edge_session)
+    loader.load_edges(edges)
+
+    cypher, _ = sink[-1]
+    # Polymorphic source → disjunction over all node labels; no bare label-less match.
+    assert "(a:Diagnosis|FollowUp|MolecularTest {id: row.src})" in cypher
+    assert "(a {id:" not in cypher
+    # Resolved target keeps its single label.
+    assert "(b:MolecularTest {id: row.tgt})" in cypher
+
+
 def test_empty_attributes_dropped_per_node(tmp_path, monkeypatch):
     nodes = tmp_path / "nodes"
     nodes.mkdir()
