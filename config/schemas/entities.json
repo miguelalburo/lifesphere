@@ -238,7 +238,7 @@
   },
   {
     "name": "tissue_region",
-    "label": "TissueRegion",
+    "label": "Tissue",
     "id_col": "region_id",
     "strip_prefix": "",
     "drop": ["assay_id"],

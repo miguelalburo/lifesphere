@@ -207,6 +207,14 @@ def test_alias_renaming_end_to_end(tmp_path, aliased_schema_dir):
     _write_tsv(raw / f"{BASE}.project.tsv",
         ["project.project_id", "project_name"], [["TCGA-BRCA", "Breast Invasive Carcinoma"]])
 
+    # Program and Project are now dedicated files; aliased columns still apply.
+    _write_tsv(raw / f"{BASE}.program.tsv",
+        ["program.name"],
+        [["TCGA"]])
+    _write_tsv(raw / f"{BASE}.project.tsv",
+        ["project.project_id"],
+        [["TCGA-BRCA"]])
+
     run(raw, out, aliased_schema_dir)
 
     # Subject node keyed by the canonicalised case_id, not the alias.
