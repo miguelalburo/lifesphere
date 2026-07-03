@@ -391,11 +391,11 @@ cell state:
   input_label: CellState
   # props: cell_state_name
 
-tissue region:
+tissue:
   represented_as: node
   is_a: entity
   preferred_id: regionId               # UBERON or per-assay niche id
-  input_label: TissueRegion
+  input_label: Tissue
   # props: region_name
 
 # ── Aggregate observations ──
@@ -427,12 +427,12 @@ cell to cell type:
   source: cell
   target: cell type
 
-cell to tissue region:
+cell to tissue:
   represented_as: edge
   is_a: association
   input_label: IN_REGION
   source: cell
-  target: tissue region
+  target: tissue
 
 # spatial neighbourhood (cell <-> cell); distance is not carried (plain edge)
 cell to cell:

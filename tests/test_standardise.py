@@ -42,6 +42,14 @@ def std_dir(tmp_path_factory) -> Path:
          ["c2", "TCGA-02", "Adeno", "Breast", "Diagnosis", "", "TCGA-BRCA",
           "Breast Invasive Carcinoma", "TCGA", "[Not Available]", "Dead"]])
 
+    # Program and Project are now dedicated extract files (not derived from subject).
+    _write_tsv(raw / f"{BASE}.program.tsv",
+        ["program_name"],
+        [["TCGA"]])
+    _write_tsv(raw / f"{BASE}.project.tsv",
+        ["project_id"],
+        [["TCGA-BRCA"]])
+
     # case c1 has TWO diagnoses (multiplicity); c2 has one.
     _write_tsv(raw / f"{BASE}.diagnosis.tsv",
         ["case_id", "case_submitter_id", "diagnosis_id", "diagnosis_submitter_id",
@@ -190,6 +198,14 @@ def test_alias_renaming_end_to_end(tmp_path, aliased_schema_dir):
          "demographic_vital_status"],
         [["c1", "TCGA-01", "Adeno", "Breast", "TCGA-BRCA",
           "Breast Invasive Carcinoma", "TCGA", "Alive"]])
+
+    # Program and Project are now dedicated files; aliased columns still apply.
+    _write_tsv(raw / f"{BASE}.program.tsv",
+        ["program.name"],
+        [["TCGA"]])
+    _write_tsv(raw / f"{BASE}.project.tsv",
+        ["project.project_id"],
+        [["TCGA-BRCA"]])
 
     run(raw, out, aliased_schema_dir)
 
