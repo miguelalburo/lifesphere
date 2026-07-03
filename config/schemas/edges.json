@@ -63,14 +63,14 @@
     "dedup": false
   },
   {
-    "label": "HAS_SAMPLE",
+    "label": "PROVIDED_SAMPLE",
     "source_entity": "sample",
     "source_id": "case_id",
     "target_id": "sample_id",
     "dedup": false
   },
   {
-    "label": "IN_GROUP",
+    "label": "HAS_CONDITION",
     "source_entity": "sample",
     "source_id": "sample_id",
     "target_id": "group_id",
@@ -78,14 +78,14 @@
   },
 
   {
-    "label": "HAS_EXPRESSION",
+    "label": "HAS_EXPRESSION_OBSERVATION",
     "source_entity": "gene_expression",
     "source_id": "sample_id",
     "target_id": "expression_id",
     "dedup": false
   },
   {
-    "label": "OF_GENE",
+    "label": "MEASURES_GENE",
     "source_entity": "gene_expression",
     "source_id": "expression_id",
     "target_id": "gene_ensembl",
@@ -99,42 +99,42 @@
     "dedup": false
   },
   {
-    "label": "HAS_METHYLATION",
+    "label": "HAS_METHYLATION_OBSERVATION",
     "source_entity": "methylation",
     "source_id": "sample_id",
     "target_id": "methylation_id",
     "dedup": false
   },
   {
-    "label": "AT_CPG",
+    "label": "MEASURES_CPG",
     "source_entity": "methylation",
     "source_id": "methylation_id",
     "target_id": "cpg",
     "dedup": false
   },
   {
-    "label": "HAS_VARIANT_CALL",
+    "label": "HAS_VARIANT_OBSERVATION",
     "source_entity": "somatic_mutation",
     "source_id": "sample_id",
     "target_id": "variant_call_id",
     "dedup": false
   },
   {
-    "label": "OF_VARIANT",
+    "label": "OBSERVED_VARIANT",
     "source_entity": "somatic_mutation",
     "source_id": "variant_call_id",
     "target_id": "variant_id",
     "dedup": false
   },
   {
-    "label": "HAS_PROTEIN_EXPRESSION",
+    "label": "HAS_PROTEIN_OBSERVATION",
     "source_entity": "protein_expression",
     "source_id": "sample_id",
     "target_id": "protein_expression_id",
     "dedup": false
   },
   {
-    "label": "OF_PROTEIN",
+    "label": "MEASURES_PROTEIN",
     "source_entity": "protein_expression",
     "source_id": "protein_expression_id",
     "target_id": "uniprot",
@@ -142,14 +142,14 @@
   },
 
   {
-    "label": "VARIANT_IN_GENE",
+    "label": "AFFECTS_GENE",
     "source_entity": "variant",
     "source_id": "variant_id",
     "target_id": "gene_ensembl",
     "dedup": true
   },
   {
-    "label": "IN_PATHWAY",
+    "label": "PARTICIPATES_IN_PATHWAY",
     "source_entity": "gene_pathway",
     "source_id": "gene_ensembl",
     "target_id": "pathway_id",
@@ -164,7 +164,7 @@
   },
 
   {
-    "label": "HAS_ASSAY",
+    "label": "ASSAYED_BY",
     "source_entity": "assay",
     "source_id": "sample_id",
     "target_id": "assay_id",

@@ -1,6 +1,6 @@
 [
   {
-    "name": "subject",
+    "name": "program",
     "label": "Program",
     "id_col": "program_name",
     "strip_prefix": "",
@@ -9,12 +9,12 @@
     "dedup": true
   },
   {
-    "name": "subject",
+    "name": "project",
     "label": "Project",
     "id_col": "project_id",
     "strip_prefix": "",
     "drop": [],
-    "keep": ["project_name", "disease_type", "primary_site", "program_name"],
+    "keep": [],
     "dedup": true
   },
   {
@@ -100,7 +100,7 @@
   },
   {
     "name": "sample",
-    "label": "ExperimentalGroup",
+    "label": "ExperimentalCondition",
     "id_col": "group_id",
     "strip_prefix": "",
     "drop": [],
@@ -156,7 +156,7 @@
 
   {
     "name": "gene_expression",
-    "label": "Expression",
+    "label": "ExpressionObservation",
     "id_col": "expression_id",
     "strip_prefix": "",
     "drop": ["case_id", "sample_id", "gene_ensembl", "cell_type_id"],
@@ -165,7 +165,7 @@
   },
   {
     "name": "methylation",
-    "label": "Methylation",
+    "label": "MethylationObservation",
     "id_col": "methylation_id",
     "strip_prefix": "",
     "drop": ["case_id", "sample_id", "cpg"],
@@ -174,7 +174,7 @@
   },
   {
     "name": "somatic_mutation",
-    "label": "VariantCall",
+    "label": "VariantObservation",
     "id_col": "variant_call_id",
     "strip_prefix": "",
     "drop": ["case_id", "sample_id", "variant_id"],
@@ -183,7 +183,7 @@
   },
   {
     "name": "protein_expression",
-    "label": "ProteinExpression",
+    "label": "ProteinObservation",
     "id_col": "protein_expression_id",
     "strip_prefix": "",
     "drop": ["case_id", "sample_id", "uniprot"],

@@ -52,46 +52,46 @@ def test_feature_nodes_deduped(std_dir):
 
 def test_observation_grain_preserved(std_dir):
     # One observation node per measurement (no collapsing): 4 bulk sample x gene
-    # rows + 2 pseudobulk sample x cell_type x gene rows, all Expression nodes.
-    assert len(_node(std_dir, "Expression")) == 6
-    assert len(_node(std_dir, "Methylation")) == 3
-    assert len(_node(std_dir, "VariantCall")) == 2
-    assert len(_node(std_dir, "ProteinExpression")) == 2
+    # rows + 2 pseudobulk sample x cell_type x gene rows, all ExpressionObservation nodes.
+    assert len(_node(std_dir, "ExpressionObservation")) == 6
+    assert len(_node(std_dir, "MethylationObservation")) == 3
+    assert len(_node(std_dir, "VariantObservation")) == 2
+    assert len(_node(std_dir, "ProteinObservation")) == 2
 
 
 def test_observation_nodes_carry_measurement_props(std_dir):
-    expr = {r["id"]: r for r in _node(std_dir, "Expression")}
+    expr = {r["id"]: r for r in _node(std_dir, "ExpressionObservation")}
     row = expr["EXP-S1-ENSG001"]
     assert row["tpm"] == "12.5" and row["fpkm"] == "10.1"
-    assert row["aliquot_id"] == "S1" and row["file_id"] == "F1"
+    assert row["aliquotId"] == "S1" and row["fileId"] == "F1"
     # FK columns are dropped from the node (they live on the edges instead).
-    assert "sample_id" not in row and "gene_ensembl" not in row and "case_id" not in row
+    assert "sampleId" not in row and "geneEnsembl" not in row and "caseId" not in row
 
-    vc = {r["id"]: r for r in _node(std_dir, "VariantCall")}["VC-S1-V1"]
+    vc = {r["id"]: r for r in _node(std_dir, "VariantObservation")}["VC-S1-V1"]
     assert vc["vaf"] == "0.35"
     assert vc["consequence"] == "missense_variant" and vc["impact"] == "MODERATE"
 
 
 def test_variant_node_keeps_gene_annotation(std_dir):
     v = {r["id"]: r for r in _node(std_dir, "Variant")}["V1"]
-    assert v["gene_ensembl"] == "ENSG001"
+    assert v["geneEnsembl"] == "ENSG001"
     assert v["hgvsp"] == "p.R175H"
 
 
 def test_omics_edge_referential_integrity(std_dir):
     """Every edge endpoint resolves to a node of the expected label."""
     checks = [
-        ("HAS_EXPRESSION", "Sample", "Expression"),
-        ("OF_GENE", "Expression", "Gene"),
-        ("OF_CELL_TYPE", "Expression", "CellType"),
-        ("HAS_METHYLATION", "Sample", "Methylation"),
-        ("AT_CPG", "Methylation", "CpGSite"),
-        ("HAS_VARIANT_CALL", "Sample", "VariantCall"),
-        ("OF_VARIANT", "VariantCall", "Variant"),
-        ("HAS_PROTEIN_EXPRESSION", "Sample", "ProteinExpression"),
-        ("OF_PROTEIN", "ProteinExpression", "Protein"),
-        ("VARIANT_IN_GENE", "Variant", "Gene"),
-        ("IN_PATHWAY", "Gene", "Pathway"),
+        ("HAS_EXPRESSION_OBSERVATION", "Sample", "ExpressionObservation"),
+        ("MEASURES_GENE", "ExpressionObservation", "Gene"),
+        ("OF_CELL_TYPE", "ExpressionObservation", "CellType"),
+        ("HAS_METHYLATION_OBSERVATION", "Sample", "MethylationObservation"),
+        ("MEASURES_CPG", "MethylationObservation", "CpGSite"),
+        ("HAS_VARIANT_OBSERVATION", "Sample", "VariantObservation"),
+        ("OBSERVED_VARIANT", "VariantObservation", "Variant"),
+        ("HAS_PROTEIN_OBSERVATION", "Sample", "ProteinObservation"),
+        ("MEASURES_PROTEIN", "ProteinObservation", "Protein"),
+        ("AFFECTS_GENE", "Variant", "Gene"),
+        ("PARTICIPATES_IN_PATHWAY", "Gene", "Pathway"),
         ("ENCODES", "Gene", "Protein"),
     ]
     for edge_label, src_label, tgt_label in checks:
@@ -103,24 +103,24 @@ def test_omics_edge_referential_integrity(std_dir):
 
 
 def test_sample_observation_feature_chain_resolves(std_dir):
-    """S1 -HAS_EXPRESSION-> Expression -OF_GENE-> ENSG001 is a connected path."""
-    has_expr = {(r["source_id"], r["target_id"]) for r in _edge(std_dir, "HAS_EXPRESSION")}
-    of_gene = {(r["source_id"], r["target_id"]) for r in _edge(std_dir, "OF_GENE")}
+    """S1 -HAS_EXPRESSION_OBSERVATION-> ExpressionObservation -MEASURES_GENE-> ENSG001 is a connected path."""
+    has_expr = {(r["source_id"], r["target_id"]) for r in _edge(std_dir, "HAS_EXPRESSION_OBSERVATION")}
+    of_gene = {(r["source_id"], r["target_id"]) for r in _edge(std_dir, "MEASURES_GENE")}
     assert ("S1", "EXP-S1-ENSG001") in has_expr
     assert ("EXP-S1-ENSG001", "ENSG001") in of_gene
 
 
 def test_pseudobulk_folds_into_expression(std_dir):
-    """Pseudobulk is an Expression node with assay_type=pseudobulk + an OF_CELL_TYPE
-    edge; bulk rows share the node label but carry no cell-type edge."""
-    expr = {r["id"]: r for r in _node(std_dir, "Expression")}
+    """Pseudobulk is an ExpressionObservation node with assay_type=pseudobulk + an
+    OF_CELL_TYPE edge; bulk rows share the node label but carry no cell-type edge."""
+    expr = {r["id"]: r for r in _node(std_dir, "ExpressionObservation")}
     bulk, pseudo = expr["EXP-S1-ENSG001"], expr["PB-S1-CT1-ENSG001"]
 
-    assert bulk["assay_type"] == "bulk"
-    assert pseudo["assay_type"] == "pseudobulk"
+    assert bulk["assayType"] == "bulk"
+    assert pseudo["assayType"] == "pseudobulk"
     # Pseudobulk-only stats ride through as node props; the cell_type FK does not.
-    assert pseudo["mean_expr"] == "9.9" and pseudo["pct_expressing"] == "0.62"
-    assert "cell_type_id" not in pseudo
+    assert pseudo["meanExpr"] == "9.9" and pseudo["pctExpressing"] == "0.62"
+    assert "cellTypeId" not in pseudo
 
     # OF_CELL_TYPE materialises for pseudobulk rows only (bulk rows leave the FK blank).
     of_cell_type = {(r["source_id"], r["target_id"]) for r in _edge(std_dir, "OF_CELL_TYPE")}

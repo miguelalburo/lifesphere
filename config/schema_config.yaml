@@ -14,20 +14,20 @@
 program:
   represented_as: node
   is_a: entity
-  preferred_id: program_name
+  preferred_id: programName
   input_label: Program
 
 project:
   represented_as: node
   is_a: entity
-  preferred_id: project_id
+  preferred_id: projectId
   input_label: Project
   # props: project_name, disease_type, primary_site, program_name
 
 subject:                                # standardised rename of GDC `case`
   represented_as: node
   is_a: entity
-  preferred_id: case_id
+  preferred_id: caseId
   input_label: Subject
   # props: submitter_id, disease_type, primary_site + folded demographic_*
   #        (sex_at_birth, race, ethnicity, vital_status, age_at_index, ...)
@@ -35,61 +35,61 @@ subject:                                # standardised rename of GDC `case`
 diagnosis:
   represented_as: node
   is_a: entity
-  preferred_id: diagnosis_id
+  preferred_id: diagnosisId
   input_label: Diagnosis
   # props: primary_diagnosis, ajcc_pathologic_stage, tumor_grade, morphology, ...
 
 treatment:
   represented_as: node
   is_a: entity
-  preferred_id: treatment_id
+  preferred_id: treatmentId
   input_label: Treatment
   # props: treatment_type, therapeutic_agents, treatment_intent_type, treatment_outcome
 
 pathology detail:
   represented_as: node
   is_a: entity
-  preferred_id: pathology_detail_id
+  preferred_id: pathologyDetailId
   input_label: PathologyDetail
 
 follow up:
   represented_as: node
   is_a: entity
-  preferred_id: follow_up_id
+  preferred_id: followUpId
   input_label: FollowUp
   # props: days_to_follow_up, disease_response, progression_or_recurrence, ...
 
 molecular test:
   represented_as: node
   is_a: entity
-  preferred_id: molecular_test_id
+  preferred_id: molecularTestId
   input_label: MolecularTest
   # props: gene_symbol, molecular_analysis_method, test_result, variant_type (ER/PR/HER2)
 
 exposure:
   represented_as: node
   is_a: entity
-  preferred_id: exposure_id
+  preferred_id: exposureId
   input_label: Exposure
 
 family history:
   represented_as: node
   is_a: entity
-  preferred_id: family_history_id
+  preferred_id: familyHistoryId
   input_label: FamilyHistory
 
 sample:
   represented_as: node
   is_a: entity
-  preferred_id: sample_id
+  preferred_id: sampleId
   input_label: Sample
   # props: sample_type, tissue_type, tumor_descriptor, preservation_method, days_to_collection
 
-experimental group:                     # coarse control|treatment arm, derived from sample_type
+experimental condition:                 # coarse control|treatment arm, derived from sample_type
   represented_as: node
   is_a: entity
-  preferred_id: group_id
-  input_label: ExperimentalGroup
+  preferred_id: groupId
+  input_label: ExperimentalCondition
   # props: group_label
 
 # ─────────────────────────────── Edges ───────────────────────────────
@@ -162,20 +162,20 @@ subject to family history:
 subject to sample:
   represented_as: edge
   is_a: association
-  input_label: HAS_SAMPLE
+  input_label: PROVIDED_SAMPLE
   source: subject
   target: sample
 
-sample to experimental group:
+sample to experimental condition:
   represented_as: edge
   is_a: association
-  input_label: IN_GROUP
+  input_label: HAS_CONDITION
   source: sample
-  target: experimental group
+  target: experimental condition
 
 # ───────────────────────── Omics layer ─────────────────────────
 # Measurements are REIFIED into per-assay observation nodes rather than stored on
-# valued edges: (Sample)-[:HAS_EXPRESSION]->(Expression{tpm,...})-[:OF_GENE]->(Gene).
+# valued edges: (Sample)-[:HAS_EXPRESSION_OBSERVATION]->(ExpressionObservation{tpm,...})-[:MEASURES_GENE]->(Gene).
 # Feature nodes (Gene, CpGSite, Variant, Protein, Pathway) are shared reference
 # dimensions, deduplicated and reused across all samples. See
 # docs/dev_guides/kg_data_model.md#omics-layer.
@@ -199,7 +199,7 @@ cpg site:
 variant:
   represented_as: node
   is_a: entity
-  preferred_id: variant_id
+  preferred_id: variantId
   input_label: Variant
   # props: chromosome, position, ref, alt, hgvsp, gene_ensembl
 
@@ -213,107 +213,107 @@ protein:
 pathway:
   represented_as: node
   is_a: entity
-  preferred_id: pathway_id
+  preferred_id: pathwayId
   input_label: Pathway
   # props: pathway_name, source
 
 # ── Observation nodes (one per sample × feature measurement) ──
 
-expression:
+expression observation:
   represented_as: node
   is_a: entity
-  preferred_id: expression_id
-  input_label: Expression
+  preferred_id: expressionId
+  input_label: ExpressionObservation
   # props: assay_type (bulk|pseudobulk), tpm, fpkm, aliquot_id, file_id;
   #        pseudobulk rows add mean_expr, pct_expressing + an OF_CELL_TYPE edge.
   #        Grain: bulk = sample x gene; pseudobulk = sample x cell_type x gene.
 
-methylation:
+methylation observation:
   represented_as: node
   is_a: entity
-  preferred_id: methylation_id
-  input_label: Methylation
+  preferred_id: methylationId
+  input_label: MethylationObservation
   # props: beta_value, aliquot_id, file_id
 
-variant call:
+variant observation:
   represented_as: node
   is_a: entity
-  preferred_id: variant_call_id
-  input_label: VariantCall
+  preferred_id: variantCallId
+  input_label: VariantObservation
   # props: vaf, consequence, impact, aliquot_id, file_id
 
-protein expression:
+protein observation:
   represented_as: node
   is_a: entity
-  preferred_id: protein_expression_id
-  input_label: ProteinExpression
+  preferred_id: proteinExpressionId
+  input_label: ProteinObservation
   # props: value, aliquot_id, file_id
 
 # ── Omics edges (all plain: source_id, target_id) ──
 
-sample to expression:
+sample to expression observation:
   represented_as: edge
   is_a: association
-  input_label: HAS_EXPRESSION
+  input_label: HAS_EXPRESSION_OBSERVATION
   source: sample
-  target: expression
+  target: expression observation
 
-expression to gene:
+expression observation to gene:
   represented_as: edge
   is_a: association
-  input_label: OF_GENE
-  source: expression
+  input_label: MEASURES_GENE
+  source: expression observation
   target: gene
 
 # pseudobulk-grain expression carries a cell_type_id FK -> this edge; bulk rows leave
 # it blank, so standardise_edge emits OF_CELL_TYPE only for the pseudobulk observations
-expression to cell type:
+expression observation to cell type:
   represented_as: edge
   is_a: association
   input_label: OF_CELL_TYPE
-  source: expression
+  source: expression observation
   target: cell type
 
-sample to methylation:
+sample to methylation observation:
   represented_as: edge
   is_a: association
-  input_label: HAS_METHYLATION
+  input_label: HAS_METHYLATION_OBSERVATION
   source: sample
-  target: methylation
+  target: methylation observation
 
-methylation to cpg:
+methylation observation to cpg:
   represented_as: edge
   is_a: association
-  input_label: AT_CPG
-  source: methylation
+  input_label: MEASURES_CPG
+  source: methylation observation
   target: cpg site
 
-sample to variant call:
+sample to variant observation:
   represented_as: edge
   is_a: association
-  input_label: HAS_VARIANT_CALL
+  input_label: HAS_VARIANT_OBSERVATION
   source: sample
-  target: variant call
+  target: variant observation
 
-variant call to variant:
+variant observation to variant:
   represented_as: edge
   is_a: association
-  input_label: OF_VARIANT
-  source: variant call
+  input_label: OBSERVED_VARIANT
+  source: variant observation
   target: variant
 
-sample to protein expression:
+sample to protein observation:
   represented_as: edge
   is_a: association
-  input_label: HAS_PROTEIN_EXPRESSION
+  input_label: HAS_PROTEIN_OBSERVATION
   source: sample
-  target: protein expression
+  target: protein observation
 
-protein expression to protein:
+protein observation to protein:
   represented_as: edge
   is_a: association
-  input_label: OF_PROTEIN
-  source: protein expression
+  input_label: MEASURES_PROTEIN
+  source: protein observation
   target: protein
 
 # ── Static biology (Omnipath-shaped annotations) ──
@@ -321,14 +321,14 @@ protein expression to protein:
 variant to gene:
   represented_as: edge
   is_a: association
-  input_label: VARIANT_IN_GENE
+  input_label: AFFECTS_GENE
   source: variant
   target: gene
 
 gene to pathway:
   represented_as: edge
   is_a: association
-  input_label: IN_PATHWAY
+  input_label: PARTICIPATES_IN_PATHWAY
   source: gene
   target: pathway
 
@@ -353,14 +353,14 @@ gene to protein:
 assay:
   represented_as: node
   is_a: entity
-  preferred_id: assay_id
+  preferred_id: assayId
   input_label: Assay
   # props: modality, platform, chemistry, n_cells, matrix_uri, pipeline_version
 
 cell:
   represented_as: node
   is_a: entity
-  preferred_id: cell_id
+  preferred_id: cellId
   input_label: Cell
   # props: x, y (spatial), n_genes, total_counts, pct_mito
 
@@ -370,7 +370,7 @@ cell:
 cell set:
   represented_as: node
   is_a: entity
-  preferred_id: cell_set_id
+  preferred_id: cellSetId
   input_label: CellSet
   # props: n_cells, grouping_basis, method, resolution
 
@@ -379,7 +379,7 @@ cell set:
 cell type:
   represented_as: node
   is_a: entity
-  preferred_id: cell_type_id            # Cell Ontology CL:####
+  preferred_id: cellTypeId            # Cell Ontology CL:####
   input_label: CellType
   # props: cell_type_name
 
@@ -387,14 +387,14 @@ cell type:
 cell state:
   represented_as: node
   is_a: entity
-  preferred_id: cell_state_id
+  preferred_id: cellStateId
   input_label: CellState
   # props: cell_state_name
 
 tissue region:
   represented_as: node
   is_a: entity
-  preferred_id: region_id               # UBERON or per-assay niche id
+  preferred_id: regionId               # UBERON or per-assay niche id
   input_label: TissueRegion
   # props: region_name
 
@@ -409,7 +409,7 @@ tissue region:
 sample to assay:
   represented_as: edge
   is_a: association
-  input_label: HAS_ASSAY
+  input_label: ASSAYED_BY
   source: sample
   target: assay
 
@@ -450,8 +450,8 @@ sample to cell set:
   source: sample
   target: cell set
   properties:
-    contributed_cell_count: int
-    fraction_of_sample_cells: float
+    contributedCellCount: int
+    fractionOfSampleCells: float
 
 # cell-type annotation carries ontology-mapping provenance as edge properties
 cell set to cell type:
@@ -461,8 +461,8 @@ cell set to cell type:
   source: cell set
   target: cell type
   properties:
-    source_value: str
-    ontology_mapping_status: str
+    sourceValue: str
+    ontologyMappingStatus: str
 
 cell set to cell state:
   represented_as: edge
@@ -488,14 +488,14 @@ cell type to gene:
 disease:
   represented_as: node
   is_a: entity
-  preferred_id: disease_id              # MONDO / NCIt / DOID
+  preferred_id: diseaseId              # MONDO / NCIt / DOID
   input_label: Disease
   # props: disease_name, ontology_source
 
 processed data output:
   represented_as: node
   is_a: entity
-  preferred_id: output_id
+  preferred_id: outputId
   input_label: ProcessedDataOutput
   # props: file_format, file_path, checksum, matrix_shape
 
@@ -518,7 +518,7 @@ observation to output:
   represented_as: edge
   is_a: association
   input_label: FROM_OUTPUT
-  source: [expression, methylation, variant call, protein expression]
+  source: [expression observation, methylation observation, variant observation, protein observation]
   target: processed data output
 
 # --------------------------------------------------------------------------- #
@@ -529,26 +529,26 @@ observation to output:
 survival outcome:
   represented_as: node
   is_a: entity
-  preferred_id: survival_id
+  preferred_id: survivalId
   input_label: SurvivalOutcome
   # props: outcome_type, event (1=event, 0=censored), time_days
 
 overall survival:
   represented_as: node
   is_a: survival outcome
-  preferred_id: os_id
+  preferred_id: osId
   input_label: OverallSurvival
 
 progression free interval:
   represented_as: node
   is_a: survival outcome
-  preferred_id: pfi_id
+  preferred_id: pfiId
   input_label: ProgressionFreeInterval
 
 disease free interval:
   represented_as: node
   is_a: survival outcome
-  preferred_id: dfi_id
+  preferred_id: dfiId
   input_label: DiseaseFreeInterval
 
 subject to overall survival:
@@ -585,7 +585,7 @@ subject to disease free interval:
 # outcome`); each subclass needs a distinct preferred_id because the loader keys labels
 # by id column. Each Contrast->result edge has its own label because Stage 1 writes one
 # edges/{LABEL}.csv per schema entry (same reason FOR_* differ from the measurement
-# edges OF_GENE/AT_CPG/OF_VARIANT) — but the FOR_* edges target the SAME shared feature
+# edges MEASURES_GENE/MEASURES_CPG/OBSERVED_VARIANT) — but the FOR_* edges target the SAME shared feature
 # nodes. GWAS uses `import_max_pvalue` in the manifest to threshold to hits worth a node
 # (keep full summary stats as a ProcessedDataOutput), the discipline single-cell uses.
 # --------------------------------------------------------------------------- #
@@ -593,49 +593,49 @@ subject to disease free interval:
 analysis:                               # provenance root: how the result was produced
   represented_as: node
   is_a: entity
-  preferred_id: analysis_id
+  preferred_id: analysisId
   input_label: Analysis
   # props: method (DESeq2|limma|edgeR|PLINK), software_version, genome_build
 
 contrast:                               # what was compared — the result anchor
   represented_as: node
   is_a: entity
-  preferred_id: contrast_id
+  preferred_id: contrastId
   input_label: Contrast
   # props: group_a, group_b, group_a_n, group_b_n, stratify_on (clinical variable)
 
 trait:                                  # GWAS phenotype — shared, ontology-mapped dim
   represented_as: node
   is_a: entity
-  preferred_id: trait_id                # EFO / MONDO / free label
+  preferred_id: traitId                # EFO / MONDO / free label
   input_label: Trait
   # props: trait_name, trait_source
 
 analysis result:                        # abstract superclass (see `survival outcome`)
   represented_as: node
   is_a: entity
-  preferred_id: result_id
+  preferred_id: resultId
   input_label: AnalysisResult
   # props: pvalue, direction, significant
 
 differential expression:
   represented_as: node
   is_a: analysis result
-  preferred_id: de_id
+  preferred_id: deId
   input_label: DifferentialExpression
   # props: log2fc, base_mean, pvalue, padj, direction (up|down|ns), significant
 
 differential methylation:
   represented_as: node
   is_a: analysis result
-  preferred_id: dmp_id
+  preferred_id: dmpId
   input_label: DifferentialMethylation
   # props: delta_beta, log2fc, pvalue, padj, status (hyper|hypo|ns), significant
 
 association:                            # a GWAS variant–trait association
   represented_as: node
   is_a: analysis result
-  preferred_id: assoc_id
+  preferred_id: assocId
   input_label: Association
   # props: effect, effect_type (beta|or), se, effect_allele, other_allele, eaf, n,
   #        pvalue, direction (pos|neg|ns), significant
@@ -654,7 +654,7 @@ contrast to differential expression:
   source: contrast
   target: differential expression
 
-differential expression to gene:        # same shared Gene node as omics OF_GENE
+differential expression to gene:        # same shared Gene node as omics MEASURES_GENE
   represented_as: edge
   is_a: association
   input_label: FOR_GENE
@@ -668,7 +668,7 @@ contrast to differential methylation:
   source: contrast
   target: differential methylation
 
-differential methylation to cpg:        # same shared CpGSite node as omics AT_CPG
+differential methylation to cpg:        # same shared CpGSite node as omics MEASURES_CPG
   represented_as: edge
   is_a: association
   input_label: FOR_CPG
@@ -682,7 +682,7 @@ contrast to association:
   source: contrast
   target: association
 
-association to variant:                 # same shared Variant node as omics OF_VARIANT
+association to variant:                 # same shared Variant node as omics OBSERVED_VARIANT
   represented_as: edge
   is_a: association
   input_label: FOR_VARIANT

@@ -138,19 +138,19 @@ def omics_std(tmp_path):
 def test_omics_chain_resolves_with_no_dangling(omics_std):
     # Feature + observation + Sample nodes all present.
     assert {g["id"] for g in _read_csv(omics_std, "nodes", "Gene")} == {"ENSG000001"}
-    expr = _read_csv(omics_std, "nodes", "Expression")
+    expr = _read_csv(omics_std, "nodes", "ExpressionObservation")
     assert len(expr) == 2
     assert {s["id"] for s in _read_csv(omics_std, "nodes", "Sample")} == {"al1", "al2"}
 
-    # Sample -> Expression -> Gene chain wired.
-    has_expr = _read_csv(omics_std, "edges", "HAS_EXPRESSION")
-    of_gene = _read_csv(omics_std, "edges", "OF_GENE")
+    # Sample -> ExpressionObservation -> Gene chain wired.
+    has_expr = _read_csv(omics_std, "edges", "HAS_EXPRESSION_OBSERVATION")
+    of_gene = _read_csv(omics_std, "edges", "MEASURES_GENE")
     assert {e["source_id"] for e in has_expr} == {"al1", "al2"}
     assert {e["target_id"] for e in of_gene} == {"ENSG000001"}
 
     # No dangling omics endpoints.
     reports = {r.label: r for r in validate(omics_std)}
-    for label in ("HAS_EXPRESSION", "OF_GENE", "HAS_METHYLATION", "AT_CPG"):
+    for label in ("HAS_EXPRESSION_OBSERVATION", "MEASURES_GENE", "HAS_METHYLATION_OBSERVATION", "MEASURES_CPG"):
         assert reports[label].ok, f"{label} has dangling endpoints"
 
 

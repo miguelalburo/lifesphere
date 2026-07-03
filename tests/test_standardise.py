@@ -104,24 +104,24 @@ def test_program_project_dedup(std_dir):
 
 def test_demographic_folded_and_renamed(std_dir):
     header = list(_node(std_dir, "Subject")[0].keys())
-    # demographic_ prefix stripped, project/program columns dropped
-    assert "sex_at_birth" in header and "vital_status" in header
-    assert not any(h.startswith("demographic_") for h in header)
-    assert "project_id" not in header and "program_name" not in header
+    # demographic_ prefix stripped, project/program columns dropped, output camelCased
+    assert "sexAtBirth" in header and "vitalStatus" in header
+    assert not any(h.startswith("demographic") for h in header)
+    assert "projectId" not in header and "programName" not in header
 
 
 def test_child_prefix_stripped(std_dir):
     header = list(_node(std_dir, "Diagnosis")[0].keys())
-    assert "ajcc_pathologic_stage" in header      # was diagnosis_ajcc_pathologic_stage
-    assert "case_id" not in header                 # linkage column dropped
+    assert "ajccPathologicStage" in header      # was diagnosis_ajcc_pathologic_stage
+    assert "caseId" not in header                 # linkage column dropped
     assert header[0] == "id"
 
 
 def test_placeholder_scrubbed(std_dir):
     subj = {r["id"]: r for r in _node(std_dir, "Subject")}
-    assert subj["c2"]["sex_at_birth"] == ""        # "[Not Available]" -> ""
+    assert subj["c2"]["sexAtBirth"] == ""        # "[Not Available]" -> ""
     diag = {r["id"]: r for r in _node(std_dir, "Diagnosis")}
-    assert diag["d2"]["ajcc_pathologic_stage"] == ""  # "[Not Evaluated]" -> ""
+    assert diag["d2"]["ajccPathologicStage"] == ""  # "[Not Evaluated]" -> ""
 
 
 def test_edge_referential_integrity(std_dir):
@@ -233,10 +233,10 @@ def test_edge_props_emitted_scrubbed_and_missing_dropped(tmp_path):
 
     rows = _read(tmp_path / "edges" / "CONTRIBUTES_TO.csv")
     assert list(rows[0].keys()) == [
-        "source_id", "target_id", "contributed_cell_count", "fraction_of_sample_cells"
+        "source_id", "target_id", "contributedCellCount", "fractionOfSampleCells"
     ]
-    assert rows[0]["contributed_cell_count"] == "120"
-    assert rows[1]["contributed_cell_count"] == ""     # placeholder scrubbed to empty
+    assert rows[0]["contributedCellCount"] == "120"
+    assert rows[1]["contributedCellCount"] == ""     # placeholder scrubbed to empty
 
 
 def test_plain_edge_stays_two_column(tmp_path):

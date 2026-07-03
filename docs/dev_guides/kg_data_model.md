@@ -27,8 +27,12 @@ Backbone: `Program → Project → Subject → {Diagnosis, Sample, …} → Omic
    `Program`/`Project` are keyed by their natural ids (`program_name`, `project_id`) and
    deduplicated (many case rows repeat them).
 5. **Property naming.** Standardisation strips the source entity prefix from content
-   columns: `diagnosis_ajcc_pathologic_stage → ajcc_pathologic_stage`,
-   `demographic_sex_at_birth → sex_at_birth`.
+   columns, then camelCases them for the graph: `diagnosis_ajcc_pathologic_stage →
+   ajccPathologicStage`, `demographic_sex_at_birth → sexAtBirth`. Node/edge **labels**
+   are PascalCase, relationship types UPPER_SNAKE_CASE, and the graph id property
+   (`preferred_id`) is the camelCase of the source id column (`sample_id → sampleId`).
+   The snake_case names in the tables below are the *source* columns the config
+   references; the graph exposes their camelCase form.
 6. **Placeholder scrub.** GDC/BCR placeholder tokens (`[Not Available]`, `[Not Evaluated]`,
    `[Unknown]`, `[Not Applicable]`, `--`) are treated as null and dropped.
 
@@ -52,7 +56,7 @@ column set of each source TSV carries through (prefix-stripped) unless pruned.
 | **Exposure** | `exposure_id` | `exposure` | tobacco_smoking_status, pack_years_smoked, alcohol_history, bmi |
 | **FamilyHistory** | `family_history_id` | `family_history` | relationship_primary_diagnosis, relative_with_cancer_history |
 | **Sample** | `sample_id` (= aliquot) | `sample` (aliquot grain) | type, tissue_type, tumor_descriptor, specimen_type, preservation_method, days_to_collection; provenance: gdc_sample_id, gdc_sample_submitter_id, portion_id, analyte_id, analyte_type |
-| **ExperimentalGroup** | `group_id` (dedup) | `sample` (derived from `sample_type`) | group_label (control/treatment arm) |
+| **ExperimentalCondition** | `group_id` (dedup) | `sample` (derived from `sample_type`) | group_label (control/treatment arm) |
 
 `other_clinical_attribute` is empty for TCGA and has no node type. The `file` table
 (908k rows, provenance) is **not** a backbone node; it feeds omics-edge provenance later.
@@ -75,8 +79,8 @@ already present in a single source TSV (no joins needed).
 | `HAS_MOLECULAR_TEST` | Diagnosis **or** FollowUp → MolecularTest | `molecular_test` | parent_id → molecular_test_id (parent chosen by `parent_entity`) |
 | `HAS_EXPOSURE` | Subject → Exposure | `exposure` | case_id → exposure_id |
 | `HAS_FAMILY_HISTORY` | Subject → FamilyHistory | `family_history` | case_id → family_history_id |
-| `HAS_SAMPLE` | Subject → Sample | `sample` | case_id → sample_id |
-| `IN_GROUP` | Sample → ExperimentalGroup | `sample` | sample_id → group_id |
+| `PROVIDED_SAMPLE` | Subject → Sample | `sample` | case_id → sample_id |
+| `HAS_CONDITION` | Sample → ExperimentalCondition | `sample` | sample_id → group_id |
 
 **Backbone shape.** GDC has no FK from Sample to Diagnosis; both are children of the case.
 So Diagnosis and Sample are **parallel branches off Subject**, not a chain. (A tumour↔sample
@@ -98,19 +102,19 @@ properties. Each measurement is one node carrying its value(s) + provenance, wir
 Sample and the shared feature it measures:
 
 ```
-(Sample)-[:HAS_EXPRESSION]->(Expression {tpm, fpkm, aliquot_id, file_id})-[:OF_GENE]->(Gene)
-(Sample)-[:HAS_METHYLATION]->(Methylation {beta_value, ...})-[:AT_CPG]->(CpGSite)
-(Sample)-[:HAS_VARIANT_CALL]->(VariantCall {vaf, consequence, impact, ...})-[:OF_VARIANT]->(Variant)
-(Sample)-[:HAS_PROTEIN_EXPRESSION]->(ProteinExpression {value, ...})-[:OF_PROTEIN]->(Protein)
+(Sample)-[:HAS_EXPRESSION_OBSERVATION]->(ExpressionObservation {tpm, fpkm, aliquot_id, file_id})-[:MEASURES_GENE]->(Gene)
+(Sample)-[:HAS_METHYLATION_OBSERVATION]->(MethylationObservation {beta_value, ...})-[:MEASURES_CPG]->(CpGSite)
+(Sample)-[:HAS_VARIANT_OBSERVATION]->(VariantObservation {vaf, consequence, impact, ...})-[:OBSERVED_VARIANT]->(Variant)
+(Sample)-[:HAS_PROTEIN_OBSERVATION]->(ProteinObservation {value, ...})-[:MEASURES_PROTEIN]->(Protein)
 ```
 
 - **Shared feature nodes** — a deduplicated reference dimension reused across all samples:
   `Gene` (Ensembl id), `CpGSite` (cg#), `Variant` (`variant_id`, keeps `gene_ensembl`),
   `Protein` (UniProt), `Pathway`. `CpGSite`/`Variant` carry chromosome-specific position props.
-- **Observation nodes** — per-assay, one per sample×feature: `Expression`, `Methylation`,
-  `VariantCall`, `ProteinExpression`. Every observation carries `aliquot_id` / `file_id` for
-  provenance to the assay file.
-- **Static biology** (Omnipath): `Variant ─VARIANT_IN_GENE→ Gene`, `Gene ─IN_PATHWAY→ Pathway`,
+- **Observation nodes** — per-assay, one per sample×feature: `ExpressionObservation`,
+  `MethylationObservation`, `VariantObservation`, `ProteinObservation`. Every observation
+  carries `aliquot_id` / `file_id` for provenance to the assay file.
+- **Static biology** (Omnipath): `Variant ─AFFECTS_GENE→ Gene`, `Gene ─PARTICIPATES_IN_PATHWAY→ Pathway`,
   `Gene ─ENCODES→ Protein`. All edges are plain (no properties).
 
 **Why reify instead of valued edges.** The measurement count is identical either way (one
@@ -153,10 +157,10 @@ first (add slide and analyte QC), tracked separately from this model.
 
 Concepts adopted from `docs/other/neo4j_updated_schema_draft_3.md` (2026-07-02):
 
-- **Pseudobulk folds into `Expression`, not a separate node.** A pseudobulk value is a
-  cell-type-stratified gene-expression observation, so it is the same reified `Expression`
+- **Pseudobulk folds into `ExpressionObservation`, not a separate node.** A pseudobulk value is a
+  cell-type-stratified gene-expression observation, so it is the same reified `ExpressionObservation`
   node as bulk RNA-seq, distinguished by `assay_type` (`bulk` | `pseudobulk`) and an extra
-  `(Expression)-[:OF_CELL_TYPE]->(CellType)` edge. Bulk grain is `sample × gene`; pseudobulk
+  `(ExpressionObservation)-[:OF_CELL_TYPE]->(CellType)` edge. Bulk grain is `sample × gene`; pseudobulk
   grain is `sample × cell_type × gene` (`expression_id = {sample_id}:{cell_type_id}:{gene_ensembl}`),
   carrying `mean_expr` / `pct_expressing` alongside `tpm`. Because `standardise_edge` skips
   blank FKs, `OF_CELL_TYPE` materialises only for pseudobulk rows (bulk rows leave

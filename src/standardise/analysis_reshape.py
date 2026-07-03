@@ -19,7 +19,7 @@ The KG models an analysis result the same way it models a raw measurement — by
 Each Contrast→result edge has its own label (Stage 1 writes one ``edges/{LABEL}.csv``
 per edge schema, so a shared label would collide) — the same pattern the SurvivalOutcome
 subclasses use. The ``FOR_*`` feature edges are distinct from the measurement edges
-(``OF_GENE``/``AT_CPG``/``OF_VARIANT``) but target the *same* deduplicated feature nodes:
+(``MEASURES_GENE``/``MEASURES_CPG``/``OBSERVED_VARIANT``) but target the *same* deduplicated feature nodes:
 the shared dimension is the node, not the edge name.
 
 To stay loadable standalone (analysis tables are often shared without the raw matrices,

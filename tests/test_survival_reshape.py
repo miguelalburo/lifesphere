@@ -147,13 +147,13 @@ def test_reshape_then_standardise_emits_nodes_and_edges(tmp_path):
     run(raw, out)
 
     os_nodes = {n["id"]: n for n in _read(out / "nodes" / "OverallSurvival.csv")}
-    assert os_nodes["c1:OS"]["event"] == "1" and os_nodes["c1:OS"]["time_days"] == "300"
-    assert "case_id" not in os_nodes["c1:OS"]  # dropped from node props
-    assert os_nodes["c1:OS"]["outcome_type"] == "OS"
+    assert os_nodes["c1:OS"]["event"] == "1" and os_nodes["c1:OS"]["timeDays"] == "300"
+    assert "caseId" not in os_nodes["c1:OS"]  # dropped from node props
+    assert os_nodes["c1:OS"]["outcomeType"] == "OS"
 
     edges = _read(out / "edges" / "HAS_OVERALL_SURVIVAL.csv")
     pairs = {(e["source_id"], e["target_id"]) for e in edges}
     assert ("c1", "c1:OS") in pairs and ("c2", "c2:OS") in pairs
 
     dfi = {n["id"]: n for n in _read(out / "nodes" / "DiseaseFreeInterval.csv")}
-    assert dfi["c2:DFI"]["event"] == "1" and dfi["c2:DFI"]["time_days"] == "600"
+    assert dfi["c2:DFI"]["event"] == "1" and dfi["c2:DFI"]["timeDays"] == "600"

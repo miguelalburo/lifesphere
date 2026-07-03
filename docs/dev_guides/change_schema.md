@@ -108,7 +108,7 @@ Both FK columns must exist in the source file's header or the edge is skipped at
 biomarker:
   represented_as: node
   is_a: entity
-  preferred_id: biomarker_id
+  preferred_id: biomarkerId          # camelCase of the entities.json id_col
   input_label: Biomarker
 
 subject to biomarker:
@@ -165,7 +165,7 @@ The source file name (`"name"` in entities, `"source_entity"` in edges) does **n
 
 ### Change the ID column
 
-Update `"id_col"` in `entities.json`. Also update `preferred_id` in `schema_config.yaml` for the corresponding node. Check that any edge schemas referencing this node's ID column (`"source_id"` or `"target_id"`) are updated to match.
+Update `"id_col"` in `entities.json` (snake_case — it matches the raw source column). Also update `preferred_id` in `schema_config.yaml` to the **camelCase** of that id_col (the graph-facing name, e.g. `sample_id` → `sampleId`). Check that any edge schemas referencing this node's ID column (`"source_id"` or `"target_id"`, snake_case) are updated to match.
 
 ---
 

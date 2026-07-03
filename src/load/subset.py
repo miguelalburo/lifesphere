@@ -83,7 +83,7 @@ def run(input_dir: Path, output_dir: Path, projects: list[str]) -> None:
     exposure_ids    = filter_subject_edge("HAS_EXPOSURE")
     fam_ids         = filter_subject_edge("HAS_FAMILY_HISTORY")
     followup_ids    = filter_subject_edge("HAS_FOLLOWUP")
-    sample_ids      = filter_subject_edge("HAS_SAMPLE")
+    sample_ids      = filter_subject_edge("PROVIDED_SAMPLE")
 
     _filter_csv(nodes_in / "Diagnosis.csv",     nodes_out / "Diagnosis.csv",     "id", diagnosis_ids)
     _filter_csv(nodes_in / "Exposure.csv",      nodes_out / "Exposure.csv",      "id", exposure_ids)

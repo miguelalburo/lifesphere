@@ -61,6 +61,21 @@ def _rename(col: str, strip_prefix: str) -> str:
     return col
 
 
+def _camel(col: str) -> str:
+    """snake_case -> camelCase for graph-facing property/column names.
+
+    Applied to OUTPUT headers only (after prefix-stripping), so the graph exposes
+    the camelCase convention while the config keeps referencing snake_case source
+    columns. Single-token or already-camel names pass through unchanged; the
+    structural columns ``id`` / ``source_id`` / ``target_id`` are added separately
+    and never routed through here.
+    """
+    parts = [p for p in col.split("_") if p != ""]
+    if not parts:
+        return col
+    return parts[0] + "".join(p[:1].upper() + p[1:] for p in parts[1:])
+
+
 def standardise_node(
     schema: dict,
     src: Path,
@@ -85,7 +100,7 @@ def standardise_node(
         else:
             prop_cols = [c for c in header if c != id_col and c not in drop]
 
-        out_header = ["id"] + [_rename(c, strip_prefix) for c in prop_cols]
+        out_header = ["id"] + [_camel(_rename(c, strip_prefix)) for c in prop_cols]
         out_path = out_dir / "nodes" / f"{schema['label']}.csv"
         seen: set = set()
         n = 0
@@ -131,7 +146,7 @@ def standardise_edge(
         # dropped so a plain edge stays two-column and back-compatible.
         prop_cols = [c for c in (schema.get("props") or []) if c in header]
         writer = csv.writer(out)
-        writer.writerow(["source_id", "target_id", *prop_cols])
+        writer.writerow(["source_id", "target_id", *(_camel(c) for c in prop_cols)])
         for row in reader:
             s = clean(row.get(source_id, ""))
             t = clean(row.get(target_id, ""))
