@@ -10,7 +10,7 @@
   },
   {
     "name": "project",
-    "label": "Project",
+    "label": "Study",
     "id_col": "project_id",
     "strip_prefix": "",
     "drop": [],

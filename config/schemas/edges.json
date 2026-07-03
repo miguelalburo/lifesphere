@@ -7,7 +7,7 @@
     "dedup": true
   },
   {
-    "label": "ENROLLS",
+    "label": "HAS_SUBJECT",
     "source_entity": "subject",
     "source_id": "project_id",
     "target_id": "case_id",

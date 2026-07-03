@@ -9,7 +9,7 @@ Upstream grain and PK/FK contract come from the extractor — see
 are already at true 1:many grain, so **the extraction grain is the graph grain**:
 standardisation renames and cleans, it does not re-pivot.
 
-Backbone: `Program → Project → Subject → {Diagnosis, Sample, …} → Omics`.
+Backbone: `Program → Study → Subject → {Diagnosis, Sample, …} → Omics`.
 
 ---
 
@@ -45,8 +45,8 @@ column set of each source TSV carries through (prefix-stripped) unless pruned.
 
 | Node label | ID (source column) | Source TSV | Key properties (prefix stripped) |
 |---|---|---|---|
-| **Program** | `program_name` (dedup) | `subject` | — |
-| **Project** | `project_id` (dedup) | `subject` | project_name, disease_type, primary_site, program_name |
+| **Program** | `program_name` (dedup) | `program` | — |
+| **Study** | `project_id` (dedup) | `project` | project_name, disease_type, primary_site, program_name |
 | **Subject** | `case_id` | `subject` (the case table, +`demographic_*` folded in) | submitter_id, disease_type, primary_site, sex_at_birth, race, ethnicity, vital_status, age_at_index, days_to_birth, year_of_death, cause_of_death |
 | **Diagnosis** | `diagnosis_id` | `diagnosis` | primary_diagnosis, ajcc_pathologic_stage, tumor_grade, morphology, tissue_or_organ_of_origin, age_at_diagnosis, days_to_diagnosis, prior_malignancy |
 | **Treatment** | `treatment_id` | `treatment` | treatment_type, therapeutic_agents, treatment_intent_type, treatment_outcome, days_to_treatment_start, days_to_treatment_end |
@@ -70,8 +70,8 @@ already present in a single source TSV (no joins needed).
 
 | Edge | From → To | Source TSV | source_id → target_id |
 |---|---|---|---|
-| `HAS_PROJECT` | Program → Project | `case` (dedup) | program_name → project_id |
-| `ENROLLS` | Project → Subject | `case` | project_id → case_id |
+| `HAS_PROJECT` | Program → Study | `case` (dedup) | program_name → project_id |
+| `HAS_SUBJECT` | Study → Subject | `case` | project_id → case_id |
 | `HAS_DIAGNOSIS` | Subject → Diagnosis | `diagnosis` | case_id → diagnosis_id |
 | `HAS_TREATMENT` | Diagnosis → Treatment | `treatment` | diagnosis_id → treatment_id |
 | `HAS_PATHOLOGY` | Diagnosis → PathologyDetail | `pathology_detail` | diagnosis_id → pathology_detail_id |

@@ -40,10 +40,10 @@ def run(input_dir: Path, output_dir: Path, projects: list[str]) -> None:
     nodes_out.mkdir(parents=True, exist_ok=True)
     edges_out.mkdir(parents=True, exist_ok=True)
 
-    # --- Program + Project (keep all programs; keep only selected projects) ---
+    # --- Program + Study (keep all programs; keep only selected studies) ---
     shutil.copy(nodes_in / "Program.csv", nodes_out / "Program.csv")
-    n = _filter_csv(nodes_in / "Project.csv", nodes_out / "Project.csv", "id", proj_set)
-    log.info("Project: %d", n)
+    n = _filter_csv(nodes_in / "Study.csv", nodes_out / "Study.csv", "id", proj_set)
+    log.info("Study: %d", n)
 
     # --- HAS_PROJECT edges ---
     n = _filter_csv(edges_in / "HAS_PROJECT.csv", edges_out / "HAS_PROJECT.csv", "target_id", proj_set)
@@ -51,7 +51,7 @@ def run(input_dir: Path, output_dir: Path, projects: list[str]) -> None:
 
     # --- Subjects enrolled in selected projects ---
     subject_ids: set[str] = set()
-    with open(edges_in / "ENROLLS.csv", newline="") as f:
+    with open(edges_in / "HAS_SUBJECT.csv", newline="") as f:
         for row in csv.DictReader(f):
             if row["source_id"] in proj_set:
                 subject_ids.add(row["target_id"])
@@ -59,8 +59,8 @@ def run(input_dir: Path, output_dir: Path, projects: list[str]) -> None:
 
     n = _filter_csv(nodes_in / "Subject.csv", nodes_out / "Subject.csv", "id", subject_ids)
     log.info("Subject nodes: %d", n)
-    n = _filter_csv(edges_in / "ENROLLS.csv", edges_out / "ENROLLS.csv", "target_id", subject_ids)
-    log.info("ENROLLS: %d", n)
+    n = _filter_csv(edges_in / "HAS_SUBJECT.csv", edges_out / "HAS_SUBJECT.csv", "target_id", subject_ids)
+    log.info("HAS_SUBJECT: %d", n)
 
     # Helper: filter an edge file by subject (source), collect target IDs
     def filter_subject_edge(edge_name: str) -> set[str]:

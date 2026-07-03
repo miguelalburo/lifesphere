@@ -32,7 +32,9 @@ def std_dir(tmp_path_factory) -> Path:
     raw = tmp_path_factory.mktemp("raw")
     out = tmp_path_factory.mktemp("std")
 
-    # 2 cases in the SAME project/program (exercises dedup).
+    # 2 cases in the SAME project/program. Subject nodes + HAS_PROJECT/HAS_SUBJECT edges
+    # come from this file; the Program/Study *nodes* come from the dedicated
+    # program/project extract files below.
     _write_tsv(raw / f"{BASE}.subject.tsv",
         ["case_id", "submitter_id", "disease_type", "primary_site",
          "index_date", "index_date_type", "project_id", "project_name",
@@ -41,6 +43,16 @@ def std_dir(tmp_path_factory) -> Path:
           "Breast Invasive Carcinoma", "TCGA", "Female", "Alive"],
          ["c2", "TCGA-02", "Adeno", "Breast", "Diagnosis", "", "TCGA-BRCA",
           "Breast Invasive Carcinoma", "TCGA", "[Not Available]", "Dead"]])
+
+    # Program/Study nodes come from dedicated post-processed extract files; duplicate
+    # rows here exercise dedup on program_name / project_id.
+    _write_tsv(raw / f"{BASE}.program.tsv",
+        ["program_name"],
+        [["TCGA"], ["TCGA"]])
+    _write_tsv(raw / f"{BASE}.project.tsv",
+        ["project_id", "project_name", "disease_type", "primary_site", "program_name"],
+        [["TCGA-BRCA", "Breast Invasive Carcinoma", "Adeno", "Breast", "TCGA"],
+         ["TCGA-BRCA", "Breast Invasive Carcinoma", "Adeno", "Breast", "TCGA"]])
 
     # case c1 has TWO diagnoses (multiplicity); c2 has one.
     _write_tsv(raw / f"{BASE}.diagnosis.tsv",
@@ -98,7 +110,7 @@ def test_grain_preserved(std_dir):
 
 def test_program_project_dedup(std_dir):
     assert len(_node(std_dir, "Program")) == 1
-    assert len(_node(std_dir, "Project")) == 1
+    assert len(_node(std_dir, "Study")) == 1
     assert len(_edge(std_dir, "HAS_PROJECT")) == 1
 
 
@@ -190,18 +202,22 @@ def test_alias_renaming_end_to_end(tmp_path, aliased_schema_dir):
          "demographic_vital_status"],
         [["c1", "TCGA-01", "Adeno", "Breast", "TCGA-BRCA",
           "Breast Invasive Carcinoma", "TCGA", "Alive"]])
+    # Program/Study nodes come from dedicated files, also using aliased headers.
+    _write_tsv(raw / f"{BASE}.program.tsv", ["program.name"], [["TCGA"]])
+    _write_tsv(raw / f"{BASE}.project.tsv",
+        ["project.project_id", "project_name"], [["TCGA-BRCA", "Breast Invasive Carcinoma"]])
 
     run(raw, out, aliased_schema_dir)
 
     # Subject node keyed by the canonicalised case_id, not the alias.
     subjects = _read(out / "nodes" / "Subject.csv")
     assert [s["id"] for s in subjects] == ["c1"]
-    # Program/Project resolved from aliased columns.
+    # Program/Study resolved from aliased columns.
     assert [p["id"] for p in _read(out / "nodes" / "Program.csv")] == ["TCGA"]
-    assert [p["id"] for p in _read(out / "nodes" / "Project.csv")] == ["TCGA-BRCA"]
+    assert [p["id"] for p in _read(out / "nodes" / "Study.csv")] == ["TCGA-BRCA"]
     # Edges built off the canonical FK names.
-    enrolls = _read(out / "edges" / "ENROLLS.csv")
-    assert enrolls == [{"source_id": "TCGA-BRCA", "target_id": "c1"}]
+    has_subject = _read(out / "edges" / "HAS_SUBJECT.csv")
+    assert has_subject == [{"source_id": "TCGA-BRCA", "target_id": "c1"}]
 
 
 # --------------------------------------------------------------------------- #
