@@ -39,11 +39,11 @@ diagnosis:
   input_label: Diagnosis
   # props: primary_diagnosis, ajcc_pathologic_stage, tumor_grade, morphology, ...
 
-treatment:
+intervention:
   represented_as: node
   is_a: entity
   preferred_id: treatmentId
-  input_label: Treatment
+  input_label: Intervention
   # props: treatment_type, therapeutic_agents, treatment_intent_type, treatment_outcome
 
 pathology detail:
@@ -116,12 +116,12 @@ subject to diagnosis:
   source: subject
   target: diagnosis
 
-diagnosis to treatment:
+diagnosis to intervention:
   represented_as: edge
   is_a: association
-  input_label: HAS_TREATMENT
+  input_label: HAS_INTERVENTION
   source: diagnosis
-  target: treatment
+  target: intervention
 
 diagnosis to pathology:
   represented_as: edge

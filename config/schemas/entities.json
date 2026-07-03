@@ -37,7 +37,7 @@
   },
   {
     "name": "treatment",
-    "label": "Treatment",
+    "label": "Intervention",
     "id_col": "treatment_id",
     "strip_prefix": "treatment_",
     "drop": ["case_id", "case_submitter_id", "diagnosis_id"],

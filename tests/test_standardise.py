@@ -105,7 +105,7 @@ def _edge(std: Path, label: str) -> list[dict]:
 def test_grain_preserved(std_dir):
     assert len(_node(std_dir, "Subject")) == 2
     assert len(_node(std_dir, "Diagnosis")) == 3        # multiplicity kept
-    assert len(_node(std_dir, "Treatment")) == 2
+    assert len(_node(std_dir, "Intervention")) == 2
 
 
 def test_program_project_dedup(std_dir):

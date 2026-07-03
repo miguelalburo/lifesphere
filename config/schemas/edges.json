@@ -21,7 +21,7 @@
     "dedup": false
   },
   {
-    "label": "HAS_TREATMENT",
+    "label": "HAS_INTERVENTION",
     "source_entity": "treatment",
     "source_id": "diagnosis_id",
     "target_id": "treatment_id",
