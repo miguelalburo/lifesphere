@@ -66,17 +66,12 @@ molecular test:
   input_label: MolecularTest
   # props: gene_symbol, molecular_analysis_method, test_result, variant_type (ER/PR/HER2)
 
-exposure:
+phenotype observation:
   represented_as: node
   is_a: entity
-  preferred_id: exposureId
-  input_label: Exposure
-
-family history:
-  represented_as: node
-  is_a: entity
-  preferred_id: familyHistoryId
-  input_label: FamilyHistory
+  preferred_id: phenotypeObservationId
+  input_label: PhenotypeObservation
+  # covers both exposure (tobacco, alcohol, bmi) and family history records
 
 sample:
   represented_as: node
@@ -145,19 +140,12 @@ has molecular test:
   source: [diagnosis, follow up]
   target: molecular test
 
-subject to exposure:
+subject to phenotype observation:
   represented_as: edge
   is_a: association
-  input_label: HAS_EXPOSURE
+  input_label: HAS_PHENOTYPE_OBSERVATION
   source: subject
-  target: exposure
-
-subject to family history:
-  represented_as: edge
-  is_a: association
-  input_label: HAS_FAMILY_HISTORY
-  source: subject
-  target: family history
+  target: phenotype observation
 
 subject to sample:
   represented_as: edge

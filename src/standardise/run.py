@@ -104,9 +104,12 @@ def standardise_node(
         out_path = out_dir / "nodes" / f"{schema['label']}.csv"
         seen: set = set()
         n = 0
-        with open(out_path, "w", newline="") as out:
+        file_exists = out_path.exists() and out_path.stat().st_size > 0
+        mode = "a" if file_exists else "w"
+        with open(out_path, mode, newline="") as out:
             writer = csv.writer(out)
-            writer.writerow(out_header)
+            if not file_exists:
+                writer.writerow(out_header)
             for row in reader:
                 node_id = clean(row.get(id_col, ""))
                 if not node_id:
@@ -134,7 +137,9 @@ def standardise_edge(
     dedup = schema.get("dedup", False)
     seen: set = set()
     n = 0
-    with open(src, newline="") as f, open(out_path, "w", newline="") as out:
+    file_exists = out_path.exists() and out_path.stat().st_size > 0
+    mode = "a" if file_exists else "w"
+    with open(src, newline="") as f, open(out_path, mode, newline="") as out:
         reader = csv.DictReader(f, delimiter=delimiter)
         header = reader.fieldnames or []
         if alias_map:
@@ -146,7 +151,8 @@ def standardise_edge(
         # dropped so a plain edge stays two-column and back-compatible.
         prop_cols = [c for c in (schema.get("props") or []) if c in header]
         writer = csv.writer(out)
-        writer.writerow(["source_id", "target_id", *(_camel(c) for c in prop_cols)])
+        if not file_exists:
+            writer.writerow(["source_id", "target_id", *(_camel(c) for c in prop_cols)])
         for row in reader:
             s = clean(row.get(source_id, ""))
             t = clean(row.get(target_id, ""))
