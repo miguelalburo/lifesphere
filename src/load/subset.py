@@ -108,12 +108,12 @@ def run(input_dir: Path, output_dir: Path, projects: list[str]) -> None:
         log.info("%s: %d edges", edge_name, len(target_ids))
         return target_ids
 
-    # --- Diagnosis → Treatment + PathologyDetail ---
-    treatment_ids = filter_edge("HAS_TREATMENT", diagnosis_ids)
+    # --- Diagnosis → Intervention + PathologyDetail ---
+    treatment_ids = filter_edge("HAS_INTERVENTION", diagnosis_ids)
     pathology_ids = filter_edge("HAS_PATHOLOGY", diagnosis_ids)
-    _filter_csv(nodes_in / "Treatment.csv",       nodes_out / "Treatment.csv",       "id", treatment_ids)
+    _filter_csv(nodes_in / "Intervention.csv",    nodes_out / "Intervention.csv",    "id", treatment_ids)
     _filter_csv(nodes_in / "PathologyDetail.csv", nodes_out / "PathologyDetail.csv", "id", pathology_ids)
-    log.info("Treatment/PathologyDetail nodes written")
+    log.info("Intervention/PathologyDetail nodes written")
 
     # --- FollowUp → MolecularTest ---
     moltest_ids = filter_edge("HAS_MOLECULAR_TEST", followup_ids)

@@ -42,6 +42,15 @@ def std_dir(tmp_path_factory) -> Path:
          ["c2", "TCGA-02", "Adeno", "Breast", "Diagnosis", "", "TCGA-BRCA",
           "Breast Invasive Carcinoma", "TCGA", "[Not Available]", "Dead"]])
 
+    # Program/Project nodes come from dedicated extract files; duplicate rows exercise dedup.
+    _write_tsv(raw / f"{BASE}.program.tsv",
+        ["program_name"],
+        [["TCGA"], ["TCGA"]])
+    _write_tsv(raw / f"{BASE}.project.tsv",
+        ["project_id", "project_name", "disease_type", "primary_site", "program_name"],
+        [["TCGA-BRCA", "Breast Invasive Carcinoma", "Adeno", "Breast", "TCGA"],
+         ["TCGA-BRCA", "Breast Invasive Carcinoma", "Adeno", "Breast", "TCGA"]])
+
     # case c1 has TWO diagnoses (multiplicity); c2 has one.
     _write_tsv(raw / f"{BASE}.diagnosis.tsv",
         ["case_id", "case_submitter_id", "diagnosis_id", "diagnosis_submitter_id",
@@ -93,7 +102,7 @@ def _edge(std: Path, label: str) -> list[dict]:
 def test_grain_preserved(std_dir):
     assert len(_node(std_dir, "Subject")) == 2
     assert len(_node(std_dir, "Diagnosis")) == 3        # multiplicity kept
-    assert len(_node(std_dir, "Treatment")) == 2
+    assert len(_node(std_dir, "Intervention")) == 2
 
 
 def test_program_project_dedup(std_dir):
@@ -190,6 +199,10 @@ def test_alias_renaming_end_to_end(tmp_path, aliased_schema_dir):
          "demographic_vital_status"],
         [["c1", "TCGA-01", "Adeno", "Breast", "TCGA-BRCA",
           "Breast Invasive Carcinoma", "TCGA", "Alive"]])
+    # Program/Project nodes come from dedicated files, also using aliased headers.
+    _write_tsv(raw / f"{BASE}.program.tsv", ["program.name"], [["TCGA"]])
+    _write_tsv(raw / f"{BASE}.project.tsv",
+        ["project.project_id", "project_name"], [["TCGA-BRCA", "Breast Invasive Carcinoma"]])
 
     run(raw, out, aliased_schema_dir)
 
