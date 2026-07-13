@@ -30,7 +30,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-DEFAULT_LEDGER_FILE = Path(".load_ledger.json")
+DEFAULT_LEDGER_FILE = Path("logs/.load_ledger.json")
 _LEDGER_VERSION = 1
 
 
