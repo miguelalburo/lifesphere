@@ -13,9 +13,10 @@ The schema is defined entirely in config files. No code changes are required for
 | `config/schemas/entities.json` | Which node types exist, what raw file feeds each, which column is the ID, how columns are renamed/dropped |
 | `config/schemas/edges.json` | Which edge types exist, which file and FK columns produce them |
 | `config/schemas/placeholders.json` | Raw data values treated as null during cleaning |
+| `config/schemas/standardisation.json` | Which properties are "key" (ontology-mapped), what vocabulary each resolves against, and where the crosswalk file lives |
 | `config/schema_config.yaml` | BioCypher ontology mapping — required for the **load stage** (Stage 2) to ingest nodes/edges into Neo4j |
 
-The standardisation engine (`src/standardise/`) reads the first three files at runtime. The load engine (`src/load/`) reads the last one. **Both must stay in sync with each other.**
+The standardisation engine (`src/standardise/`) reads the first four files at runtime. The load engine (`src/load/`) reads the last one. **Both must stay in sync with each other.**
 
 ---
 
@@ -175,6 +176,45 @@ Edit `config/schemas/placeholders.json`. Values in this list are scrubbed to emp
 
 ---
 
+### Add a standardisation (ontology-mapping) entry for a property
+
+The standardisation subsystem maps "key" properties to controlled vocabularies at Stage 1. Config lives in `config/schemas/standardisation.json`; lookup tables live in `config/crosswalks/`.
+
+**1. Add an entry to `config/schemas/standardisation.json`**, nested by entity label → source column (snake_case, as it appears in the raw extractor TSV after alias normalisation):
+
+```json
+{
+  "Diagnosis": {
+    "primary_diagnosis": {
+      "vocabulary": "NCIt",
+      "crosswalk": "config/crosswalks/diagnosis_primary_diagnosis_ncit.csv",
+      "confidence_score": false
+    }
+  }
+}
+```
+
+Fields:
+- `vocabulary` — string stamped into `sourceVocabulary` on every emitted row (e.g. `"NCIt"`, `"UBERON"`, `"ICD-O-3"`).
+- `crosswalk` — repo-root-relative path to the lookup CSV. The file must exist before the pipeline runs (create a stub if populating later).
+- `confidence_score` — `true` to emit the optional `confidenceScore` column; `false` or omitted otherwise.
+
+**2. Create the crosswalk stub** at the declared path. Minimum headers:
+
+```
+source_value,ontology_id,ontology_mapping_status,confidence_score
+```
+
+(`confidence_score` column required only when `"confidence_score": true` in config.)
+
+Naming convention: `config/crosswalks/{entity_snake}_{column}_{vocabulary_lower}.csv`.
+
+**3. No other config files need updating.** The standardisation config is independent of `entities.json`, `edges.json`, and `schema_config.yaml`. `lookup.py` is called per-row from `standardise_node()` and widens each row in-place; `_camel` in `run.py` camelCases the provenance column family (`ontologyId`, `sourceVocabulary`, `ontologyMappingStatus`, `sourceValue`, `configKey`, `confidenceScore`) at output time.
+
+The `configKey` value emitted per row is `"{Label}.{column}"` (e.g. `"Diagnosis.primary_diagnosis"`) — constructed by `lookup.py`, not stored in config.
+
+---
+
 ## What requires a code change
 
 The JSON config covers all structural schema changes. Code changes are only needed when:
@@ -189,16 +229,18 @@ The JSON config covers all structural schema changes. Code changes are only need
 
 ```
 config/schemas/
-  entities.json  ──► src/standardise/detect.match_node_plans()
-  edges.json     ──► src/standardise/detect.match_edge_plans()
-  placeholders.json ► src/standardise/run.load_placeholders() ► _make_clean()
+  entities.json       ──► src/standardise/detect.match_node_plans()
+  edges.json          ──► src/standardise/detect.match_edge_plans()
+  placeholders.json   ──► src/standardise/run.load_placeholders() ► _make_clean()
+  standardisation.json ─► src/standardise/lookup.py (per-row column widening)
                                    │
                                    ▼
                      src/standardise/run.standardise_node/edge()
+                       (calls lookup.py per row; _camel() camelCases all output cols)
                                    │
                                    ▼
                      data/standardised/<dataset>/
-                       nodes/{Label}.csv
+                       nodes/{Label}.csv   (incl. provenance cols per key property)
                        edges/{LABEL}.csv
                                    │
                                    ▼

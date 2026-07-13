@@ -13,8 +13,8 @@ logs/
 .load_ledger.json
 
 # BioCypher generated output
-biocypher-out/
-biocypher-log/
+logs/biocypher-out/
+logs/biocypher-log/
 
 # Python virtual environment
 .venv/
@@ -32,6 +32,7 @@ tests/output/*
 # Claude & coding agent related
 .claude
 CLAUDE.md
+docs/agents/*
 
 # Obsidian
 *.obsidian
@@ -44,3 +45,5 @@ CLAUDE.md
 docs/excalidraw/*
 docs/excalidraw/Drawing 2026-06-30 20.24.43.excalidraw.md
 
+docs/agents/issue-tracker.md
+docs/agents/issue-tracker.md
