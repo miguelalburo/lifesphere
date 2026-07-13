@@ -11,7 +11,7 @@ import csv
 from pathlib import Path
 
 from . import gdc_api
-from .biospecimen import merge_sample_aliquot
+from .biospecimen import merge_sample_aliquot, merge_treatment_sample
 from .entities import EMITTERS, EXPAND
 from .survival_reshape import reshape_survival
 
@@ -108,6 +108,8 @@ def write_entities(hits: list[dict], out_dir: Path, base_name: str) -> None:
 
     # Post-processing: collapse biospecimen to aliquot grain (sample <- aliquot).
     merge_sample_aliquot(out_dir, base_name)
+    # Post-processing: fan out treatments to aliquot grain for UNDERWENT_INTERVENTION.
+    merge_treatment_sample(out_dir, base_name)
     # Post-processing: aggregate project and program summary tables.
     _derive_program_project(hits, out_dir, base_name)
     # Post-processing: derive per-subject survival outcomes (OS / PFI / DFI).

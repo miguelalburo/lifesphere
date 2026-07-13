@@ -42,7 +42,7 @@
     "strip_prefix": "treatment_",
     "drop": ["subject_id", "case_submitter_id", "diagnosis_id", "sample_id"],
     "keep": [],
-    "dedup": false,
+    "dedup": true,
     "subtype_column": "treatment_treatment_type",
     "subtype_map": {
       "Pharmaceutical Therapy, NOS": "Drug",

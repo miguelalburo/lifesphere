@@ -10,19 +10,19 @@ Per-row ordering (as invoked from run.py): placeholder-scrub → alias → looku
 List-valued columns (stringified Python lists) are split and each element is looked
 up individually; the result is rejoined as a pipe-separated string.
 
-Provenance column family per declared property (snake; _camel in run.py renders
+Emitted column family per declared property (snake; _camel in run.py renders
 them camelCase at output):
 
-    {col}_ontology_id           always (empty when unmapped / not_applicable)
-    {col}_source_vocabulary     always
-    {col}_ontology_mapping_status  always
-    {col}_source_value          always (raw input preserved)
-    {col}_config_key            always  ("{Label}.{col}")
+    {col}_ontology_id           for crosswalk-backed fields only (empty when the
+                                term has no mapping); omitted entirely for
+                                source_provided fields, whose value already lives
+                                in the node's own base column
     {col}_confidence_score      only when confidence_score: true in config
 
-ontologyMappingStatus enum:
-    exact_match | synonym_match | fuzzy_match | source_provided |
-    curated | unmapped | not_applicable
+The lookup still computes match status, source vocabulary, source value and a
+config key internally, but those provenance columns are intentionally not
+emitted: the graph carries only the resolved ontology id (plus optional
+confidence). An empty ontology_id is the sole signal for "no mapping".
 """
 
 import ast
@@ -89,13 +89,10 @@ class StandardisationLookup:
         """Return the additional snake_case provenance column names for this label."""
         cols: list[str] = []
         for col, cfg in self._config.get(label, {}).items():
-            cols.extend([
-                f"{col}_ontology_id",
-                f"{col}_source_vocabulary",
-                f"{col}_ontology_mapping_status",
-                f"{col}_source_value",
-                f"{col}_config_key",
-            ])
+            # source_provided fields never resolve an ontology_id (the value lives
+            # in the node's own base column), so we omit the empty column entirely.
+            if not cfg.get("source_provided"):
+                cols.append(f"{col}_ontology_id")
             if cfg.get("confidence_score"):
                 cols.append(f"{col}_confidence_score")
         return cols
@@ -107,13 +104,8 @@ class StandardisationLookup:
             source_value = (raw_row.get(col) or "").strip()
             raw = clean_val(source_value)
             result = self._lookup_value(label, col, raw, cfg, source_value)
-            values.extend([
-                result["ontology_id"],
-                result["source_vocabulary"],
-                result["ontology_mapping_status"],
-                result["source_value"],
-                result["config_key"],
-            ])
+            if not cfg.get("source_provided"):
+                values.append(result["ontology_id"])
             if cfg.get("confidence_score"):
                 values.append(result.get("confidence_score", ""))
         return values

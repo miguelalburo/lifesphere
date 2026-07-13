@@ -74,3 +74,53 @@ def merge_sample_aliquot(out_dir, base: str) -> None:
     aliquot_path.unlink()
     print(f"  merged sample+aliquot -> {sample_path.name} "
           f"({len(aliquots)} rows × {len(out_cols)} cols); removed {aliquot_path.name}")
+
+
+def merge_treatment_sample(out_dir, base: str) -> None:
+    """Fan out treatment rows to aliquot grain by joining on case_id.
+
+    Reads {base}.treatment.tsv (case-level, one row per treatment) and
+    {base}.sample.tsv (aliquot-grain), joins on case_id, and rewrites
+    treatment.tsv with one row per (treatment, aliquot), setting sample_id
+    to the aliquot UUID so UNDERWENT_INTERVENTION can source from Sample.
+    Must run after merge_sample_aliquot (which creates the aliquot-grain sample.tsv).
+    """
+    out_dir = Path(out_dir)
+    treatment_path = out_dir / f"{base}.treatment.tsv"
+    sample_path = out_dir / f"{base}.sample.tsv"
+
+    if not (treatment_path.exists() and sample_path.exists()):
+        print("  merge_treatment_sample: treatment/sample TSV missing — skipped.")
+        return
+
+    from collections import defaultdict
+    _, samples = _read(sample_path)
+    case_aliquots: dict[str, list[str]] = defaultdict(list)
+    for s in samples:
+        cid = s.get("case_id", "")
+        sid = s.get("sample_id", "")  # aliquot UUID after merge_sample_aliquot
+        if cid and sid:
+            case_aliquots[cid].append(sid)
+
+    tx_cols, treatments = _read(treatment_path)
+    if "sample_id" not in tx_cols:
+        tx_cols = ["sample_id"] + tx_cols
+    else:
+        tx_cols = ["sample_id"] + [c for c in tx_cols if c != "sample_id"]
+
+    out_rows: list[dict] = []
+    for tx in treatments:
+        cid = tx.get("case_id", "")
+        for aid in (case_aliquots.get(cid) or [""]):
+            row = dict(tx)
+            row["sample_id"] = aid
+            out_rows.append(row)
+
+    with open(treatment_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=tx_cols, delimiter="\t",
+                                extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(out_rows)
+
+    print(f"  treatment × aliquot fan-out -> {treatment_path.name} "
+          f"({len(out_rows)} rows × {len(tx_cols)} cols)")

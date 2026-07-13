@@ -272,6 +272,12 @@ def main(argv: list[str] | None = None) -> int:
         datefmt="%H:%M:%S",
     )
 
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(override=True)
+    except ImportError:
+        pass
+
     p = argparse.ArgumentParser(
         description="Load standardised KG CSVs into a live Neo4j instance."
     )

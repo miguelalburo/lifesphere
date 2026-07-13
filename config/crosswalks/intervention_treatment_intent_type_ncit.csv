@@ -1,1 +1,13 @@
 source_term,ontology_id,match_type,confidence_score
+Adjuvant,C15679,exact_match,
+Neoadjuvant,C15438,exact_match,
+Palliative,C15583,exact_match,
+Induction,C15396,exact_match,
+Consolidation Therapy,C15247,exact_match,
+Maintenance Therapy,C15254,exact_match,
+Prevention,C15271,exact_match,
+Salvage,C18183,exact_match,
+Cure,C62582,exact_match,
+First-Line Therapy,C16877,exact_match,
+Androgen Deprivation Therapy (ADT),C15343,synonym_match,
+Re-Excision,C48643,synonym_match,
