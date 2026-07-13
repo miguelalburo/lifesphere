@@ -160,3 +160,10 @@ def test_reshape_then_standardise_emits_nodes_and_edges(tmp_path):
     assert dfi_id in survival_nodes
     assert survival_nodes[dfi_id]["event"] == "1" and survival_nodes[dfi_id]["timeDays"] == "600"
     assert survival_nodes[dfi_id]["survivalType"] == "DFI"
+
+    # Retired node/edge CSVs must not exist in the standardise output.
+    for retired in ("OverallSurvival", "ProgressionFreeInterval", "DiseaseFreeInterval", "FollowUp"):
+        assert not (out / "nodes" / f"{retired}.csv").exists(), f"{retired}.csv should not be emitted"
+    for retired_edge in ("HAS_OVERALL_SURVIVAL", "HAS_PROGRESSION_FREE_INTERVAL",
+                         "HAS_DISEASE_FREE_INTERVAL", "HAS_FOLLOWUP"):
+        assert not (out / "edges" / f"{retired_edge}.csv").exists(), f"{retired_edge}.csv should not be emitted"

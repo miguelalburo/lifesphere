@@ -158,13 +158,11 @@
     },
     "country_of_birth": {
       "vocabulary": "ISO-3166",
-      "crosswalk": "config/crosswalks/subject_country_iso3166.csv",
-      "confidence_score": false
+      "source_provided": true
     },
     "country_of_residence_at_enrollment": {
       "vocabulary": "ISO-3166",
-      "crosswalk": "config/crosswalks/subject_country_iso3166.csv",
-      "confidence_score": false
+      "source_provided": true
     }
   },
   "PhenotypeObservation": {

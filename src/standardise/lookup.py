@@ -29,7 +29,7 @@ import ast
 import csv
 import json
 from pathlib import Path
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 
 class _CrosswalkRow(NamedTuple):
@@ -100,12 +100,13 @@ class StandardisationLookup:
                 cols.append(f"{col}_confidence_score")
         return cols
 
-    def apply_row(self, label: str, raw_row: dict, clean_val: callable) -> list[str]:
+    def apply_row(self, label: str, raw_row: dict, clean_val: Callable[[str], str]) -> list[str]:
         """Return provenance values in the same order as extra_columns(label)."""
         values: list[str] = []
         for col, cfg in self._config.get(label, {}).items():
-            raw = clean_val(raw_row.get(col, ""))
-            result = self._lookup_value(label, col, raw, cfg)
+            source_value = (raw_row.get(col) or "").strip()
+            raw = clean_val(source_value)
+            result = self._lookup_value(label, col, raw, cfg, source_value)
             values.extend([
                 result["ontology_id"],
                 result["source_vocabulary"],
@@ -117,13 +118,14 @@ class StandardisationLookup:
                 values.append(result.get("confidence_score", ""))
         return values
 
-    def _lookup_value(self, label: str, col: str, raw: str, cfg: dict) -> dict:
+    def _lookup_value(self, label: str, col: str, raw: str, cfg: dict,
+                      source_value: str = "") -> dict:
         config_key = f"{label}.{col}"
         vocabulary = cfg.get("vocabulary", "")
         base: dict = {
             "ontology_id": "",
             "source_vocabulary": vocabulary,
-            "source_value": raw,
+            "source_value": source_value,   # pre-scrub raw input preserved per spec
             "config_key": config_key,
             "confidence_score": "",
         }
@@ -145,7 +147,8 @@ class StandardisationLookup:
         # List-valued: try to split a stringified Python list
         elements = _split_list(raw)
         if len(elements) > 1:
-            return self._lookup_list(elements, vocabulary, cw_path, config_key, table, cfg)
+            src_elements = _split_list(source_value) if source_value else elements
+            return self._lookup_list(elements, src_elements, vocabulary, cw_path, config_key, table, cfg)
 
         hit = table.get(raw.strip().lower())
         if hit:
@@ -157,8 +160,8 @@ class StandardisationLookup:
             base["ontology_mapping_status"] = "unmapped"
         return base
 
-    def _lookup_list(self, elements: list[str], vocabulary: str, cw_path: str,
-                     config_key: str, table: dict, cfg: dict) -> dict:
+    def _lookup_list(self, elements: list[str], src_elements: list[str], vocabulary: str,
+                     cw_path: str, config_key: str, table: dict, cfg: dict) -> dict:
         ids, statuses, scores = [], [], []
         for elem in elements:
             hit = table.get(elem.strip().lower())
@@ -170,12 +173,12 @@ class StandardisationLookup:
             else:
                 ids.append("")
                 statuses.append("unmapped")
-        overall_status = "unmapped" if all(s == "unmapped" for s in statuses) else statuses[0]
+        overall_status = "unmapped" if all(s == "unmapped" for s in statuses) else next(s for s in statuses if s != "unmapped")
         return {
             "ontology_id": "|".join(ids),
             "source_vocabulary": vocabulary,
             "ontology_mapping_status": overall_status,
-            "source_value": "|".join(elements),
+            "source_value": "|".join(src_elements),
             "config_key": config_key,
             "confidence_score": "|".join(scores) if scores else "",
         }

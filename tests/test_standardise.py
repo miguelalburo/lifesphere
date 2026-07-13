@@ -179,10 +179,24 @@ def test_underwent_intervention_sources_from_sample(std_dir):
 
 
 def test_intervention_subtype_label(std_dir):
-    """Intervention rows carry _subtypeLabel populated from treatment_type."""
+    """Intervention rows carry _subtypeLabel from treatment_type; unmapped → empty."""
     interventions = {r["id"]: r for r in _node(std_dir, "Intervention")}
     assert interventions["t1"]["_subtypeLabel"] == "Drug"
     assert interventions["t2"]["_subtypeLabel"] == "Radiation"
+
+
+def test_intervention_unmapped_subtype_is_empty(tmp_path):
+    """An unmapped treatment_type produces an empty _subtypeLabel, never an error."""
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    out = tmp_path / "std"
+    _write_tsv(raw / f"{BASE}.treatment.tsv",
+        ["case_id", "case_submitter_id", "diagnosis_id", "sample_id", "treatment_id",
+         "treatment_submitter_id", "treatment_treatment_type"],
+        [["c1", "TCGA-01", "d1", "s1", "t1", "TCGA-01_t", "Unknown Treatment Type"]])
+    run(raw, out)
+    rows = _read(out / "nodes" / "Intervention.csv")
+    assert rows[0]["_subtypeLabel"] == ""
 
 
 # --------------------------------------------------------------------------- #
