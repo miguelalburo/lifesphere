@@ -2,7 +2,7 @@
   {
     "name": "program",
     "label": "Program",
-    "id_col": "program_name",
+    "id_col": "program_id",
     "strip_prefix": "",
     "drop": [],
     "keep": [],
@@ -11,7 +11,7 @@
   {
     "name": "project",
     "label": "Study",
-    "id_col": "project_id",
+    "id_col": "study_id",
     "strip_prefix": "",
     "drop": [],
     "keep": [],
@@ -20,9 +20,9 @@
   {
     "name": "subject",
     "label": "Subject",
-    "id_col": "case_id",
+    "id_col": "subject_id",
     "strip_prefix": "demographic_",
-    "drop": ["project_id", "project_name", "program_name"],
+    "drop": ["study_id", "project_name", "program_id"],
     "keep": [],
     "dedup": false
   },
@@ -31,43 +31,32 @@
     "label": "Diagnosis",
     "id_col": "diagnosis_id",
     "strip_prefix": "diagnosis_",
-    "drop": ["case_id", "case_submitter_id", "disease_id"],
+    "drop": ["subject_id", "case_submitter_id", "disease_id"],
     "keep": [],
     "dedup": false
   },
   {
     "name": "treatment",
     "label": "Intervention",
-    "id_col": "treatment_id",
+    "id_col": "intervention_id",
     "strip_prefix": "treatment_",
-    "drop": ["case_id", "case_submitter_id", "diagnosis_id"],
+    "drop": ["subject_id", "case_submitter_id", "diagnosis_id", "sample_id"],
     "keep": [],
-    "dedup": false
+    "dedup": false,
+    "subtype_column": "treatment_treatment_type",
+    "subtype_map": {
+      "Pharmaceutical Therapy, NOS": "Drug",
+      "Radiation Therapy, NOS": "Radiation",
+      "Pharmaceutical": "Drug",
+      "Radiation": "Radiation"
+    }
   },
   {
     "name": "pathology_detail",
     "label": "PathologyDetail",
     "id_col": "pathology_detail_id",
     "strip_prefix": "pathology_detail_",
-    "drop": ["case_id", "case_submitter_id", "diagnosis_id"],
-    "keep": [],
-    "dedup": false
-  },
-  {
-    "name": "follow_up",
-    "label": "FollowUp",
-    "id_col": "follow_up_id",
-    "strip_prefix": "follow_up_",
-    "drop": ["case_id", "case_submitter_id"],
-    "keep": [],
-    "dedup": false
-  },
-  {
-    "name": "molecular_test",
-    "label": "MolecularTest",
-    "id_col": "molecular_test_id",
-    "strip_prefix": "molecular_test_",
-    "drop": ["case_id", "case_submitter_id", "parent_entity", "parent_id"],
+    "drop": ["subject_id", "case_submitter_id", "diagnosis_id"],
     "keep": [],
     "dedup": false
   },
@@ -76,7 +65,7 @@
     "label": "PhenotypeObservation",
     "id_col": "exposure_id",
     "strip_prefix": "exposure_",
-    "drop": ["case_id", "case_submitter_id"],
+    "drop": ["subject_id", "case_submitter_id", "diagnosis_id"],
     "keep": [],
     "dedup": false
   },
@@ -85,7 +74,16 @@
     "label": "PhenotypeObservation",
     "id_col": "family_history_id",
     "strip_prefix": "family_history_",
-    "drop": ["case_id", "case_submitter_id"],
+    "drop": ["subject_id", "case_submitter_id", "diagnosis_id"],
+    "keep": [],
+    "dedup": false
+  },
+  {
+    "name": "molecular_test",
+    "label": "PhenotypeObservation",
+    "id_col": "molecular_test_id",
+    "strip_prefix": "molecular_test_",
+    "drop": ["subject_id", "case_submitter_id", "parent_entity", "parent_id", "diagnosis_id"],
     "keep": [],
     "dedup": false
   },
@@ -94,14 +92,14 @@
     "label": "Sample",
     "id_col": "sample_id",
     "strip_prefix": "sample_",
-    "drop": ["case_id", "case_submitter_id", "group_id", "group_label"],
+    "drop": ["subject_id", "case_submitter_id", "condition_id", "group_label"],
     "keep": [],
     "dedup": false
   },
   {
     "name": "sample",
     "label": "ExperimentalCondition",
-    "id_col": "group_id",
+    "id_col": "condition_id",
     "strip_prefix": "",
     "drop": [],
     "keep": ["group_label"],
@@ -111,7 +109,7 @@
   {
     "name": "gene",
     "label": "Gene",
-    "id_col": "ensembl",
+    "id_col": "gene_id",
     "strip_prefix": "",
     "drop": [],
     "keep": [],
@@ -120,7 +118,7 @@
   {
     "name": "cpg_site",
     "label": "CpGSite",
-    "id_col": "cpg",
+    "id_col": "cpg_id",
     "strip_prefix": "",
     "drop": [],
     "keep": [],
@@ -138,7 +136,7 @@
   {
     "name": "protein",
     "label": "Protein",
-    "id_col": "uniprot",
+    "id_col": "protein_id",
     "strip_prefix": "",
     "drop": [],
     "keep": [],
@@ -157,36 +155,36 @@
   {
     "name": "gene_expression",
     "label": "ExpressionObservation",
-    "id_col": "expression_id",
+    "id_col": "expression_observation_id",
     "strip_prefix": "",
-    "drop": ["case_id", "sample_id", "gene_ensembl", "cell_type_id"],
+    "drop": ["subject_id", "sample_id", "gene_id", "cell_type_id"],
     "keep": [],
     "dedup": false
   },
   {
     "name": "methylation",
     "label": "MethylationObservation",
-    "id_col": "methylation_id",
+    "id_col": "methylation_observation_id",
     "strip_prefix": "",
-    "drop": ["case_id", "sample_id", "cpg"],
+    "drop": ["subject_id", "sample_id", "cpg_id"],
     "keep": [],
     "dedup": false
   },
   {
     "name": "somatic_mutation",
     "label": "VariantObservation",
-    "id_col": "variant_call_id",
+    "id_col": "variant_observation_id",
     "strip_prefix": "",
-    "drop": ["case_id", "sample_id", "variant_id"],
+    "drop": ["subject_id", "sample_id", "variant_id"],
     "keep": [],
     "dedup": false
   },
   {
     "name": "protein_expression",
     "label": "ProteinObservation",
-    "id_col": "protein_expression_id",
+    "id_col": "protein_observation_id",
     "strip_prefix": "",
-    "drop": ["case_id", "sample_id", "uniprot"],
+    "drop": ["subject_id", "sample_id", "protein_id"],
     "keep": [],
     "dedup": false
   },
@@ -196,54 +194,9 @@
     "label": "Assay",
     "id_col": "assay_id",
     "strip_prefix": "",
-    "drop": ["case_id", "sample_id", "output_id"],
+    "drop": ["subject_id", "sample_id", "output_id"],
     "keep": [],
     "dedup": false
-  },
-  {
-    "name": "cell",
-    "label": "Cell",
-    "id_col": "cell_id",
-    "strip_prefix": "",
-    "drop": ["assay_id", "cell_type_id", "region_id"],
-    "keep": [],
-    "dedup": false
-  },
-  {
-    "name": "cell_type",
-    "label": "CellType",
-    "id_col": "cell_type_id",
-    "strip_prefix": "",
-    "drop": [],
-    "keep": [],
-    "dedup": true
-  },
-  {
-    "name": "cell_set",
-    "label": "CellSet",
-    "id_col": "cell_set_id",
-    "strip_prefix": "",
-    "drop": ["cell_type_id", "cell_state_id", "source_value", "ontology_mapping_status"],
-    "keep": [],
-    "dedup": true
-  },
-  {
-    "name": "cell_state",
-    "label": "CellState",
-    "id_col": "cell_state_id",
-    "strip_prefix": "",
-    "drop": [],
-    "keep": [],
-    "dedup": true
-  },
-  {
-    "name": "tissue_region",
-    "label": "Tissue",
-    "id_col": "region_id",
-    "strip_prefix": "",
-    "drop": ["assay_id"],
-    "keep": [],
-    "dedup": true
   },
 
   {
@@ -255,89 +208,13 @@
     "keep": [],
     "dedup": true
   },
+
   {
-    "name": "processed_output",
-    "label": "ProcessedDataOutput",
-    "id_col": "output_id",
+    "name": "survival",
+    "label": "Survival",
+    "id_col": "survival_id",
     "strip_prefix": "",
-    "drop": [],
-    "keep": [],
-    "dedup": true
-  },
-  {
-    "name": "overall_survival",
-    "label": "OverallSurvival",
-    "id_col": "os_id",
-    "strip_prefix": "",
-    "drop": [
-      "case_id"
-    ],
-    "keep": [],
-    "dedup": false
-  },
-  {
-    "name": "progression_free_interval",
-    "label": "ProgressionFreeInterval",
-    "id_col": "pfi_id",
-    "strip_prefix": "",
-    "drop": [
-      "case_id"
-    ],
-    "keep": [],
-    "dedup": false
-  },
-  {
-    "name": "disease_free_interval",
-    "label": "DiseaseFreeInterval",
-    "id_col": "dfi_id",
-    "strip_prefix": "",
-    "drop": [
-      "case_id"
-    ],
-    "keep": [],
-    "dedup": false
-  },
-  {
-    "name": "analysis",
-    "label": "Analysis",
-    "id_col": "analysis_id",
-    "strip_prefix": "",
-    "drop": [],
-    "keep": [],
-    "dedup": true
-  },
-  {
-    "name": "contrast",
-    "label": "Contrast",
-    "id_col": "contrast_id",
-    "strip_prefix": "",
-    "drop": [
-      "analysis_id"
-    ],
-    "keep": [],
-    "dedup": true
-  },
-  {
-    "name": "differential_expression",
-    "label": "DifferentialExpression",
-    "id_col": "de_id",
-    "strip_prefix": "",
-    "drop": [
-      "contrast_id",
-      "gene_ensembl"
-    ],
-    "keep": [],
-    "dedup": false
-  },
-  {
-    "name": "differential_methylation",
-    "label": "DifferentialMethylation",
-    "id_col": "dmp_id",
-    "strip_prefix": "",
-    "drop": [
-      "contrast_id",
-      "cpg"
-    ],
+    "drop": ["subject_id"],
     "keep": [],
     "dedup": false
   }

@@ -1,30 +1,30 @@
 [
   {
-    "label": "HAS_PROJECT",
+    "label": "HAS_STUDY",
     "source_entity": "subject",
-    "source_id": "program_name",
-    "target_id": "project_id",
+    "source_id": "program_id",
+    "target_id": "study_id",
     "dedup": true
   },
   {
     "label": "HAS_SUBJECT",
     "source_entity": "subject",
-    "source_id": "project_id",
-    "target_id": "case_id",
+    "source_id": "study_id",
+    "target_id": "subject_id",
     "dedup": false
   },
   {
     "label": "HAS_DIAGNOSIS",
     "source_entity": "diagnosis",
-    "source_id": "case_id",
+    "source_id": "subject_id",
     "target_id": "diagnosis_id",
     "dedup": false
   },
   {
-    "label": "HAS_INTERVENTION",
+    "label": "UNDERWENT_INTERVENTION",
     "source_entity": "treatment",
-    "source_id": "diagnosis_id",
-    "target_id": "treatment_id",
+    "source_id": "sample_id",
+    "target_id": "intervention_id",
     "dedup": false
   },
   {
@@ -35,37 +35,30 @@
     "dedup": false
   },
   {
-    "label": "HAS_FOLLOWUP",
-    "source_entity": "follow_up",
-    "source_id": "case_id",
-    "target_id": "follow_up_id",
-    "dedup": false
-  },
-  {
-    "label": "HAS_MOLECULAR_TEST",
-    "source_entity": "molecular_test",
-    "source_id": "parent_id",
-    "target_id": "molecular_test_id",
-    "dedup": false
-  },
-  {
     "label": "HAS_PHENOTYPE_OBSERVATION",
     "source_entity": "exposure",
-    "source_id": "case_id",
+    "source_id": "diagnosis_id",
     "target_id": "exposure_id",
     "dedup": false
   },
   {
     "label": "HAS_PHENOTYPE_OBSERVATION",
     "source_entity": "family_history",
-    "source_id": "case_id",
+    "source_id": "diagnosis_id",
     "target_id": "family_history_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_PHENOTYPE_OBSERVATION",
+    "source_entity": "molecular_test",
+    "source_id": "diagnosis_id",
+    "target_id": "molecular_test_id",
     "dedup": false
   },
   {
     "label": "PROVIDED_SAMPLE",
     "source_entity": "sample",
-    "source_id": "case_id",
+    "source_id": "subject_id",
     "target_id": "sample_id",
     "dedup": false
   },
@@ -73,7 +66,14 @@
     "label": "HAS_CONDITION",
     "source_entity": "sample",
     "source_id": "sample_id",
-    "target_id": "group_id",
+    "target_id": "condition_id",
+    "dedup": false
+  },
+  {
+    "label": "HAS_SURVIVAL_RECORD",
+    "source_entity": "survival",
+    "source_id": "subject_id",
+    "target_id": "survival_id",
     "dedup": false
   },
 
@@ -81,48 +81,41 @@
     "label": "HAS_EXPRESSION_OBSERVATION",
     "source_entity": "gene_expression",
     "source_id": "sample_id",
-    "target_id": "expression_id",
+    "target_id": "expression_observation_id",
     "dedup": false
   },
   {
     "label": "MEASURES_GENE",
     "source_entity": "gene_expression",
-    "source_id": "expression_id",
-    "target_id": "gene_ensembl",
-    "dedup": false
-  },
-  {
-    "label": "OF_CELL_TYPE",
-    "source_entity": "gene_expression",
-    "source_id": "expression_id",
-    "target_id": "cell_type_id",
+    "source_id": "expression_observation_id",
+    "target_id": "gene_id",
     "dedup": false
   },
   {
     "label": "HAS_METHYLATION_OBSERVATION",
     "source_entity": "methylation",
     "source_id": "sample_id",
-    "target_id": "methylation_id",
+    "target_id": "methylation_observation_id",
     "dedup": false
   },
   {
     "label": "MEASURES_CPG",
     "source_entity": "methylation",
-    "source_id": "methylation_id",
-    "target_id": "cpg",
+    "source_id": "methylation_observation_id",
+    "target_id": "cpg_id",
     "dedup": false
   },
   {
     "label": "HAS_VARIANT_OBSERVATION",
     "source_entity": "somatic_mutation",
     "source_id": "sample_id",
-    "target_id": "variant_call_id",
+    "target_id": "variant_observation_id",
     "dedup": false
   },
   {
     "label": "OBSERVED_VARIANT",
     "source_entity": "somatic_mutation",
-    "source_id": "variant_call_id",
+    "source_id": "variant_observation_id",
     "target_id": "variant_id",
     "dedup": false
   },
@@ -130,36 +123,36 @@
     "label": "HAS_PROTEIN_OBSERVATION",
     "source_entity": "protein_expression",
     "source_id": "sample_id",
-    "target_id": "protein_expression_id",
+    "target_id": "protein_observation_id",
     "dedup": false
   },
   {
     "label": "MEASURES_PROTEIN",
     "source_entity": "protein_expression",
-    "source_id": "protein_expression_id",
-    "target_id": "uniprot",
+    "source_id": "protein_observation_id",
+    "target_id": "protein_id",
     "dedup": false
   },
 
   {
-    "label": "AFFECTS_GENE",
+    "label": "IS_WITHIN_GENE",
     "source_entity": "variant",
     "source_id": "variant_id",
-    "target_id": "gene_ensembl",
+    "target_id": "gene_id",
     "dedup": true
   },
   {
     "label": "PARTICIPATES_IN_PATHWAY",
     "source_entity": "gene_pathway",
-    "source_id": "gene_ensembl",
+    "source_id": "gene_id",
     "target_id": "pathway_id",
     "dedup": true
   },
   {
     "label": "ENCODES",
     "source_entity": "gene_protein",
-    "source_id": "gene_ensembl",
-    "target_id": "uniprot",
+    "source_id": "gene_id",
+    "target_id": "protein_id",
     "dedup": true
   },
 
@@ -170,140 +163,12 @@
     "target_id": "assay_id",
     "dedup": false
   },
-  {
-    "label": "HAS_CELL",
-    "source_entity": "cell",
-    "source_id": "assay_id",
-    "target_id": "cell_id",
-    "dedup": false
-  },
-  {
-    "label": "IS_CELL_TYPE",
-    "source_entity": "cell",
-    "source_id": "cell_id",
-    "target_id": "cell_type_id",
-    "dedup": false
-  },
-  {
-    "label": "IN_REGION",
-    "source_entity": "cell",
-    "source_id": "cell_id",
-    "target_id": "region_id",
-    "dedup": false
-  },
-  {
-    "label": "ADJACENT_TO",
-    "source_entity": "adjacency",
-    "source_id": "cell_id_a",
-    "target_id": "cell_id_b",
-    "dedup": true
-  },
-  {
-    "label": "CONTRIBUTES_TO",
-    "source_entity": "cell_set_membership",
-    "source_id": "sample_id",
-    "target_id": "cell_set_id",
-    "props": ["contributed_cell_count", "fraction_of_sample_cells"],
-    "dedup": false
-  },
-  {
-    "label": "ANNOTATED_AS_CELL_TYPE",
-    "source_entity": "cell_set",
-    "source_id": "cell_set_id",
-    "target_id": "cell_type_id",
-    "props": ["source_value", "ontology_mapping_status"],
-    "dedup": false
-  },
-  {
-    "label": "HAS_CELL_STATE",
-    "source_entity": "cell_set",
-    "source_id": "cell_set_id",
-    "target_id": "cell_state_id",
-    "dedup": false
-  },
-  {
-    "label": "MARKER_GENE",
-    "source_entity": "cell_type_marker",
-    "source_id": "cell_type_id",
-    "target_id": "gene_ensembl",
-    "dedup": true
-  },
 
   {
     "label": "OF_DISEASE",
     "source_entity": "diagnosis",
     "source_id": "diagnosis_id",
     "target_id": "disease_id",
-    "dedup": false
-  },
-  {
-    "label": "GENERATED_OUTPUT",
-    "source_entity": "assay",
-    "source_id": "assay_id",
-    "target_id": "output_id",
-    "dedup": false
-  },
-  {
-    "label": "FROM_OUTPUT",
-    "source_entity": "observation_output",
-    "source_id": "observation_id",
-    "target_id": "output_id",
-    "dedup": true
-  },
-  {
-    "label": "HAS_OVERALL_SURVIVAL",
-    "source_entity": "overall_survival",
-    "source_id": "case_id",
-    "target_id": "os_id",
-    "dedup": false
-  },
-  {
-    "label": "HAS_PROGRESSION_FREE_INTERVAL",
-    "source_entity": "progression_free_interval",
-    "source_id": "case_id",
-    "target_id": "pfi_id",
-    "dedup": false
-  },
-  {
-    "label": "HAS_DISEASE_FREE_INTERVAL",
-    "source_entity": "disease_free_interval",
-    "source_id": "case_id",
-    "target_id": "dfi_id",
-    "dedup": false
-  },
-  {
-    "label": "PRODUCED",
-    "source_entity": "contrast",
-    "source_id": "analysis_id",
-    "target_id": "contrast_id",
-    "dedup": true
-  },
-  {
-    "label": "HAS_DIFFERENTIAL_EXPRESSION",
-    "source_entity": "differential_expression",
-    "source_id": "contrast_id",
-    "target_id": "de_id",
-    "dedup": false
-  },
-  {
-    "label": "FOR_GENE",
-    "source_entity": "differential_expression",
-    "source_id": "de_id",
-    "target_id": "gene_ensembl",
-    "dedup": false
-  },
-  {
-    "label": "HAS_DIFFERENTIAL_METHYLATION",
-    "source_entity": "differential_methylation",
-    "source_id": "contrast_id",
-    "target_id": "dmp_id",
-    "dedup": false
-  },
-  {
-    "label": "FOR_CPG",
-    "source_entity": "differential_methylation",
-    "source_id": "dmp_id",
-    "target_id": "cpg",
     "dedup": false
   }
 ]

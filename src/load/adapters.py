@@ -4,6 +4,11 @@ Table-driven: every ``nodes/{Label}.csv`` becomes nodes labelled ``Label``; ever
 ``edges/{LABEL}.csv`` becomes edges labelled ``LABEL``. The label is matched to the
 ``input_label`` declared in ``config/schema_config.yaml``.
 
+Multi-labelling: if a node row carries a ``_subtypeLabel`` column (populated by the
+standardise engine from ``subtype_column``/``subtype_map`` in entities.json), the
+adapter emits ``[primary_label, subtype_label]`` as the input_label so BioCypher
+writes both labels to Neo4j.
+
 Yields the tuple shapes BioCypher expects:
     node:  (id, label, properties)
     edge:  (id, source_id, target_id, label, properties)
@@ -15,8 +20,10 @@ import csv
 from pathlib import Path
 from typing import Iterator
 
-NodeTuple = tuple[str, str, dict]
+NodeTuple = tuple[str, str | list[str], dict]
 EdgeTuple = tuple[str, str, str, str, dict]
+
+_SUBTYPE_COL = "_subtypeLabel"
 
 
 class StandardisedCSVAdapter:
@@ -35,10 +42,9 @@ class StandardisedCSVAdapter:
                     node_id = row.pop("id", "")
                     if not node_id:
                         continue
-                    # Keep every column (empties included) so all nodes of a label
-                    # share one property schema — BioCypher's batch writer requires
-                    # consistent keys per label when properties aren't declared.
-                    yield node_id, label, dict(row)
+                    subtype = row.pop(_SUBTYPE_COL, "")
+                    effective_label: str | list[str] = [label, subtype] if subtype else label
+                    yield node_id, effective_label, dict(row)
 
     def get_edges(self) -> Iterator[EdgeTuple]:
         for path in sorted(self.edges_dir.glob("*.csv")):
@@ -51,5 +57,4 @@ class StandardisedCSVAdapter:
                         continue
                     props = {k: v for k, v in row.items()
                              if k not in ("source_id", "target_id") and v != ""}
-                    # id=None -> BioCypher derives a deterministic relationship id.
                     yield "", source_id, target_id, label, props

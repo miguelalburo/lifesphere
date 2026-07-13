@@ -10,6 +10,8 @@ graph-ready CSVs:
 
 Only nodes and edges whose required files and columns are present are emitted.
 Placeholder scrubbing is driven by ``config/schemas/placeholders.json``.
+Ontology standardisation is driven by ``config/schemas/standardisation.json`` and
+offline crosswalk CSVs in ``config/crosswalks/``.
 Pure-``csv`` (no pandas). Grain is preserved 1:1 from the source table.
 
     python3 -m src.standardise.run <dataset_dir> [--out <dir>] [--schemas <dir>]
@@ -24,10 +26,12 @@ from pathlib import Path
 from typing import Callable
 
 from .aliases import canonicalise, load_alias_map
-from .analysis_reshape import reshape_analysis
 from .detect import match_edge_plans, match_node_plans, scan_files
+from . import lookup as _lookup_mod
 
 _DEFAULT_SCHEMA_DIR = Path(__file__).parent.parent.parent / "config" / "schemas"
+
+_SUBTYPE_COL = "_subtypeLabel"
 
 
 def load_schemas(schema_dir: Path) -> tuple[list[dict], list[dict]]:
@@ -83,6 +87,7 @@ def standardise_node(
     clean: Callable[[str], str],
     delimiter: str = "\t",
     alias_map: dict[str, str] | None = None,
+    lookup: "_lookup_mod.StandardisationLookup | None" = None,
 ) -> int:
     with open(src, newline="") as f:
         reader = csv.DictReader(f, delimiter=delimiter)
@@ -90,18 +95,29 @@ def standardise_node(
         reader.fieldnames = header
 
         id_col = schema["id_col"]
+        label = schema["label"]
         keep = schema.get("keep") or []
         drop = set(schema.get("drop") or [])
         strip_prefix = schema.get("strip_prefix", "")
         dedup = schema.get("dedup", False)
+        subtype_column = schema.get("subtype_column")
+        subtype_map: dict = schema.get("subtype_map") or {}
 
         if keep:
             prop_cols = [c for c in keep if c in header and c != id_col]
         else:
             prop_cols = [c for c in header if c != id_col and c not in drop]
 
-        out_header = ["id"] + [_camel(_rename(c, strip_prefix)) for c in prop_cols]
-        out_path = out_dir / "nodes" / f"{schema['label']}.csv"
+        # Extra provenance columns from lookup (snake; camelCased in out_header)
+        lookup_extra: list[str] = lookup.extra_columns(label) if lookup else []
+
+        prop_out_names = [_camel(_rename(c, strip_prefix)) for c in prop_cols]
+        lookup_out_names = [_camel(c) for c in lookup_extra]
+        out_header = ["id"] + prop_out_names + lookup_out_names
+        if subtype_column:
+            out_header.append(_SUBTYPE_COL)
+
+        out_path = out_dir / "nodes" / f"{label}.csv"
         seen: set = set()
         n = 0
         file_exists = out_path.exists() and out_path.stat().st_size > 0
@@ -118,7 +134,19 @@ def standardise_node(
                     if node_id in seen:
                         continue
                     seen.add(node_id)
-                writer.writerow([node_id] + [clean(row.get(c, "")) for c in prop_cols])
+
+                base_vals = [clean(row.get(c, "")) for c in prop_cols]
+
+                lookup_vals: list[str] = []
+                if lookup:
+                    lookup_vals = lookup.apply_row(label, row, clean)
+
+                extra_vals: list[str] = []
+                if subtype_column:
+                    raw_sub = clean(row.get(subtype_column, ""))
+                    extra_vals = [subtype_map.get(raw_sub, "")]
+
+                writer.writerow([node_id] + base_vals + lookup_vals + extra_vals)
                 n += 1
     return n
 
@@ -145,10 +173,6 @@ def standardise_edge(
         if alias_map:
             header = canonicalise(header, alias_map)
             reader.fieldnames = header
-        # Optional edge properties: declared columns that qualify the *association*
-        # (e.g. cell counts on CONTRIBUTES_TO, ontology-mapping provenance on
-        # ANNOTATED_AS_CELL_TYPE) rather than either endpoint node. Absent columns are
-        # dropped so a plain edge stays two-column and back-compatible.
         prop_cols = [c for c in (schema.get("props") or []) if c in header]
         writer = csv.writer(out)
         if not file_exists:
@@ -172,14 +196,10 @@ def run(in_dir: Path, out_dir: Path, schema_dir: Path = _DEFAULT_SCHEMA_DIR) -> 
     (out_dir / "nodes").mkdir(parents=True, exist_ok=True)
     (out_dir / "edges").mkdir(parents=True, exist_ok=True)
 
-    # Stage-2 derived layer: fold any differential-analysis results into standardiser-
-    # ready per-entity TSVs before file discovery, so the generic engine emits their
-    # nodes/edges with no special-casing. No-op when no analysis manifest is present.
-    reshape_analysis(in_dir)
-
     entity_schemas, edge_schemas = load_schemas(schema_dir)
     clean = _make_clean(load_placeholders(schema_dir))
     alias_map = load_alias_map(schema_dir)
+    lookup = _lookup_mod.load(schema_dir)
     found = scan_files(in_dir)
 
     node_plans = match_node_plans(found, entity_schemas, alias_map)
@@ -189,7 +209,7 @@ def run(in_dir: Path, out_dir: Path, schema_dir: Path = _DEFAULT_SCHEMA_DIR) -> 
     print("  nodes:")
     for plan in node_plans:
         n = standardise_node(
-            plan["schema"], plan["path"], out_dir, clean, plan["delimiter"], alias_map
+            plan["schema"], plan["path"], out_dir, clean, plan["delimiter"], alias_map, lookup
         )
         print(f"    {plan['schema']['label']:<16} {n:>7} rows")
     print("  edges:")

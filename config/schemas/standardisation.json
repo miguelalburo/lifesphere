@@ -1,0 +1,249 @@
+{
+  "Diagnosis": {
+    "primary_diagnosis": {
+      "vocabulary": "NCIt",
+      "crosswalk": "config/crosswalks/diagnosis_primary_diagnosis_ncit.csv",
+      "confidence_score": false
+    },
+    "tissue_or_organ_of_origin": {
+      "vocabulary": "ICD-O-3",
+      "crosswalk": "config/crosswalks/anatomy_icdo3_topo.csv",
+      "confidence_score": false
+    },
+    "site_of_resection_or_biopsy": {
+      "vocabulary": "ICD-O-3",
+      "crosswalk": "config/crosswalks/anatomy_icdo3_topo.csv",
+      "confidence_score": false
+    },
+    "morphology": {
+      "vocabulary": "ICD-O-3",
+      "source_provided": true
+    },
+    "icd_10_code": {
+      "vocabulary": "ICD-10",
+      "source_provided": true
+    },
+    "tumor_grade": {
+      "vocabulary": "WHO Tumour Grade",
+      "crosswalk": "config/crosswalks/diagnosis_tumor_grade_who.csv",
+      "confidence_score": false
+    },
+    "primary_gleason_grade": {
+      "vocabulary": "Gleason",
+      "crosswalk": "config/crosswalks/diagnosis_gleason_gleason.csv",
+      "confidence_score": false
+    },
+    "secondary_gleason_grade": {
+      "vocabulary": "Gleason",
+      "crosswalk": "config/crosswalks/diagnosis_gleason_gleason.csv",
+      "confidence_score": false
+    },
+    "gleason_grade_tertiary": {
+      "vocabulary": "Gleason",
+      "crosswalk": "config/crosswalks/diagnosis_gleason_gleason.csv",
+      "confidence_score": false
+    },
+    "gleason_grade_group": {
+      "vocabulary": "ISUP Grade Group",
+      "crosswalk": "config/crosswalks/diagnosis_gleason_grade_group_isup.csv",
+      "confidence_score": false
+    },
+    "ajcc_pathologic_stage": {
+      "vocabulary": "AJCC",
+      "source_provided": true
+    },
+    "ajcc_clinical_stage": {
+      "vocabulary": "AJCC",
+      "source_provided": true
+    },
+    "ajcc_pathologic_t": {
+      "vocabulary": "AJCC",
+      "source_provided": true
+    },
+    "ajcc_pathologic_n": {
+      "vocabulary": "AJCC",
+      "source_provided": true
+    },
+    "ajcc_pathologic_m": {
+      "vocabulary": "AJCC",
+      "source_provided": true
+    },
+    "figo_stage": {
+      "vocabulary": "FIGO",
+      "source_provided": true
+    },
+    "ann_arbor_clinical_stage": {
+      "vocabulary": "Ann Arbor",
+      "source_provided": true
+    },
+    "ann_arbor_pathologic_stage": {
+      "vocabulary": "Ann Arbor",
+      "source_provided": true
+    },
+    "inss_stage": {
+      "vocabulary": "INSS",
+      "source_provided": true
+    },
+    "iss_stage": {
+      "vocabulary": "ISS",
+      "source_provided": true
+    },
+    "cog_renal_stage": {
+      "vocabulary": "COG",
+      "source_provided": true
+    },
+    "inrg_stage": {
+      "vocabulary": "INRG",
+      "source_provided": true
+    },
+    "inpc_grade": {
+      "vocabulary": "INPC",
+      "source_provided": true
+    },
+    "ensat_stage": {
+      "vocabulary": "ENSAT",
+      "source_provided": true
+    },
+    "masaoka_stage": {
+      "vocabulary": "MASAOKA",
+      "source_provided": true
+    },
+    "igcccg_stage": {
+      "vocabulary": "IGCCCG",
+      "source_provided": true
+    },
+    "irs_group": {
+      "vocabulary": "IRS",
+      "source_provided": true
+    },
+    "uicc_clinical_stage": {
+      "vocabulary": "UICC",
+      "source_provided": true
+    },
+    "who_cns_grade": {
+      "vocabulary": "WHO CNS Grade",
+      "source_provided": true
+    }
+  },
+  "Subject": {
+    "primary_site": {
+      "vocabulary": "ICD-O-3",
+      "crosswalk": "config/crosswalks/anatomy_icdo3_topo.csv",
+      "confidence_score": false
+    },
+    "disease_type": {
+      "vocabulary": "NCIt",
+      "crosswalk": "config/crosswalks/subject_disease_type_ncit.csv",
+      "confidence_score": false
+    },
+    "race": {
+      "vocabulary": "OMB",
+      "source_provided": true
+    },
+    "ethnicity": {
+      "vocabulary": "OMB",
+      "source_provided": true
+    },
+    "sex_at_birth": {
+      "vocabulary": "GDC",
+      "source_provided": true
+    },
+    "vital_status": {
+      "vocabulary": "GDC",
+      "source_provided": true
+    },
+    "cause_of_death": {
+      "vocabulary": "GDC",
+      "source_provided": true
+    },
+    "country_of_birth": {
+      "vocabulary": "ISO-3166",
+      "crosswalk": "config/crosswalks/subject_country_iso3166.csv",
+      "confidence_score": false
+    },
+    "country_of_residence_at_enrollment": {
+      "vocabulary": "ISO-3166",
+      "crosswalk": "config/crosswalks/subject_country_iso3166.csv",
+      "confidence_score": false
+    }
+  },
+  "PhenotypeObservation": {
+    "gene_symbol": {
+      "vocabulary": "HGNC",
+      "crosswalk": "config/crosswalks/phenotypeobservation_gene_symbol_hgnc.csv",
+      "confidence_score": false
+    },
+    "second_gene_symbol": {
+      "vocabulary": "HGNC",
+      "crosswalk": "config/crosswalks/phenotypeobservation_gene_symbol_hgnc.csv",
+      "confidence_score": false
+    },
+    "antigen": {
+      "vocabulary": "UniProt",
+      "crosswalk": "config/crosswalks/phenotypeobservation_antigen_uniprot.csv",
+      "confidence_score": false
+    },
+    "laboratory_test": {
+      "vocabulary": "LOINC",
+      "crosswalk": "config/crosswalks/phenotypeobservation_laboratory_test_loinc.csv",
+      "confidence_score": false
+    },
+    "hpv_strain": {
+      "vocabulary": "NCBI Taxonomy",
+      "crosswalk": "config/crosswalks/phenotypeobservation_hpv_strain_ncbi_taxonomy.csv",
+      "confidence_score": false
+    },
+    "chromosome": {
+      "vocabulary": "GRCh38",
+      "source_provided": true
+    },
+    "primary_gleason_grade": {
+      "vocabulary": "Gleason",
+      "crosswalk": "config/crosswalks/diagnosis_gleason_gleason.csv",
+      "confidence_score": false
+    },
+    "secondary_gleason_grade": {
+      "vocabulary": "Gleason",
+      "crosswalk": "config/crosswalks/diagnosis_gleason_gleason.csv",
+      "confidence_score": false
+    },
+    "gleason_grade_tertiary": {
+      "vocabulary": "Gleason",
+      "crosswalk": "config/crosswalks/diagnosis_gleason_gleason.csv",
+      "confidence_score": false
+    }
+  },
+  "Intervention": {
+    "treatment_type": {
+      "vocabulary": "NCIt",
+      "crosswalk": "config/crosswalks/intervention_treatment_type_ncit.csv",
+      "confidence_score": false
+    },
+    "treatment_intent_type": {
+      "vocabulary": "NCIt",
+      "crosswalk": "config/crosswalks/intervention_treatment_intent_type_ncit.csv",
+      "confidence_score": false
+    },
+    "therapeutic_agents": {
+      "vocabulary": "RxNorm",
+      "crosswalk": "config/crosswalks/drug_rxnorm.csv",
+      "confidence_score": false
+    },
+    "radiosensitizing_agent": {
+      "vocabulary": "RxNorm",
+      "crosswalk": "config/crosswalks/drug_rxnorm.csv",
+      "confidence_score": false
+    },
+    "embolic_agent": {
+      "vocabulary": "RxNorm",
+      "crosswalk": "config/crosswalks/drug_rxnorm.csv",
+      "confidence_score": false
+    }
+  },
+  "Variant": {
+    "chromosome": {
+      "vocabulary": "GRCh38",
+      "source_provided": true
+    }
+  }
+}

@@ -1,6 +1,15 @@
 {
-  "case_id": ["bcr_patient_uuid", "case_uuid", "patient_uuid"],
+  "subject_id": ["case_id", "bcr_patient_uuid", "case_uuid", "patient_uuid"],
+  "study_id": ["project_id", "project.project_id", "cases.project.project_id"],
+  "program_id": ["program_name", "program.name", "project.program.name"],
   "sample_id": ["bcr_sample_uuid", "sample_uuid"],
-  "project_id": ["project.project_id", "cases.project.project_id"],
-  "program_name": ["program.name", "project.program.name"]
+  "intervention_id": ["treatment_id"],
+  "condition_id": ["group_id"],
+  "gene_id": ["ensembl", "gene_ensembl"],
+  "protein_id": ["uniprot"],
+  "cpg_id": ["cpg"],
+  "variant_observation_id": ["variant_call_id"],
+  "expression_observation_id": ["expression_id"],
+  "methylation_observation_id": ["methylation_id"],
+  "protein_observation_id": ["protein_expression_id"]
 }

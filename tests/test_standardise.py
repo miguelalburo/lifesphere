@@ -32,7 +32,7 @@ def std_dir(tmp_path_factory) -> Path:
     raw = tmp_path_factory.mktemp("raw")
     out = tmp_path_factory.mktemp("std")
 
-    # 2 cases in the SAME project/program. Subject nodes + HAS_PROJECT/HAS_SUBJECT edges
+    # 2 cases in the SAME project/program. Subject nodes + HAS_STUDY/HAS_SUBJECT edges
     # come from this file; the Program/Study *nodes* come from the dedicated
     # program/project extract files below.
     _write_tsv(raw / f"{BASE}.subject.tsv",
@@ -62,22 +62,27 @@ def std_dir(tmp_path_factory) -> Path:
          ["c1", "TCGA-01", "d2", "TCGA-01_d2", "Carcinoma", "[Not Evaluated]"],
          ["c2", "TCGA-02", "d3", "TCGA-02_d", "Carcinoma", "Stage III"]])
 
+    # After re-parenting, UNDERWENT_INTERVENTION sources from sample_id.
     _write_tsv(raw / f"{BASE}.treatment.tsv",
-        ["case_id", "case_submitter_id", "diagnosis_id", "treatment_id",
+        ["case_id", "case_submitter_id", "diagnosis_id", "sample_id", "treatment_id",
          "treatment_submitter_id", "treatment_treatment_type"],
-        [["c1", "TCGA-01", "d1", "t1", "TCGA-01_t", "Pharmaceutical"],
-         ["c1", "TCGA-01", "d1", "t2", "TCGA-01_t2", "Radiation"]])
+        [["c1", "TCGA-01", "d1", "s1", "t1", "TCGA-01_t", "Pharmaceutical"],
+         ["c1", "TCGA-01", "d1", "s1", "t2", "TCGA-01_t2", "Radiation"]])
 
-    # molecular_test nesting: one under a diagnosis, one under a follow_up.
+    # follow_up.tsv still emitted by extractor but FollowUp entity is retired;
+    # the standardiser skips it. Included here to confirm no crash on unmatched files.
     _write_tsv(raw / f"{BASE}.follow_up.tsv",
         ["case_id", "case_submitter_id", "follow_up_id", "follow_up_submitter_id",
          "follow_up_days_to_follow_up"],
         [["c1", "TCGA-01", "f1", "TCGA-01_f", "100"]])
+
+    # molecular_test folded into PhenotypeObservation; diagnosis_id links to the edge.
     _write_tsv(raw / f"{BASE}.molecular_test.tsv",
-        ["case_id", "case_submitter_id", "parent_entity", "parent_id",
+        ["case_id", "case_submitter_id", "parent_entity", "parent_id", "diagnosis_id",
          "molecular_test_id", "molecular_test_submitter_id", "molecular_test_gene_symbol"],
-        [["c1", "TCGA-01", "diagnosis", "d1", "m1", "TCGA-01_m", "ERBB2"],
-         ["c1", "TCGA-01", "follow_up", "f1", "m2", "TCGA-01_m2", "ESR1"]])
+        [["c1", "TCGA-01", "diagnosis", "d1", "d1", "m1", "TCGA-01_m", "ERBB2"],
+         # follow_up-linked test re-anchored to first diagnosis
+         ["c1", "TCGA-01", "follow_up", "f1", "d1", "m2", "TCGA-01_m2", "ESR1"]])
 
     _write_tsv(raw / f"{BASE}.sample.tsv",
         ["case_id", "case_submitter_id", "sample_id", "sample_submitter_id",
@@ -111,7 +116,7 @@ def test_grain_preserved(std_dir):
 def test_program_project_dedup(std_dir):
     assert len(_node(std_dir, "Program")) == 1
     assert len(_node(std_dir, "Study")) == 1
-    assert len(_edge(std_dir, "HAS_PROJECT")) == 1
+    assert len(_edge(std_dir, "HAS_STUDY")) == 1        # renamed from HAS_PROJECT
 
 
 def test_demographic_folded_and_renamed(std_dir):
@@ -119,13 +124,14 @@ def test_demographic_folded_and_renamed(std_dir):
     # demographic_ prefix stripped, project/program columns dropped, output camelCased
     assert "sexAtBirth" in header and "vitalStatus" in header
     assert not any(h.startswith("demographic") for h in header)
-    assert "projectId" not in header and "programName" not in header
+    # study_id and program_id are in drop list; neither studyId nor programId appears
+    assert "studyId" not in header and "programId" not in header
 
 
 def test_child_prefix_stripped(std_dir):
     header = list(_node(std_dir, "Diagnosis")[0].keys())
     assert "ajccPathologicStage" in header      # was diagnosis_ajcc_pathologic_stage
-    assert "caseId" not in header                 # linkage column dropped
+    assert "subjectId" not in header             # linkage column dropped (was caseId)
     assert header[0] == "id"
 
 
@@ -144,13 +150,39 @@ def test_edge_referential_integrity(std_dir):
     assert {r["target_id"] for r in hd} == diag_ids
 
 
-def test_molecular_test_routing(std_dir):
-    """parent_id resolves to the diagnosis OR follow_up it nested under."""
+def test_biomarker_folded_into_phenotype_observation(std_dir):
+    """MolecularTest rows fold into PhenotypeObservation; HAS_PHENOTYPE_OBSERVATION sources from Diagnosis."""
+    phenotype_ids = {r["id"] for r in _node(std_dir, "PhenotypeObservation")}
+    assert "m1" in phenotype_ids and "m2" in phenotype_ids
+
+    # No FollowUp or MolecularTest nodes should be emitted
+    assert not (std_dir / "nodes" / "FollowUp.csv").exists()
+    assert not (std_dir / "nodes" / "MolecularTest.csv").exists()
+    assert not (std_dir / "edges" / "HAS_MOLECULAR_TEST.csv").exists()
+    assert not (std_dir / "edges" / "HAS_FOLLOWUP.csv").exists()
+
+    # HAS_PHENOTYPE_OBSERVATION sources from diagnosis ids
     diag_ids = {r["id"] for r in _node(std_dir, "Diagnosis")}
-    fu_ids = {r["id"] for r in _node(std_dir, "FollowUp")}
-    parents = {r["source_id"] for r in _edge(std_dir, "HAS_MOLECULAR_TEST")}
-    assert parents == {"d1", "f1"}
-    assert parents <= (diag_ids | fu_ids)
+    pheno_edges = _edge(std_dir, "HAS_PHENOTYPE_OBSERVATION")
+    assert {r["source_id"] for r in pheno_edges} <= diag_ids
+    assert "m1" in {r["target_id"] for r in pheno_edges}
+    assert "m2" in {r["target_id"] for r in pheno_edges}
+
+
+def test_underwent_intervention_sources_from_sample(std_dir):
+    """UNDERWENT_INTERVENTION edge sources from Sample (re-parented from Diagnosis)."""
+    sample_ids = {r["id"] for r in _node(std_dir, "Sample")}
+    edges = _edge(std_dir, "UNDERWENT_INTERVENTION")
+    assert len(edges) == 2
+    assert {r["source_id"] for r in edges} <= sample_ids
+    assert {r["target_id"] for r in edges} == {"t1", "t2"}
+
+
+def test_intervention_subtype_label(std_dir):
+    """Intervention rows carry _subtypeLabel populated from treatment_type."""
+    interventions = {r["id"]: r for r in _node(std_dir, "Intervention")}
+    assert interventions["t1"]["_subtypeLabel"] == "Drug"
+    assert interventions["t2"]["_subtypeLabel"] == "Radiation"
 
 
 # --------------------------------------------------------------------------- #
@@ -164,15 +196,15 @@ def test_load_alias_map_missing_file(tmp_path):
 
 def test_load_alias_map_normalises_and_inverts(tmp_path):
     (tmp_path / "aliases.json").write_text(
-        json.dumps({"case_id": ["BCR_Patient_UUID", " case_uuid "]})
+        json.dumps({"subject_id": ["BCR_Patient_UUID", " case_uuid "]})
     )
     amap = load_alias_map(tmp_path)
-    assert amap == {"bcr_patient_uuid": "case_id", "case_uuid": "case_id"}
+    assert amap == {"bcr_patient_uuid": "subject_id", "case_uuid": "subject_id"}
 
 
 def test_canonicalise_renames_known_leaves_unknown():
-    amap = {"bcr_patient_uuid": "case_id"}
-    assert canonicalise(["BCR_Patient_UUID", "other"], amap) == ["case_id", "other"]
+    amap = {"bcr_patient_uuid": "subject_id"}
+    assert canonicalise(["BCR_Patient_UUID", "other"], amap) == ["subject_id", "other"]
 
 
 @pytest.fixture(scope="module")
@@ -181,11 +213,12 @@ def aliased_schema_dir(tmp_path_factory) -> Path:
     d = tmp_path_factory.mktemp("schemas")
     for fname in ("entities.json", "edges.json", "placeholders.json"):
         shutil.copy(_REAL_SCHEMA_DIR / fname, d / fname)
+    # Use the new canonical column names with old names as aliases
     (d / "aliases.json").write_text(
         json.dumps({
-            "case_id": ["bcr_patient_uuid"],
-            "project_id": ["project.project_id"],
-            "program_name": ["program.name"],
+            "subject_id": ["bcr_patient_uuid"],
+            "study_id": ["project.project_id"],
+            "program_id": ["program.name"],
         })
     )
     return d
@@ -202,12 +235,7 @@ def test_alias_renaming_end_to_end(tmp_path, aliased_schema_dir):
          "demographic_vital_status"],
         [["c1", "TCGA-01", "Adeno", "Breast", "TCGA-BRCA",
           "Breast Invasive Carcinoma", "TCGA", "Alive"]])
-    # Program/Study nodes come from dedicated files, also using aliased headers.
-    _write_tsv(raw / f"{BASE}.program.tsv", ["program.name"], [["TCGA"]])
-    _write_tsv(raw / f"{BASE}.project.tsv",
-        ["project.project_id", "project_name"], [["TCGA-BRCA", "Breast Invasive Carcinoma"]])
 
-    # Program and Project are now dedicated files; aliased columns still apply.
     _write_tsv(raw / f"{BASE}.program.tsv",
         ["program.name"],
         [["TCGA"]])
@@ -217,7 +245,7 @@ def test_alias_renaming_end_to_end(tmp_path, aliased_schema_dir):
 
     run(raw, out, aliased_schema_dir)
 
-    # Subject node keyed by the canonicalised case_id, not the alias.
+    # Subject node keyed by the canonicalised subject_id, not the alias.
     subjects = _read(out / "nodes" / "Subject.csv")
     assert [s["id"] for s in subjects] == ["c1"]
     # Program/Study resolved from aliased columns.
@@ -268,9 +296,9 @@ def test_plain_edge_stays_two_column(tmp_path):
     from src.standardise.run import _make_clean, standardise_edge
 
     raw = tmp_path / "in.tsv"
-    _write_tsv(raw, ["case_id", "diagnosis_id", "extra"], [["c1", "d1", "ignored"]])
+    _write_tsv(raw, ["subject_id", "diagnosis_id", "extra"], [["c1", "d1", "ignored"]])
     (tmp_path / "edges").mkdir()
-    schema = {"label": "HAS_DIAGNOSIS", "source_id": "case_id",
+    schema = {"label": "HAS_DIAGNOSIS", "source_id": "subject_id",
               "target_id": "diagnosis_id", "dedup": False}
     standardise_edge(schema, raw, tmp_path, _make_clean(frozenset()))
     rows = _read(tmp_path / "edges" / "HAS_DIAGNOSIS.csv")
