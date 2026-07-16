@@ -1,0 +1,188 @@
+# Source -> schema binding for extractv2-shaped GDC output.
+#
+# extractv2 emits true GDC column names (no {entity}_ prefix), so most
+# properties auto-bind via the camel / dotted-suffix resolver strategies.
+# Only the columns that can't auto-resolve are listed as explicit aliases.
+#
+# File names are {NAME}.tsv (no dataset prefix); each dataset lives in its
+# own data/raw/<dataset>/ directory.
+#
+# Entries with `key: null` are skipped at runtime (logged `! skip`).
+# Run:
+#   python -m src.standardise <dataset> --profile gdc --report --values
+# to see per-entry coverage, sample values, and which columns remain unused.
+
+profile: gdc
+
+# GDC case == LifeSphere Subject; case_id feeds subjectId wherever it exists.
+aliases:
+  case_id: subjectId
+
+nodes:
+  # ── Program ───────────────────────────────────────────────────────────────
+  # id = program name (project.program.name). Dedup collapses one row per case
+  # to one per program.
+  Program:
+    file: program.tsv
+    key: name
+    dedup: true
+    aliases:
+      name: programName
+
+  # ── Study (GDC project) ───────────────────────────────────────────────────
+  # id = project_id (e.g. TCGA-COAD). Dedup collapses one row per case to one
+  # per project. program_name is carried for the HAS_STUDY edge.
+  Study:
+    file: study.tsv
+    key: project_id
+    dedup: true
+    props:
+      studyAbbreviation: project_id
+    aliases:
+      project_name: studyName
+
+  # ── Subject (GDC case) ────────────────────────────────────────────────────
+  # id = case_id. Demographic sub-fields land with a "demographic." prefix
+  # (flatten_scalars); the dotted-suffix strategy auto-resolves race, ethnicity,
+  # etc. The two that can't auto-resolve need explicit aliases.
+  Subject:
+    file: subject.tsv
+    key: case_id
+    dedup: true
+    aliases:
+      demographic.gender: sexAtBirth
+      demographic.age_at_index: ageAtIndexDays
+
+  # ── Sample (aliquot grain) ────────────────────────────────────────────────
+  # id = sample_id (GDC aliquot_id). gdc_sample_submitter_id = originating
+  # TCGA barcode; tissue_type (Tumor/Normal) maps to sampleClass.
+  Sample:
+    file: sample.tsv
+    key: sample_id
+    dedup: true
+    aliases:
+      gdc_sample_submitter_id: externalSampleId
+      tissue_type: sampleClass
+
+  # ── Diagnosis ─────────────────────────────────────────────────────────────
+  # id = diagnosis_id. age_at_diagnosis is already in days.
+  Diagnosis:
+    file: diagnosis.tsv
+    key: diagnosis_id
+    dedup: true
+    aliases:
+      age_at_diagnosis: ageAtDiagnosisDays
+      ajcc_pathologic_stage: pathologicStage
+      method_of_diagnosis: diagnosisMethod
+      primary_diagnosis: diseaseSubtype
+
+  # ── PathologyDetail ───────────────────────────────────────────────────────
+  # id = pathology_detail_id. diagnosis_id and necrosis_percent auto-resolve
+  # via camel; no prefix stripping needed (v2 uses true GDC names).
+  PathologyDetail:
+    file: pathology_detail.tsv
+    key: pathology_detail_id
+    dedup: true
+
+  # ── Survival ──────────────────────────────────────────────────────────────
+  # id = survival_id (e.g. <case_id>:OS). survival_type and last_follow_up_days
+  # auto-resolve; event / time_days need explicit aliases.
+  Survival:
+    file: survival.tsv
+    key: survival_id
+    dedup: true
+    aliases:
+      event: eventOccurred
+      time_days: timeToEventDays
+
+  # ── PhenotypeObservation (GDC exposure) ───────────────────────────────────
+  # id = exposure_id. subjectId via global case_id alias; diagnosisId auto-
+  # resolves via camel.
+  PhenotypeObservation:
+    file: exposure.tsv
+    key: exposure_id
+    dedup: true
+
+  # ── Intervention (GDC treatment) ─────────────────────────────────────────
+  # id = treatment_id. sampleId auto-resolves. True GDC column names (no
+  # treatment_ prefix) require aliases where camel doesn't reach the schema.
+  Intervention:
+    file: treatment.tsv
+    key: treatment_id
+    dedup: true
+    aliases:
+      therapeutic_agents: interventionName
+      treatment_type: interventionType
+      treatment_type_administered: interventionSubtype
+      days_to_treatment_start: startDay
+      days_to_treatment_end: endDay
+      treatment_duration: durationDays
+      treatment_intent_type: intentType
+      treatment_dose: doseValue
+      treatment_dose_units: doseUnit
+      treatment_frequency: doseFrequency
+      regimen_or_line_of_therapy: regimenName
+      number_of_cycles: cycleNumber
+      treatment_anatomic_sites: anatomicalSite
+
+  # ── Disease (stub) ────────────────────────────────────────────────────────
+  # Disease is a reference dimension derived from GDC diagnostic columns.
+  # key: null → skipped at runtime until ticket #35 resolves the keying strategy.
+  Disease:
+    file: diagnosis.tsv
+    key: null
+    aliases:
+      primary_diagnosis: diseaseName
+      icd_10_code: ontologyId
+
+edges:
+  # program_name is carried on study.tsv for this join.
+  HAS_STUDY:
+    file: study.tsv
+    pair: [Program, Study]
+    start_key: program_name
+    end_key: project_id
+
+  # project.project_id is the dotted-key column emitted by flatten_scalars on
+  # the subject's project dict; its value matches the Study node id.
+  HAS_SUBJECT:
+    file: subject.tsv
+    pair: [Study, Subject]
+    start_key: project.project_id
+    end_key: case_id
+
+  PROVIDED_SAMPLE:
+    file: sample.tsv
+    pair: [Subject, Sample]
+    start_key: case_id
+    end_key: sample_id
+
+  HAS_DIAGNOSIS:
+    file: diagnosis.tsv
+    pair: [Subject, Diagnosis]
+    start_key: case_id
+    end_key: diagnosis_id
+
+  HAS_PATHOLOGY:
+    file: pathology_detail.tsv
+    pair: [Diagnosis, PathologyDetail]
+    start_key: diagnosis_id
+    end_key: pathology_detail_id
+
+  HAS_PHENOTYPE_OBSERVATION:
+    file: exposure.tsv
+    pair: [Diagnosis, PhenotypeObservation]
+    start_key: diagnosis_id
+    end_key: exposure_id
+
+  HAS_SURVIVAL_RECORD:
+    file: survival.tsv
+    pair: [Subject, Survival]
+    start_key: case_id
+    end_key: survival_id
+
+  UNDERWENT_INTERVENTION:
+    file: treatment.tsv
+    pair: [Sample, Intervention]
+    start_key: sample_id
+    end_key: treatment_id

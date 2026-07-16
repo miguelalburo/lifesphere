@@ -1,8 +1,4 @@
-"""Registry of extractv2 per-entity emitters (basic clinical entities).
-
-Structural emitters (Sample, Intervention, Program, Study, Survival) are
-added in a follow-on ticket once the core layer is stable.
-"""
+"""Registry of extractv2 per-entity emitters."""
 
 from . import (
     diagnosis,
@@ -10,7 +6,12 @@ from . import (
     follow_up,
     other_clinical_attribute,
     pathology_detail,
+    program,
+    sample,
+    study,
     subject,
+    survival,
+    treatment,
 )
 
 EMITTERS = [
@@ -20,6 +21,11 @@ EMITTERS = [
     follow_up,
     exposure,
     other_clinical_attribute,
+    sample,
+    treatment,
+    program,
+    study,
+    survival,
 ]
 
 EXPAND = [
