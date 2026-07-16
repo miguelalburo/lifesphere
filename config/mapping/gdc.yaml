@@ -11,6 +11,19 @@
 # Run:
 #   python -m src.standardise <dataset> --profile gdc --report --values
 # to see per-entry coverage, sample values, and which columns remain unused.
+#
+# DOCUMENTED GAPS (no GDC source column — no hardcoded literal substitutes):
+#   Study:    diseaseType, primarySite — stored as lists on the GDC project object;
+#             not emittable as scalars. enrollmentCount — not returned by /cases.
+#   Subject:  subjectType, species, ageUnit, geneticAncestry, developmentalStage,
+#             strain, baselineBmi, bloodType, consentStatus, donorId
+#   Sample:   sampleMaterial, collectionMethod, cellularComposition, cellLineName,
+#             passageNumber, purity, suspensionType
+#   PathologyDetail: cellularityPercent, inflammationScore, necrosisPercent,
+#             tissueCondition, morphologyDescription, pathologyMethod, anatomicalSite
+#             — not populated in TCGA pathology_detail records
+#   Survival: timeOrigin, eventType, censoringReason, derivationMethod
+#   Disease:  diseaseType, sourceVocabulary, sourceDataset
 
 profile: gdc
 
@@ -32,6 +45,8 @@ nodes:
   # ── Study (GDC project) ───────────────────────────────────────────────────
   # id = project_id (e.g. TCGA-COAD). Dedup collapses one row per case to one
   # per project. program_name is carried for the HAS_STUDY edge.
+  # GAP: diseaseType/primarySite are list fields on GDC project; enrollmentCount
+  # is not returned via the /cases endpoint.
   Study:
     file: study.tsv
     key: project_id
@@ -44,18 +59,18 @@ nodes:
   # ── Subject (GDC case) ────────────────────────────────────────────────────
   # id = case_id. Demographic sub-fields land with a "demographic." prefix
   # (flatten_scalars); the dotted-suffix strategy auto-resolves race, ethnicity,
-  # etc. The two that can't auto-resolve need explicit aliases.
+  # sex_at_birth → sexAtBirth, submitter_id → submitterId, etc.
+  # Only age_at_index can't auto-resolve (suffix camel = ageAtIndex ≠ ageAtIndexDays).
   Subject:
     file: subject.tsv
     key: case_id
     dedup: true
     aliases:
-      demographic.gender: sexAtBirth
       demographic.age_at_index: ageAtIndexDays
 
   # ── Sample (aliquot grain) ────────────────────────────────────────────────
   # id = sample_id (GDC aliquot_id). gdc_sample_submitter_id = originating
-  # TCGA barcode; tissue_type (Tumor/Normal) maps to sampleClass.
+  # TCGA barcode; tissue_type (Tumor/Normal class) maps to sampleClass.
   Sample:
     file: sample.tsv
     key: sample_id
@@ -66,10 +81,16 @@ nodes:
 
   # ── Diagnosis ─────────────────────────────────────────────────────────────
   # id = diagnosis_id. age_at_diagnosis is already in days.
+  # icd_10_code feeds both diseaseId (FK to Disease) and diagnosisCode.
+  # morphology (ICD-O-3 code, e.g. "8160/3") maps to tumorSubtype.
   Diagnosis:
     file: diagnosis.tsv
     key: diagnosis_id
     dedup: true
+    props:
+      diseaseId: icd_10_code
+      diagnosisCode: icd_10_code
+      tumorSubtype: morphology
     aliases:
       age_at_diagnosis: ageAtDiagnosisDays
       ajcc_pathologic_stage: pathologicStage
@@ -77,8 +98,9 @@ nodes:
       primary_diagnosis: diseaseSubtype
 
   # ── PathologyDetail ───────────────────────────────────────────────────────
-  # id = pathology_detail_id. diagnosis_id and necrosis_percent auto-resolve
-  # via camel; no prefix stripping needed (v2 uses true GDC names).
+  # id = pathology_detail_id. diagnosis_id auto-resolves via camel.
+  # GAP: TCGA pathology_detail records do not carry cellularity, necrosis, or
+  # inflammation scores; sampleId has no source column in this table.
   PathologyDetail:
     file: pathology_detail.tsv
     key: pathology_detail_id
@@ -86,7 +108,7 @@ nodes:
 
   # ── Survival ──────────────────────────────────────────────────────────────
   # id = survival_id (e.g. <case_id>:OS). survival_type and last_follow_up_days
-  # auto-resolve; event / time_days need explicit aliases.
+  # auto-resolve via camel; event / time_days need explicit aliases.
   Survival:
     file: survival.tsv
     key: survival_id
@@ -97,15 +119,17 @@ nodes:
 
   # ── PhenotypeObservation (GDC exposure) ───────────────────────────────────
   # id = exposure_id. subjectId via global case_id alias; diagnosisId auto-
-  # resolves via camel.
+  # resolves via camel. TCGA-CHOL has no exposure records; file is empty.
   PhenotypeObservation:
     file: exposure.tsv
     key: exposure_id
     dedup: true
 
   # ── Intervention (GDC treatment) ─────────────────────────────────────────
-  # id = treatment_id. sampleId auto-resolves. True GDC column names (no
-  # treatment_ prefix) require aliases where camel doesn't reach the schema.
+  # id = treatment_id. sampleId auto-resolves via camel.
+  # Columns that exist in some GDC datasets but not TCGA-CHOL are kept here
+  # (harmless when absent); they will activate automatically for datasets
+  # that carry them.
   Intervention:
     file: treatment.tsv
     key: treatment_id
@@ -124,13 +148,16 @@ nodes:
       regimen_or_line_of_therapy: regimenName
       number_of_cycles: cycleNumber
       treatment_anatomic_sites: anatomicalSite
+      # route_of_administration → routeOfAdministration auto-resolves via camel
 
-  # ── Disease (stub) ────────────────────────────────────────────────────────
-  # Disease is a reference dimension derived from GDC diagnostic columns.
-  # key: null → skipped at runtime until ticket #35 resolves the keying strategy.
+  # ── Disease (reference dimension from diagnosis table) ────────────────────
+  # id = icd_10_code (ICD-10 code, e.g. "C24.0"). Dedup produces one Disease
+  # node per unique ICD-10 code. primary_diagnosis = human-readable diseaseName.
+  # GAP: diseaseType / sourceVocabulary / sourceDataset have no GDC source column.
   Disease:
     file: diagnosis.tsv
-    key: null
+    key: icd_10_code
+    dedup: true
     aliases:
       primary_diagnosis: diseaseName
       icd_10_code: ontologyId
@@ -162,6 +189,8 @@ edges:
     pair: [Subject, Diagnosis]
     start_key: case_id
     end_key: diagnosis_id
+    props:
+      isPrimaryDiagnosis: diagnosis_is_primary_disease
 
   HAS_PATHOLOGY:
     file: pathology_detail.tsv
