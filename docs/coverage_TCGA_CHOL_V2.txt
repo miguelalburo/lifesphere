@@ -1,0 +1,125 @@
+
+Program  (1 matched, 9 unmatched)
+  key: name
+    ✓ programName                  <- name  [alias]
+    unmatched props: programAbbreviation, description, fundingAgency, programType, country, startDate, endDate, url, sourceDatabase
+    unused columns: case_id [c8e57f03-ac69-49bb-954b-4c40fe371f75, 91544f6b-90b6-45df-a501-3097fe0c74be, 7f08f522-08ff-4b30-aa5b-e69cf15041c9, 1947a152-6339-4f66-b9a4-0229580f0287, f2d42e03-ca8d-4b57-ae39-0cc8f37b1b67], case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-5A-A8ZG, TCGA-5A-A8ZF, TCGA-ZK-AAYZ], dbgap_accession_number [phs000178], program_id [b80aa962-9650-5110-b3eb-bd087da808db]
+
+Study  (2 matched, 9 unmatched)
+  key: project_id
+    ✓ studyAbbreviation            <- project_id  [override]
+    ✓ studyName                    <- project_name  [alias]
+    unmatched props: description, diseaseType, primarySite, studyDesign, enrollmentCount, studyPhase, sourceDataset, dataAccessLevel, cohortName
+    unused columns: case_id [c8e57f03-ac69-49bb-954b-4c40fe371f75, 91544f6b-90b6-45df-a501-3097fe0c74be, 7f08f522-08ff-4b30-aa5b-e69cf15041c9, 1947a152-6339-4f66-b9a4-0229580f0287, f2d42e03-ca8d-4b57-ae39-0cc8f37b1b67], case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-5A-A8ZG, TCGA-5A-A8ZF, TCGA-ZK-AAYZ], program_name [TCGA], dbgap_accession_number, releasable [True], state [open], released [True]
+
+Subject  (5 matched, 10 unmatched)
+  key: case_id
+    ✓ submitterId                  <- demographic.submitter_id  [suffix]
+    ✓ sexAtBirth                   <- demographic.sex_at_birth  [suffix]
+    ✓ race                         <- demographic.race  [suffix]
+    ✓ ethnicity                    <- demographic.ethnicity  [suffix]
+    ✓ ageAtIndexDays               <- demographic.age_at_index  [alias]
+    unmatched props: subjectType, species, ageUnit, geneticAncestry, developmentalStage, strain, baselineBmi, bloodType, consentStatus, donorId
+    unused columns: case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-5A-A8ZG, TCGA-5A-A8ZF, TCGA-ZK-AAYZ], id [c8e57f03-ac69-49bb-954b-4c40fe371f75, 91544f6b-90b6-45df-a501-3097fe0c74be, 7f08f522-08ff-4b30-aa5b-e69cf15041c9, 1947a152-6339-4f66-b9a4-0229580f0287, f2d42e03-ca8d-4b57-ae39-0cc8f37b1b67], project.dbgap_accession_number, project.project_id [TCGA-CHOL], project.name [Cholangiocarcinoma], project.releasable [True], project.state [open], project.program.dbgap_accession_number [phs000178], project.program.program_id [b80aa962-9650-5110-b3eb-bd087da808db], project.program.name [TCGA], project.released [True], created_datetime (+20 more)
+
+Sample  (6 matched, 9 unmatched)
+  key: sample_id
+    ✓ subjectId                    <- case_id  [alias]
+    ✓ externalSampleId             <- gdc_sample_submitter_id  [alias]
+    ✓ sampleClass                  <- tissue_type  [alias]
+    ✓ sampleType                   <- sample_type  [camel]
+    ✓ daysToCollection             <- days_to_collection  [camel]
+    ✓ preservationMethod           <- preservation_method  [camel]
+    unmatched props: sampleMaterial, collectionMethod, cellularComposition, cellLineName, passageNumber, purity, suspensionType, sourceDataset, sourceFile
+    unused columns: case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-5A-A8ZG, TCGA-5A-A8ZF, TCGA-ZK-AAYZ], sample_submitter_id [TCGA-ZH-A8Y3-01A-11D-A46P-09, TCGA-ZH-A8Y3-10A-01D-A46P-09, TCGA-ZH-A8Y3-01A-11D-A75W-36, TCGA-ZH-A8Y3-10A-01D-A75W-36, TCGA-5A-A8ZF-01A-12D-A46P-09], gdc_sample_id [f90ab603-c149-4758-a3fc-6bf762ff4987, 0e19527e-9f04-4bd7-8e86-aa33ea13309b, 58aee992-591d-4201-8649-d87a41bfff9e, 36ab1390-3435-4887-ace8-9abee0aa19d6, be1def9f-f4ef-4934-bc95-cb889e7f6863], intermediate_dimension, tumor_descriptor [Primary, Not Applicable], time_between_clamping_and_freezing, freezing_method, pathology_report_uuid [C4E66BC9-DCF0-43A6-B6B8-24D8FC02A7DB, AE57B0FD-BB4D-482B-8DC9-23690AB56CB4, 225464AC-D403-439B-A128-D0E656603EA6, DFA3212C-41A5-4199-A6FB-A3A90C524DA7, 6EC57D32-953A-4B46-AF10-A3AFCF636ED4], shortest_dimension, created_datetime [2018-11-28T10:11:06.964460-06:00, 2018-11-28T10:11:13.087803-06:00, 2018-11-28T10:10:43.504316-06:00, 2018-11-28T10:10:39.629154-06:00, 2018-11-28T10:09:41.306319-06:00], time_between_excision_and_freezing, specimen_type [Unknown, Solid Tissue, Peripheral Blood NOS] (+20 more)
+
+Diagnosis  (6 matched, 12 unmatched)
+  key: diagnosis_id
+    ✓ subjectId                    <- case_id  [alias]
+    ✓ diagnosisMethod              <- method_of_diagnosis  [alias]
+    ✓ ageAtDiagnosisDays           <- age_at_diagnosis  [alias]
+    ✓ diseaseSubtype               <- primary_diagnosis  [alias]
+    ✓ pathologicStage              <- ajcc_pathologic_stage  [alias]
+    ✓ tumorGrade                   <- tumor_grade  [camel]
+    unmatched props: diseaseId, diagnosisRole, diagnosisCode, diagnosisCodeSystem, tumorSubtype, ageOfOnsetDays, severityScore, severityScale, infectiousAgentId, infectiousAgentName, isNormal, sourceDataset
+    unused columns: case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-W5-AA2M, TCGA-W5-AA2K, TCGA-W7-A93O], synchronous_malignancy [No, Yes], ishak_fibrosis_score [6 - Established Cirrhosis, Unknown, 0 - No Fibrosis, 1,2 - Portal Fibrosis, 3,4 - Fibrous Septa], days_to_diagnosis [157, 362, 0, 216, 198], created_datetime [2024-12-19T14:12:48.034460-06:00, 2019-04-28T10:27:32.257623-05:00, 2024-12-19T14:25:12.658659-06:00, 2024-12-19T14:13:38.750517-06:00, 2024-12-19T14:20:23.609429-06:00], last_known_disease_status, tissue_or_organ_of_origin [Extrahepatic bile duct, Intrahepatic bile duct, Liver, Lung, NOS, Head of pancreas], days_to_last_follow_up [833.0, 540.0, 1402.0, 561.0, 180.0], child_pugh_classification [Unknown, A, B], updated_datetime [2025-10-24T10:07:22.247220-05:00, 2024-12-23T09:53:56.999238-06:00], prior_malignancy [yes, no], year_of_diagnosis [2010, 2008, 2006, 2012, 2013] (+64 more)
+
+PathologyDetail  (1 matched, 8 unmatched)
+  key: pathology_detail_id
+    ✓ diagnosisId                  <- diagnosis_id  [camel]
+    unmatched props: sampleId, tissueCondition, cellularityPercent, inflammationScore, necrosisPercent, morphologyDescription, pathologyMethod, anatomicalSite
+    unused columns: case_id [bec2cf62-44a2-42e5-8e10-440aad69ed77, 15850852-5979-419d-ae38-76ffd0e9d7e8, 1947a152-6339-4f66-b9a4-0229580f0287, 859ed2d9-668d-440c-86ab-dcd0d9742973, f2d42e03-ca8d-4b57-ae39-0cc8f37b1b67], case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-W5-AA2M, TCGA-W5-AA2K, TCGA-W7-A93O], consistent_pathology_review [No, Yes], updated_datetime [2024-12-23T09:53:56.999238-06:00], submitter_id [TCGA-W7-A93O_pathology_detail, TCGA-ZH-A8Y3_pathology_detail, TCGA-W5-AA36_pathology_detail, TCGA-W5-AA2K_pathology_detail, TCGA-W5-AA2M_pathology_detail], vascular_invasion_present [Unknown, No, Yes], vascular_invasion_type [Micro, No Vascular Invasion], state [released], perineural_invasion_present [Unknown, Not Reported, No, Yes], created_datetime [2024-12-19T14:12:48.034460-06:00, 2024-12-19T14:16:19.758631-06:00, 2024-12-19T14:11:40.185748-06:00, 2024-12-19T14:24:26.251585-06:00, 2024-12-19T14:20:23.609429-06:00]
+
+Survival  (5 matched, 4 unmatched)
+  key: survival_id
+    ✓ subjectId                    <- case_id  [alias]
+    ✓ survivalType                 <- survival_type  [camel]
+    ✓ timeToEventDays              <- time_days  [alias]
+    ✓ eventOccurred                <- event  [alias]
+    ✓ lastFollowUpDays             <- last_follow_up_days  [camel]
+    unmatched props: timeOrigin, eventType, censoringReason, derivationMethod
+    unused columns: case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-W5-AA2M, TCGA-W5-AA2K, TCGA-W7-A93O]
+
+PhenotypeObservation  (0 matched, 17 unmatched)
+  key: exposure_id  <-- MISSING / unbound
+    unmatched props: subjectId, sampleId, diagnosisId, perturbationId, hpoId, phenotypeName, category, phenotypeType, value, status, unit, severityScore, severityScale, observationDay, observationDate, sourceDataset, sourceFile
+
+Intervention  (10 matched, 40 unmatched)
+  key: treatment_id
+    ✓ sampleId                     <- sample_id  [camel]
+    ✓ interventionName             <- therapeutic_agents  [alias]
+    ✓ interventionType             <- treatment_type  [alias]
+    ✓ startDay                     <- days_to_treatment_start  [alias]
+    ✓ endDay                       <- days_to_treatment_end  [alias]
+    ✓ intentType                   <- treatment_intent_type  [alias]
+    ✓ doseValue                    <- treatment_dose  [alias]
+    ✓ doseUnit                     <- treatment_dose_units  [alias]
+    ✓ regimenName                  <- regimen_or_line_of_therapy  [alias]
+    ✓ numberOfFractions            <- number_of_fractions  [camel]
+    unmatched props: interventionSubtype, durationDays, status, sourceDataset, sourceFile, doseFrequency, routeOfAdministration, lineOfTherapy, cycleNumber, cycleLengthDays, combinationTherapyFlag, radiationType, targetSite, totalDoseCGy, fractionDoseCGy, radiationTechnique, immunotherapyType, checkpointTarget, immuneTarget, cellTherapyType, vaccineType, biomarkerRequirement, anatomicalSite, laterality, surgeryType, resectionStatus, marginStatus, therapyType, therapyFocusArea, sessionCount, durationMinutes, providerType, exposureType, exposureDose, exposureUnit, exposureDuration, exposureRoute, exposureSetting, exposureFrequency, _subtypeLabel
+    unused columns: case_id [bec2cf62-44a2-42e5-8e10-440aad69ed77, 15850852-5979-419d-ae38-76ffd0e9d7e8, 1947a152-6339-4f66-b9a4-0229580f0287, 859ed2d9-668d-440c-86ab-dcd0d9742973, f2d42e03-ca8d-4b57-ae39-0cc8f37b1b67], case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-W5-AA2M, TCGA-W5-AA2K, TCGA-W7-A93O], diagnosis_id [36313f36-1034-4cea-bc31-cfad7b2d58cd, fb11a268-07f8-5b6a-90fa-e3077fff2dc9, 3556cad4-74f7-5d42-8900-732921a5234a, e8fb0a89-95c6-42f2-9bbc-71ae4bc86e5f, 554e26ad-0f03-58ae-90e8-c3d3cfa32818], updated_datetime [2024-12-23T09:53:56.999238-06:00], submitter_id [TCGA-W5-AA36_treatment10, TCGA-ZH-A8Y3_treatment3, TCGA-ZH-A8Y3_treatment4, TCGA-ZH-A8Y3_treatment, TCGA-ZH-A8Y3_treatment2], treatment_outcome [Not Reported, Complete Response, Partial Response, Stable Disease, Progressive Disease], state [released], treatment_or_therapy [no, yes, unknown], created_datetime [2024-12-19T14:12:48.034460-06:00, 2024-12-19T14:16:19.758631-06:00, 2019-04-28T10:27:32.257623-05:00, 2024-12-19T14:24:26.251585-06:00, 2024-12-19T14:20:23.609429-06:00], initial_disease_status [Recurrent Disease, Initial Diagnosis], clinical_trial_indicator [No], treatment_effect (+1 more)
+
+Disease  (2 matched, 3 unmatched)
+  key: None  <-- MISSING / unbound
+    ✓ diseaseName                  <- primary_diagnosis  [alias]
+    ✓ ontologyId                   <- icd_10_code  [alias]
+    unmatched props: diseaseType, sourceVocabulary, sourceDataset
+    unused columns: case_id [bec2cf62-44a2-42e5-8e10-440aad69ed77, 15850852-5979-419d-ae38-76ffd0e9d7e8, 1947a152-6339-4f66-b9a4-0229580f0287, 859ed2d9-668d-440c-86ab-dcd0d9742973, f2d42e03-ca8d-4b57-ae39-0cc8f37b1b67], case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-W5-AA2M, TCGA-W5-AA2K, TCGA-W7-A93O], synchronous_malignancy [No, Yes], ajcc_pathologic_stage [Stage II, Stage IVB, Stage IV, Stage IIB, Stage I], ishak_fibrosis_score [6 - Established Cirrhosis, Unknown, 0 - No Fibrosis, 1,2 - Portal Fibrosis, 3,4 - Fibrous Septa], days_to_diagnosis [157, 362, 0, 216, 198], created_datetime [2024-12-19T14:12:48.034460-06:00, 2019-04-28T10:27:32.257623-05:00, 2024-12-19T14:25:12.658659-06:00, 2024-12-19T14:13:38.750517-06:00, 2024-12-19T14:20:23.609429-06:00], last_known_disease_status, tissue_or_organ_of_origin [Extrahepatic bile duct, Intrahepatic bile duct, Liver, Lung, NOS, Head of pancreas], days_to_last_follow_up [833.0, 540.0, 1402.0, 561.0, 180.0], age_at_diagnosis [19244, 18882, 17989, 18146, 22436], child_pugh_classification [Unknown, A, B] (+69 more)
+
+HAS_STUDY  (0 matched, 2 unmatched)
+  endpoints: program_name -> project_id
+    unmatched props: studyRole, membershipType
+    unused columns: case_id [c8e57f03-ac69-49bb-954b-4c40fe371f75, 91544f6b-90b6-45df-a501-3097fe0c74be, 7f08f522-08ff-4b30-aa5b-e69cf15041c9, 1947a152-6339-4f66-b9a4-0229580f0287, f2d42e03-ca8d-4b57-ae39-0cc8f37b1b67], case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-5A-A8ZG, TCGA-5A-A8ZF, TCGA-ZK-AAYZ], project_name [Cholangiocarcinoma], dbgap_accession_number, releasable [True], state [open], released [True]
+
+HAS_SUBJECT  (0 matched, 0 unmatched)
+  endpoints: project.project_id -> case_id
+    unused columns: case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-5A-A8ZG, TCGA-5A-A8ZF, TCGA-ZK-AAYZ], id [c8e57f03-ac69-49bb-954b-4c40fe371f75, 91544f6b-90b6-45df-a501-3097fe0c74be, 7f08f522-08ff-4b30-aa5b-e69cf15041c9, 1947a152-6339-4f66-b9a4-0229580f0287, f2d42e03-ca8d-4b57-ae39-0cc8f37b1b67], project.dbgap_accession_number, project.name [Cholangiocarcinoma], project.releasable [True], project.state [open], project.program.dbgap_accession_number [phs000178], project.program.program_id [b80aa962-9650-5110-b3eb-bd087da808db], project.program.name [TCGA], project.released [True], created_datetime, updated_datetime [2024-12-19T14:12:48.034460-06:00, 2024-12-19T14:16:19.758631-06:00, 2019-05-01T11:49:18.743955-05:00, 2024-12-19T14:24:26.251585-06:00, 2024-12-19T14:20:23.609429-06:00] (+24 more)
+
+PROVIDED_SAMPLE  (0 matched, 1 unmatched)
+  endpoints: case_id -> sample_id
+    unmatched props: derivationMethod
+    unused columns: case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-5A-A8ZG, TCGA-5A-A8ZF, TCGA-ZK-AAYZ], sample_submitter_id [TCGA-ZH-A8Y3-01A-11D-A46P-09, TCGA-ZH-A8Y3-10A-01D-A46P-09, TCGA-ZH-A8Y3-01A-11D-A75W-36, TCGA-ZH-A8Y3-10A-01D-A75W-36, TCGA-5A-A8ZF-01A-12D-A46P-09], gdc_sample_id [f90ab603-c149-4758-a3fc-6bf762ff4987, 0e19527e-9f04-4bd7-8e86-aa33ea13309b, 58aee992-591d-4201-8649-d87a41bfff9e, 36ab1390-3435-4887-ace8-9abee0aa19d6, be1def9f-f4ef-4934-bc95-cb889e7f6863], gdc_sample_submitter_id [TCGA-ZH-A8Y3-10A, TCGA-5A-A8ZF-10A, TCGA-5A-A8ZG-10A, TCGA-5A-A8ZF-01A, TCGA-ZH-A8Y3-01A], intermediate_dimension, tumor_descriptor [Primary, Not Applicable], time_between_clamping_and_freezing, freezing_method, pathology_report_uuid [C4E66BC9-DCF0-43A6-B6B8-24D8FC02A7DB, AE57B0FD-BB4D-482B-8DC9-23690AB56CB4, 225464AC-D403-439B-A128-D0E656603EA6, DFA3212C-41A5-4199-A6FB-A3A90C524DA7, 6EC57D32-953A-4B46-AF10-A3AFCF636ED4], shortest_dimension, sample_type [Solid Tissue Normal, Blood Derived Normal, Primary Tumor], created_datetime [2018-11-28T10:11:06.964460-06:00, 2018-11-28T10:11:13.087803-06:00, 2018-11-28T10:10:43.504316-06:00, 2018-11-28T10:10:39.629154-06:00, 2018-11-28T10:09:41.306319-06:00] (+25 more)
+
+HAS_DIAGNOSIS  (0 matched, 3 unmatched)
+  endpoints: case_id -> diagnosis_id
+    unmatched props: temporalOrder, isPrimaryDiagnosis, confidenceScore
+    unused columns: case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-W5-AA2M, TCGA-W5-AA2K, TCGA-W7-A93O], synchronous_malignancy [No, Yes], ajcc_pathologic_stage [Stage II, Stage IVB, Stage IV, Stage IIB, Stage I], ishak_fibrosis_score [6 - Established Cirrhosis, Unknown, 0 - No Fibrosis, 1,2 - Portal Fibrosis, 3,4 - Fibrous Septa], days_to_diagnosis [157, 362, 0, 216, 198], created_datetime [2024-12-19T14:12:48.034460-06:00, 2019-04-28T10:27:32.257623-05:00, 2024-12-19T14:25:12.658659-06:00, 2024-12-19T14:13:38.750517-06:00, 2024-12-19T14:20:23.609429-06:00], last_known_disease_status, tissue_or_organ_of_origin [Extrahepatic bile duct, Intrahepatic bile duct, Liver, Lung, NOS, Head of pancreas], days_to_last_follow_up [833.0, 540.0, 1402.0, 561.0, 180.0], age_at_diagnosis [19244, 18882, 17989, 18146, 22436], primary_diagnosis [Not Reported, Basal cell carcinoma, NOS, Mucinous adenocarcinoma, Adenocarcinoma, NOS, Cholangiocarcinoma], child_pugh_classification [Unknown, A, B] (+69 more)
+
+HAS_PATHOLOGY  (0 matched, 3 unmatched)
+  endpoints: diagnosis_id -> pathology_detail_id
+    unmatched props: pathologyRole, evidenceType, specimenBasis
+    unused columns: case_id [bec2cf62-44a2-42e5-8e10-440aad69ed77, 15850852-5979-419d-ae38-76ffd0e9d7e8, 1947a152-6339-4f66-b9a4-0229580f0287, 859ed2d9-668d-440c-86ab-dcd0d9742973, f2d42e03-ca8d-4b57-ae39-0cc8f37b1b67], case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-W5-AA2M, TCGA-W5-AA2K, TCGA-W7-A93O], consistent_pathology_review [No, Yes], updated_datetime [2024-12-23T09:53:56.999238-06:00], submitter_id [TCGA-W7-A93O_pathology_detail, TCGA-ZH-A8Y3_pathology_detail, TCGA-W5-AA36_pathology_detail, TCGA-W5-AA2K_pathology_detail, TCGA-W5-AA2M_pathology_detail], vascular_invasion_present [Unknown, No, Yes], vascular_invasion_type [Micro, No Vascular Invasion], state [released], perineural_invasion_present [Unknown, Not Reported, No, Yes], created_datetime [2024-12-19T14:12:48.034460-06:00, 2024-12-19T14:16:19.758631-06:00, 2024-12-19T14:11:40.185748-06:00, 2024-12-19T14:24:26.251585-06:00, 2024-12-19T14:20:23.609429-06:00]
+
+HAS_PHENOTYPE_OBSERVATION  (0 matched, 1 unmatched)
+  endpoints: diagnosis_id -> exposure_id  <-- MISSING / unbound
+    unmatched props: daysToEvent
+
+HAS_SURVIVAL_RECORD  (0 matched, 2 unmatched)
+  endpoints: case_id -> survival_id
+    unmatched props: endpointRole, confidenceScore
+    unused columns: case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-W5-AA2M, TCGA-W5-AA2K, TCGA-W7-A93O], survival_type [DFI, OS, PFI], event [1, 0], time_days [180, 362, 1402, 540, 561], last_follow_up_days [180, 1402, 540, 561, 833]
+
+UNDERWENT_INTERVENTION  (0 matched, 4 unmatched)
+  endpoints: sample_id -> treatment_id
+    unmatched props: sequenceOrder, interventionTiming, sampleRole, confidenceScore
+    unused columns: case_id [bec2cf62-44a2-42e5-8e10-440aad69ed77, 15850852-5979-419d-ae38-76ffd0e9d7e8, 1947a152-6339-4f66-b9a4-0229580f0287, 859ed2d9-668d-440c-86ab-dcd0d9742973, f2d42e03-ca8d-4b57-ae39-0cc8f37b1b67], case_submitter_id [TCGA-ZH-A8Y3, TCGA-W5-AA36, TCGA-W5-AA2M, TCGA-W5-AA2K, TCGA-W7-A93O], diagnosis_id [36313f36-1034-4cea-bc31-cfad7b2d58cd, fb11a268-07f8-5b6a-90fa-e3077fff2dc9, 3556cad4-74f7-5d42-8900-732921a5234a, e8fb0a89-95c6-42f2-9bbc-71ae4bc86e5f, 554e26ad-0f03-58ae-90e8-c3d3cfa32818], treatment_intent_type [Adjuvant], updated_datetime [2024-12-23T09:53:56.999238-06:00], submitter_id [TCGA-W5-AA36_treatment10, TCGA-ZH-A8Y3_treatment3, TCGA-ZH-A8Y3_treatment4, TCGA-ZH-A8Y3_treatment, TCGA-ZH-A8Y3_treatment2], treatment_type [Ablation or Embolization, NOS, Organ Transplantation, Radiation Therapy, NOS, Surgery, NOS, Pharmaceutical Therapy, NOS], treatment_outcome [Not Reported, Complete Response, Partial Response, Stable Disease, Progressive Disease], state [released], therapeutic_agents [Cisplatin, Capecitabine, Gemcitabine, Gemcitabine Hydrochloride], treatment_or_therapy [no, yes, unknown], created_datetime [2024-12-19T14:12:48.034460-06:00, 2024-12-19T14:16:19.758631-06:00, 2019-04-28T10:27:32.257623-05:00, 2024-12-19T14:24:26.251585-06:00, 2024-12-19T14:20:23.609429-06:00] (+10 more)
