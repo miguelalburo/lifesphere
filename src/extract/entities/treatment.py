@@ -1,25 +1,22 @@
-"""Treatment table: n rows per (diagnosis × aliquot) (GDC ``diagnoses[].treatments[]``).
+"""Treatment (Intervention) table fanned out to aliquot grain.
 
-UNDERWENT_INTERVENTION sources from Sample at aliquot grain. Each treatment row is
-fanned out to every aliquot of the subject so the edge is enforced at aliquot level.
-The same fan-out is applied post-hoc by ``biospecimen.merge_treatment_sample`` when
-processing an existing extract without re-downloading.
+Each treatment produces one row per aliquot in the case, so the KG edge
+HAS_INTERVENTION can join on ``sample_id`` (aliquot id).
 """
 
-from ._base import Iter, child_columns, child_row
+from .._base import Iter, case_ident, flatten_scalars
 
 NAME = "treatment"
-COLUMNS = ["sample_id", *child_columns(NAME, parent_ids=["diagnosis_id"])]
+COLUMNS = None  # discovered dynamically via emit()
 
 
 def _aliquot_ids(case: dict) -> list[str]:
-    """Collect all aliquot_ids from the case's biospecimen hierarchy, deduplicated."""
-    seen: set[str] = set()
     ids: list[str] = []
-    for sample in (case.get("samples") or []):
-        for portion in (sample.get("portions") or []):
-            for analyte in (portion.get("analytes") or []):
-                for aliquot in (analyte.get("aliquots") or []):
+    seen: set[str] = set()
+    for smp in case.get("samples") or []:
+        for portion in smp.get("portions") or []:
+            for analyte in portion.get("analytes") or []:
+                for aliquot in analyte.get("aliquots") or []:
                     aid = aliquot.get("aliquot_id", "")
                     if aid and aid not in seen:
                         seen.add(aid)
@@ -28,12 +25,15 @@ def _aliquot_ids(case: dict) -> list[str]:
 
 
 def iter_rows(case: dict) -> Iter:
+    ident = case_ident(case)
     aliquot_ids = _aliquot_ids(case)
-    for diag in (case.get("diagnoses") or []):
-        parent = {"diagnosis_id": diag.get("diagnosis_id", "")}
-        for tx in (diag.get("treatments") or []):
-            base_row = child_row(NAME, case, tx, parent)
+    for diag in case.get("diagnoses") or []:
+        diag_id = diag.get("diagnosis_id", "")
+        for tx in diag.get("treatments") or []:
+            tx_flat = flatten_scalars(tx)
             for aid in aliquot_ids:
-                row = dict(base_row)
+                row = dict(ident)
                 row["sample_id"] = aid
+                row["diagnosis_id"] = diag_id
+                row.update(tx_flat)
                 yield row

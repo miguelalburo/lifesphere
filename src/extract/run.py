@@ -1,6 +1,5 @@
-"""Fetch GDC cases and write one {NAME}.tsv per extractv2 emitter.
+"""Fetch GDC cases and write one {NAME}.tsv per entity emitter.
 
-Replaces v1's cases.py post-processing chain with inline structural ops:
 Sample is already at aliquot grain, Treatment already fanned out, Program/Study
 already aggregated, Survival already derived — all via iter_rows().
 """
@@ -11,7 +10,7 @@ import csv
 import sys
 from pathlib import Path
 
-from ..extract import gdc_api
+from . import gdc_api
 from ._base import emit
 from .entities import EMITTERS, EXPAND
 

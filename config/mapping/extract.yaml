@@ -1,190 +1,217 @@
-# Source -> schema binding for GDC-derived datasets (TCGA, etc.).
+# Source -> schema binding for extract-shaped GDC output.
 #
-# STRUCTURE COMPLETE; SOURCE-COLUMN BINDINGS ARE DEFERRED. Per the project
-# decision, the exact raw-column -> canonical-property mapping is reviewed against
-# real extractor output later. Entries with `key: null` (or missing) are skipped
-# by the standardise engine (logged `! skip`), so this file is safe to run as-is
-# and filled in incrementally.
+# extract emits true GDC column names (no {entity}_ prefix), so most
+# properties auto-bind via the camel / dotted-suffix resolver strategies.
+# Only the columns that can't auto-resolve are listed as explicit aliases.
 #
-# Column binding (raw column -> schema property) is resolved per file, first
-# match wins: node `props` override -> `aliases` table -> camelCase -> normalized
-# -> dotted-suffix. Run `python -m src.standardise <dataset> --profile extract --report`
-# to see, per entry, what matched (and how), what is unmatched, and which raw
-# columns are still unused — the guided way to fill the TODOs below.
+# File names are {NAME}.tsv (no dataset prefix); each dataset lives in its
+# own data/raw/<dataset>/ directory.
 #
-# Format
-# ------
-# aliases:               # OPTIONAL global raw_col -> canonicalProp (all entries)
-#   <raw_col>: <prop>
+# Entries with `key: null` are skipped at runtime (logged `! skip`).
+# Run:
+#   python -m src.standardise <dataset> --profile extract --report --values
+# to see per-entry coverage, sample values, and which columns remain unused.
 #
-# nodes:
-#   <Label>:               # must exist in config/schema/nodes.yaml
-#     file: <name>         # file under data/raw/<dataset>/
-#     key: <raw_col>       # raw column holding the node id (null => skip)
-#     strip_prefix: ""     # optional literal stripped from the id VALUE
-#     strip_header_prefix: "diagnosis_"   # table-name prefix stripped from HEADERS
-#                          # before matching (str or list); values still read from
-#                          # the real column. e.g. diagnosis_tumor_grade -> tumorGrade
-#     dedup: true          # collapse duplicate ids (keep first)
-#     aliases:             # OPTIONAL node-scoped raw_col -> prop (overrides global)
-#       <raw_col>: <prop>
-#     props:               # canonicalProp: raw_col  (highest-priority override)
-#       <prop>: <raw_col>
-#
-# edges:
-#   <TYPE>:                # must exist in config/schema/edges.yaml
-#     file: <name>
-#     pair: [Src, Tgt]     # which schema pair (default = first pair)
-#     start_key: <raw_col> # raw column for the start-node id (null => skip)
-#     end_key: <raw_col>   # raw column for the end-node id
-#     strip_start_prefix: ""
-#     strip_end_prefix: ""
-#     dedup: true
-#     aliases: { <raw_col>: <prop> }
-#     props:   { <prop>: <raw_col> }
+# DOCUMENTED GAPS (no GDC source column — no hardcoded literal substitutes):
+#   Study:    diseaseType, primarySite — stored as lists on the GDC project object;
+#             not emittable as scalars. enrollmentCount — not returned by /cases.
+#   Subject:  subjectType, species, ageUnit, geneticAncestry, developmentalStage,
+#             strain, baselineBmi, bloodType, consentStatus, donorId
+#   Sample:   sampleMaterial, collectionMethod, cellularComposition, cellLineName,
+#             passageNumber, purity, suspensionType
+#   PathologyDetail: cellularityPercent, inflammationScore, necrosisPercent,
+#             tissueCondition, morphologyDescription, pathologyMethod, anatomicalSite
+#             — not populated in TCGA pathology_detail records
+#   Survival: timeOrigin, eventType, censoringReason, derivationMethod
+#   Disease:  diseaseType, sourceVocabulary, sourceDataset
 
 profile: extract
 
-# Global raw->canonical bindings (apply to every entry; take effect only where the
-# canonical is an actual schema property of that node/edge). GDC's `case` == our
-# Subject, so the `case_id` FK feeds `subjectId` wherever that property exists.
+# GDC case == LifeSphere Subject; case_id feeds subjectId wherever it exists.
 aliases:
   case_id: subjectId
 
 nodes:
-  # id = programName (no separate program_id in the GDC program summary).
+  # ── Program ───────────────────────────────────────────────────────────────
+  # id = program name (project.program.name). Dedup collapses one row per case
+  # to one per program.
   Program:
-    file: TCGA.program.tsv
-    key: program_name
+    file: program.tsv
+    key: name
     dedup: true
-  # id = project_id (e.g. TCGA-BRCA); project_id also feeds studyAbbreviation.
+    aliases:
+      name: programName
+
+  # ── Study (GDC project) ───────────────────────────────────────────────────
+  # id = project_id (e.g. TCGA-COAD). Dedup collapses one row per case to one
+  # per project. program_name is carried for the HAS_STUDY edge.
+  # GAP: diseaseType/primarySite are list fields on GDC project; enrollmentCount
+  # is not returned via the /cases endpoint.
   Study:
-    file: TCGA.project.tsv
+    file: study.tsv
     key: project_id
     dedup: true
     props:
       studyAbbreviation: project_id
     aliases:
       project_name: studyName
-      n_cases: enrollmentCount
-  # id = case_id (GDC case). `demographic_` prefix stripped so demographic_race ->
-  # race, demographic_ethnicity -> ethnicity, demographic_sex_at_birth -> sexAtBirth.
+
+  # ── Subject (GDC case) ────────────────────────────────────────────────────
+  # id = case_id. Demographic sub-fields land with a "demographic." prefix
+  # (flatten_scalars); the dotted-suffix strategy auto-resolves race, ethnicity,
+  # sex_at_birth → sexAtBirth, submitter_id → submitterId, etc.
+  # Only age_at_index can't auto-resolve (suffix camel = ageAtIndex ≠ ageAtIndexDays).
   Subject:
-    file: TCGA.subject.tsv
+    file: subject.tsv
     key: case_id
-    strip_header_prefix: demographic_
     dedup: true
-  # Grain is aliquot: id = sample_id (the per-aliquot UUID the treatment file also
-  # references). gdc_sample_submitter_id is the TCGA barcode; sample_tissue_type is
-  # the Tumor/Normal class. `sample_` prefix stripped for preservationMethod /
-  # daysToCollection.
+    aliases:
+      demographic.age_at_index: ageAtIndexDays
+
+  # ── Sample (aliquot grain) ────────────────────────────────────────────────
+  # id = sample_id (GDC aliquot_id). gdc_sample_submitter_id = originating
+  # TCGA barcode; tissue_type (Tumor/Normal class) maps to sampleClass.
   Sample:
-    file: TCGA.sample.tsv
+    file: sample.tsv
     key: sample_id
-    strip_header_prefix: sample_
     dedup: true
     aliases:
       gdc_sample_submitter_id: externalSampleId
-      sample_tissue_type: sampleClass
-  # id = diagnosis_id. `diagnosis_` prefix stripped (tumorGrade auto-resolves).
-  # GDC age_at_diagnosis is already in days.
+      tissue_type: sampleClass
+
+  # ── Diagnosis ─────────────────────────────────────────────────────────────
+  # id = diagnosis_id. age_at_diagnosis is already in days.
+  # icd_10_code feeds both diseaseId (FK to Disease) and diagnosisCode.
+  # morphology (ICD-O-3 code, e.g. "8160/3") maps to tumorSubtype.
   Diagnosis:
-    file: TCGA.diagnosis.tsv
+    file: diagnosis.tsv
     key: diagnosis_id
-    strip_header_prefix: diagnosis_
     dedup: true
+    props:
+      diseaseId: icd_10_code
+      diagnosisCode: icd_10_code
+      tumorSubtype: morphology
     aliases:
-      diagnosis_age_at_diagnosis: ageAtDiagnosisDays
-      diagnosis_ajcc_pathologic_stage: pathologicStage
-      diagnosis_method_of_diagnosis: diagnosisMethod
-      diagnosis_primary_diagnosis: diseaseSubtype
-  # id = pathology_detail_id. `pathology_detail_` prefix stripped (diagnosisId and
-  # necrosisPercent auto-resolve).
+      age_at_diagnosis: ageAtDiagnosisDays
+      ajcc_pathologic_stage: pathologicStage
+      method_of_diagnosis: diagnosisMethod
+      primary_diagnosis: diseaseSubtype
+
+  # ── PathologyDetail ───────────────────────────────────────────────────────
+  # id = pathology_detail_id. diagnosis_id auto-resolves via camel.
+  # GAP: TCGA pathology_detail records do not carry cellularity, necrosis, or
+  # inflammation scores; sampleId has no source column in this table.
   PathologyDetail:
-    file: TCGA.pathology_detail.tsv
+    file: pathology_detail.tsv
     key: pathology_detail_id
-    strip_header_prefix: pathology_detail_
     dedup: true
-  # id = survival_id (e.g. <case>:OS). survivalType / lastFollowUpDays auto-resolve;
-  # event -> eventOccurred, time_days -> timeToEventDays.
+
+  # ── Survival ──────────────────────────────────────────────────────────────
+  # id = survival_id (e.g. <case_id>:OS). survival_type and last_follow_up_days
+  # auto-resolve via camel; event / time_days need explicit aliases.
   Survival:
-    file: TCGA.survival.tsv
+    file: survival.tsv
     key: survival_id
     dedup: true
     aliases:
       event: eventOccurred
       time_days: timeToEventDays
-  # Exposure records surface as PhenotypeObservation. id = exposure_id; diagnosisId
-  # auto-resolves, subjectId via the global case_id alias.
+
+  # ── PhenotypeObservation (GDC exposure) ───────────────────────────────────
+  # id = exposure_id. subjectId via global case_id alias; diagnosisId auto-
+  # resolves via camel. TCGA-CHOL has no exposure records; file is empty.
   PhenotypeObservation:
-    file: TCGA.exposure.tsv
+    file: exposure.tsv
     key: exposure_id
     dedup: true
-  # id = treatment_id. sampleId auto-resolves; the rest are explicit GDC renames.
-  # `_subtypeLabel` (Drug/Radiation/…) is left unbound — it needs a value crosswalk,
-  # not a column rename, so a bare :Intervention is emitted for now.
+
+  # ── Intervention (GDC treatment) ─────────────────────────────────────────
+  # id = treatment_id. sampleId auto-resolves via camel.
+  # Columns that exist in some GDC datasets but not TCGA-CHOL are kept here
+  # (harmless when absent); they will activate automatically for datasets
+  # that carry them.
   Intervention:
-    file: TCGA.treatment.tsv
+    file: treatment.tsv
     key: treatment_id
     dedup: true
     aliases:
-      treatment_therapeutic_agents: interventionName
-      treatment_treatment_type: interventionType
-      treatment_treatment_type_administered: interventionSubtype
-      treatment_days_to_treatment_start: startDay
-      treatment_days_to_treatment_end: endDay
-      treatment_treatment_duration: durationDays
-      treatment_treatment_intent_type: intentType
-      treatment_treatment_dose: doseValue
-      treatment_treatment_dose_units: doseUnit
-      treatment_treatment_frequency: doseFrequency
-      treatment_route_of_administration: routeOfAdministration
-      treatment_regimen_or_line_of_therapy: regimenName
-      treatment_number_of_cycles: cycleNumber
-      treatment_number_of_fractions: numberOfFractions
-      treatment_margin_status: marginStatus
-      treatment_treatment_anatomic_sites: anatomicalSite
+      therapeutic_agents: interventionName
+      treatment_type: interventionType
+      treatment_type_administered: interventionSubtype
+      days_to_treatment_start: startDay
+      days_to_treatment_end: endDay
+      treatment_duration: durationDays
+      treatment_intent_type: intentType
+      treatment_dose: doseValue
+      treatment_dose_units: doseUnit
+      treatment_frequency: doseFrequency
+      regimen_or_line_of_therapy: regimenName
+      number_of_cycles: cycleNumber
+      treatment_anatomic_sites: anatomicalSite
+      # route_of_administration → routeOfAdministration auto-resolves via camel
+
+  # ── Disease (reference dimension from diagnosis table) ────────────────────
+  # id = icd_10_code (ICD-10 code, e.g. "C24.0"). Dedup produces one Disease
+  # node per unique ICD-10 code. primary_diagnosis = human-readable diseaseName.
+  # GAP: diseaseType / sourceVocabulary / sourceDataset have no GDC source column.
+  Disease:
+    file: diagnosis.tsv
+    key: icd_10_code
+    dedup: true
+    aliases:
+      primary_diagnosis: diseaseName
+      icd_10_code: ontologyId
 
 edges:
+  # program_name is carried on study.tsv for this join.
   HAS_STUDY:
-    file: TCGA.project.tsv
+    file: study.tsv
     pair: [Program, Study]
     start_key: program_name
     end_key: project_id
+
+  # project.project_id is the dotted-key column emitted by flatten_scalars on
+  # the subject's project dict; its value matches the Study node id.
   HAS_SUBJECT:
-    file: TCGA.subject.tsv
+    file: subject.tsv
     pair: [Study, Subject]
-    start_key: project_id
+    start_key: project.project_id
     end_key: case_id
+
   PROVIDED_SAMPLE:
-    file: TCGA.sample.tsv
+    file: sample.tsv
     pair: [Subject, Sample]
     start_key: case_id
     end_key: sample_id
+
   HAS_DIAGNOSIS:
-    file: TCGA.diagnosis.tsv
+    file: diagnosis.tsv
     pair: [Subject, Diagnosis]
     start_key: case_id
     end_key: diagnosis_id
     props:
-      isPrimaryDiagnosis: diagnosis_diagnosis_is_primary_disease
+      isPrimaryDiagnosis: diagnosis_is_primary_disease
+
   HAS_PATHOLOGY:
-    file: TCGA.pathology_detail.tsv
+    file: pathology_detail.tsv
     pair: [Diagnosis, PathologyDetail]
     start_key: diagnosis_id
     end_key: pathology_detail_id
+
   HAS_PHENOTYPE_OBSERVATION:
-    file: TCGA.exposure.tsv
+    file: exposure.tsv
     pair: [Diagnosis, PhenotypeObservation]
     start_key: diagnosis_id
     end_key: exposure_id
+
   HAS_SURVIVAL_RECORD:
-    file: TCGA.survival.tsv
+    file: survival.tsv
     pair: [Subject, Survival]
     start_key: case_id
     end_key: survival_id
+
   UNDERWENT_INTERVENTION:
-    file: TCGA.treatment.tsv
+    file: treatment.tsv
     pair: [Sample, Intervention]
     start_key: sample_id
     end_key: treatment_id

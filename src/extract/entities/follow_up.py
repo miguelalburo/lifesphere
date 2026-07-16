@@ -1,11 +1,14 @@
 """Follow-up table: n rows per case (GDC ``follow_ups[]``)."""
 
-from ._base import Iter, child_columns, child_row
+from .._base import Iter, case_ident, flatten_scalars
 
 NAME = "follow_up"
-COLUMNS = child_columns(NAME)
+COLUMNS = None  # discovered dynamically via emit()
 
 
 def iter_rows(case: dict) -> Iter:
+    ident = case_ident(case)
     for fu in (case.get("follow_ups") or []):
-        yield child_row(NAME, case, fu)
+        row = dict(ident)
+        row.update(flatten_scalars(fu))
+        yield row

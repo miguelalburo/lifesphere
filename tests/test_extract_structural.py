@@ -1,10 +1,10 @@
-"""extractv2 structural operations: Sample (aliquot-grain), Intervention (fan-out),
+"""extract structural operations: Sample (aliquot-grain), Intervention (fan-out),
 Program, Study, Survival derivation.
 """
 
 from __future__ import annotations
 
-from src.extractv2.entities import program, sample, study, survival, treatment
+from src.extract.entities import program, sample, study, survival, treatment
 
 # ---------------------------------------------------------------------------
 # Shared synthetic payload

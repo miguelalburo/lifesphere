@@ -8,6 +8,7 @@ nested objects (demographic, project/program) flattened with dot notation.
 from .._base import Iter, case_ident, flatten_scalars
 
 NAME = "subject"
+COLUMNS = None  # discovered dynamically via emit(); no static allowlist
 
 _NESTED_1_1 = frozenset({"demographic", "project"})
 

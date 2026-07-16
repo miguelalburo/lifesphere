@@ -1,6 +1,6 @@
-"""CLI: ``python -m src.visualise [--config-dir PATH] [--out PATH]``
+"""Generate an interactive HTML visualisation of the live LifeSphere KG schema.
 
-Generate an interactive HTML visualisation of the live LifeSphere KG schema.
+Usage: python -m src.visualise [--config-dir PATH] [--out PATH]
 
 Reads ``config/schema/nodes.yaml`` + ``config/schema/edges.yaml`` via the
 shared :func:`src.schema.load_schema` loader, builds the node/edge graph,
@@ -21,12 +21,18 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import sys
 from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
 
-from .. import PROJECT_ROOT
-from ..schema import load_schema, Schema
+try:
+    from . import PROJECT_ROOT
+    from .schema import load_schema, Schema
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from src import PROJECT_ROOT
+    from src.schema import load_schema, Schema
 
 # Backbone anchors → layer.  Everything else is filled in by nearest-seed BFS.
 _SEEDS: dict[str, str] = {
@@ -222,10 +228,7 @@ def _render(vis_nodes: list, vis_edges: list, node_info: dict, present: set) -> 
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(
-        prog="python -m src.visualise",
-        description=__doc__.splitlines()[0],
-    )
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--config-dir", type=Path, default=None,
                     help="Config directory containing schema/ (default: config/)")
     ap.add_argument("--out", type=Path, default=None,

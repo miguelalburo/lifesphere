@@ -1,4 +1,4 @@
-"""extractv2 core emit layer — pure emission over GDC case-payload dicts.
+"""extract core emit layer — pure emission over GDC case-payload dicts.
 
 Covers: full-field emission, true GDC column names (no {entity}_ prefix),
 qualified join keys (case_id / case_submitter_id), correct grain, and the
@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.extractv2._base import CASE_IDENT, emit
-from src.extractv2.entities import (
+from src.extract._base import CASE_IDENT, emit
+from src.extract.entities import (
     diagnosis,
     exposure,
     follow_up,

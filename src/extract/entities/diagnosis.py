@@ -1,11 +1,14 @@
 """Diagnosis table: n rows per case (GDC ``diagnoses[]``)."""
 
-from ._base import Iter, child_columns, child_row
+from .._base import Iter, case_ident, flatten_scalars
 
 NAME = "diagnosis"
-COLUMNS = child_columns(NAME)
+COLUMNS = None  # discovered dynamically via emit()
 
 
 def iter_rows(case: dict) -> Iter:
+    ident = case_ident(case)
     for diag in (case.get("diagnoses") or []):
-        yield child_row(NAME, case, diag)
+        row = dict(ident)
+        row.update(flatten_scalars(diag))
+        yield row

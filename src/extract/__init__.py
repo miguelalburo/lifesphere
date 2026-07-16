@@ -1,12 +1,6 @@
-from .biotab import download_biotab
-from .cases import download_cases_tsv, download_cases_tsv_by_program, download_cases_tsv_by_ids
-from .omics import OMICS_SPECS, download_omics
+"""extract — schema-coverage-driven GDC extraction.
 
-__all__ = [
-    "download_biotab",
-    "download_cases_tsv",
-    "download_cases_tsv_by_program",
-    "download_cases_tsv_by_ids",
-    "download_omics",
-    "OMICS_SPECS",
-]
+Emits the full field set present in each GDC payload record under true GDC
+column names (no {entity}_ prefix), so the standardise engine can auto-bind
+via camelCase/normalized strategies without hand-maintained allowlists.
+"""

@@ -193,6 +193,12 @@ def standardise(dataset: str, profile: str = "extract", *, raw_root: Path | None
     return summary
 
 
+def _enrich_unused(rep: dict, src: Path) -> None:
+    """Replace plain-string unused columns with {column, samples} dicts in-place."""
+    sampled = _sample_values(src, rep["unused"])
+    rep["unused"] = [{"column": c, "samples": sampled[c]} for c in rep["unused"]]
+
+
 def _sample_values(src: Path, columns: list[str], max_values: int = 5) -> dict[str, list[str]]:
     """Read src once; collect up to max_values distinct non-empty values per column."""
     samples: dict[str, set[str]] = {c: set() for c in columns}
@@ -247,8 +253,7 @@ def report(dataset: str, profile: str = "extract", *, raw_root: Path | None = No
         rep["key"] = cfg.key
         rep["key_present"] = bool(cfg.key) and cfg.key in fields
         if values and rep["unused"]:
-            sampled = _sample_values(src, rep["unused"])
-            rep["unused"] = [{"column": c, "samples": sampled[c]} for c in rep["unused"]]
+            _enrich_unused(rep, src)
         out["nodes"][label] = rep
 
     for edge_type, cfg in mapping.edges.items():
@@ -272,8 +277,7 @@ def report(dataset: str, profile: str = "extract", *, raw_root: Path | None = No
         rep["end_key"] = cfg.end_key
         rep["endpoints_present"] = all(k in fields for k in reserved) if reserved else False
         if values and rep["unused"]:
-            sampled = _sample_values(src, rep["unused"])
-            rep["unused"] = [{"column": c, "samples": sampled[c]} for c in rep["unused"]]
+            _enrich_unused(rep, src)
         out["edges"][edge_type] = rep
 
     return out
