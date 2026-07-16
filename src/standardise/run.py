@@ -54,6 +54,7 @@ def _write_node(node: Node, cfg: NodeMapping, src: Path, out_dir: Path,
         resolver = ColumnResolver(
             fields, cfg.props, cfg.aliases, mapping.aliases,
             (*mapping.strip_header_prefix, *cfg.strip_header_prefix),
+            shared_aliases=mapping.shared_aliases,
         )
         resolved = resolver.resolved_map(columns[1:])  # prop -> raw column | None
 
@@ -97,6 +98,7 @@ def _write_edge(edge_type: str, cfg: EdgeMapping, pair: tuple[str, str], src: Pa
         resolver = ColumnResolver(
             fields, cfg.props, cfg.aliases, mapping.aliases,
             (*mapping.strip_header_prefix, *cfg.strip_header_prefix),
+            shared_aliases=mapping.shared_aliases,
         )
         resolved = resolver.resolved_map(properties)
 
@@ -191,13 +193,31 @@ def standardise(dataset: str, profile: str = "extract", *, raw_root: Path | None
     return summary
 
 
+def _sample_values(src: Path, columns: list[str], max_values: int = 5) -> dict[str, list[str]]:
+    """Read src once; collect up to max_values distinct non-empty values per column."""
+    samples: dict[str, set[str]] = {c: set() for c in columns}
+    delim = _delimiter(src)
+    with src.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh, delimiter=delim)
+        for row in reader:
+            for col in columns:
+                val = row.get(col, "")
+                if val and len(samples[col]) < max_values:
+                    samples[col].add(val)
+    return {c: list(v) for c, v in samples.items()}
+
+
 def report(dataset: str, profile: str = "extract", *, raw_root: Path | None = None,
-           config_dir: Path | None = None) -> dict:
+           config_dir: Path | None = None, values: bool = False) -> dict:
     """Column-binding coverage per node/edge, without writing any output.
 
     For each entry whose source file exists, reports which schema properties were
     matched (and by which strategy), which are unmatched, and which raw columns
     are unused — the guided view for filling in a mapping profile.
+
+    When ``values=True``, unused columns are returned as ``{"column": str,
+    "samples": list[str]}`` dicts with up to 5 distinct non-empty sample values.
+    When ``values=False`` (default) they remain plain strings.
     """
     schema: Schema = load_schema(config_dir)
     mapping: Mapping = load_mapping(profile, config_dir)
@@ -221,10 +241,14 @@ def report(dataset: str, profile: str = "extract", *, raw_root: Path | None = No
         resolver = ColumnResolver(
             fields, cfg.props, cfg.aliases, mapping.aliases,
             (*mapping.strip_header_prefix, *cfg.strip_header_prefix),
+            shared_aliases=mapping.shared_aliases,
         )
         rep = resolver.report(props, reserved=tuple(k for k in (cfg.key,) if k))
         rep["key"] = cfg.key
         rep["key_present"] = bool(cfg.key) and cfg.key in fields
+        if values and rep["unused"]:
+            sampled = _sample_values(src, rep["unused"])
+            rep["unused"] = [{"column": c, "samples": sampled[c]} for c in rep["unused"]]
         out["nodes"][label] = rep
 
     for edge_type, cfg in mapping.edges.items():
@@ -240,12 +264,16 @@ def report(dataset: str, profile: str = "extract", *, raw_root: Path | None = No
         resolver = ColumnResolver(
             fields, cfg.props, cfg.aliases, mapping.aliases,
             (*mapping.strip_header_prefix, *cfg.strip_header_prefix),
+            shared_aliases=mapping.shared_aliases,
         )
         reserved = tuple(k for k in (cfg.start_key, cfg.end_key) if k)
         rep = resolver.report(edge.properties, reserved=reserved)
         rep["start_key"] = cfg.start_key
         rep["end_key"] = cfg.end_key
         rep["endpoints_present"] = all(k in fields for k in reserved) if reserved else False
+        if values and rep["unused"]:
+            sampled = _sample_values(src, rep["unused"])
+            rep["unused"] = [{"column": c, "samples": sampled[c]} for c in rep["unused"]]
         out["edges"][edge_type] = rep
 
     return out
@@ -269,7 +297,15 @@ def format_report(rep: dict) -> str:
             if r["unmatched"]:
                 lines.append(f"    unmatched props: {', '.join(r['unmatched'])}")
             if r["unused"]:
-                preview = ", ".join(r["unused"][:12])
+                parts = []
+                for entry in r["unused"][:12]:
+                    if isinstance(entry, dict):
+                        samples = entry.get("samples") or []
+                        sample_str = f" [{', '.join(str(s) for s in samples[:5])}]" if samples else ""
+                        parts.append(f"{entry['column']}{sample_str}")
+                    else:
+                        parts.append(entry)
+                preview = ", ".join(parts)
                 more = f" (+{len(r['unused']) - 12} more)" if len(r["unused"]) > 12 else ""
                 lines.append(f"    unused columns: {preview}{more}")
             if r["collisions"]:

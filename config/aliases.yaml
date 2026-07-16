@@ -1,0 +1,7 @@
+# Repo-level shared aliases: raw GDC column -> canonical schema property.
+# Loaded by the standardise engine as the lowest-priority alias layer
+# (below node aliases and profile global aliases; above camel/normalized/suffix).
+# Add confirmed GDC-wide bindings here so every profile and dataset inherits them.
+#
+# Priority chain:
+#   node props -> node aliases -> profile global aliases -> this file -> camel -> normalized -> suffix

@@ -18,10 +18,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--quiet", action="store_true", help="suppress per-file logging")
     parser.add_argument("--report", action="store_true",
                         help="show column-binding coverage and exit (writes nothing)")
+    parser.add_argument("--values", action="store_true",
+                        help="include sample values for unused columns in the report (implies --report)")
     args = parser.parse_args(argv)
 
-    if args.report:
-        print(format_report(report(args.dataset, args.profile)))
+    if args.report or args.values:
+        print(format_report(report(args.dataset, args.profile, values=args.values)))
         return 0
 
     summary = standardise(args.dataset, args.profile, log=not args.quiet)

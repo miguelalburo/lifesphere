@@ -53,8 +53,9 @@ class EdgeMapping:
 @dataclass(frozen=True)
 class Mapping:
     profile: str
-    aliases: dict[str, str] = field(default_factory=dict)  # global raw_col -> canonicalProp
-    strip_header_prefix: tuple[str, ...] = ()              # global header prefixes
+    aliases: dict[str, str] = field(default_factory=dict)         # profile-global raw_col -> canonicalProp
+    shared_aliases: dict[str, str] = field(default_factory=dict)  # config/aliases.yaml (lowest priority)
+    strip_header_prefix: tuple[str, ...] = ()
     nodes: dict[str, NodeMapping] = field(default_factory=dict)
     edges: dict[str, EdgeMapping] = field(default_factory=dict)
 
@@ -81,6 +82,11 @@ def load_placeholders(config_dir: Path | None = None) -> frozenset[str]:
 def load_mapping(profile: str = "extract", config_dir: Path | None = None) -> Mapping:
     path = (config_dir or CONFIG_DIR) / "mapping" / f"{profile}.yaml"
     data = _load_yaml(path)
+
+    shared_path = (config_dir or CONFIG_DIR) / "aliases.yaml"
+    shared_aliases: dict[str, str] = {}
+    if shared_path.exists():
+        shared_aliases = dict(_load_yaml(shared_path) or {})
 
     nodes: dict[str, NodeMapping] = {}
     for label, spec in (data.get("nodes") or {}).items():
@@ -115,6 +121,7 @@ def load_mapping(profile: str = "extract", config_dir: Path | None = None) -> Ma
     return Mapping(
         profile=data.get("profile", profile),
         aliases=dict(data.get("aliases") or {}),
+        shared_aliases=shared_aliases,
         strip_header_prefix=_as_tuple(data.get("strip_header_prefix")),
         nodes=nodes,
         edges=edges,

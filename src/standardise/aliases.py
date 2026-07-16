@@ -56,17 +56,30 @@ class ColumnResolver:
     def __init__(self, fieldnames: list[str], props: dict[str, str] | None = None,
                  node_aliases: dict[str, str] | None = None,
                  global_aliases: dict[str, str] | None = None,
-                 strip_prefixes: tuple[str, ...] = ()):
+                 strip_prefixes: tuple[str, ...] = (),
+                 shared_aliases: dict[str, str] | None = None):
         self.fieldnames = list(fieldnames)
         self._present = set(fieldnames)
         self._props = props or {}
         self._strip_prefixes = tuple(strip_prefixes)
 
-        # raw->canonical alias table (node entries override global entries)
-        self._canon_to_raw: dict[str, str] = {}
+        # Priority chain (first match wins):
+        # override > alias (node+global) > shared_alias > camel > normalized > suffix
+
+        # node aliases override global aliases; both take strategy "alias"
+        self._alias_canon_to_raw: dict[str, str] = {}
         for raw, canon in {**(global_aliases or {}), **(node_aliases or {})}.items():
             if raw in self._present:
-                self._canon_to_raw.setdefault(canon, raw)
+                self._alias_canon_to_raw.setdefault(canon, raw)
+
+        # shared aliases (config/aliases.yaml) — lowest-priority named layer
+        # A raw column already claimed by a node/profile alias is excluded, so
+        # the profile wins for both canonicals pointing at the same raw column.
+        _alias_claimed = set(self._alias_canon_to_raw.values())
+        self._shared_canon_to_raw: dict[str, str] = {}
+        for raw, canon in (shared_aliases or {}).items():
+            if raw in self._present and raw not in _alias_claimed:
+                self._shared_canon_to_raw.setdefault(canon, raw)
 
         # Index by full header first (higher priority), then by prefix-stripped
         # header, so an exact `morphology` always beats a stripped
@@ -98,8 +111,10 @@ class ColumnResolver:
         override = self._props.get(prop)
         if override and override in self._present:
             return Resolution(override, "override")
-        if prop in self._canon_to_raw:
-            return Resolution(self._canon_to_raw[prop], "alias")
+        if prop in self._alias_canon_to_raw:
+            return Resolution(self._alias_canon_to_raw[prop], "alias")
+        if prop in self._shared_canon_to_raw:
+            return Resolution(self._shared_canon_to_raw[prop], "shared_alias")
         if prop in self._camel:
             return Resolution(self._camel[prop], "camel")
         norm = _normalize(prop)

@@ -48,6 +48,43 @@ def test_standardise_nodes_edges(mini_config, mini_raw, tmp_path):
     assert summary["edges"] == {"PROVIDED_SAMPLE": 2}
 
 
+def test_report_values_flag_surfaces_samples(mini_config, mini_raw):
+    from src.standardise.run import report
+    rep = report("MINI", "test", raw_root=mini_raw, config_dir=mini_config, values=True)
+    # Sample node: method column is unused (it's the edge's column, not Sample's property)
+    sample = rep["nodes"]["Sample"]
+    assert len(sample["unused"]) > 0
+    entry = sample["unused"][0]
+    assert isinstance(entry, dict)
+    assert entry["column"] == "method"
+    assert any(v in entry["samples"] for v in ("Resection", "Biopsy"))
+
+
+def test_report_no_values_flag_returns_strings(mini_config, mini_raw):
+    from src.standardise.run import report
+    rep = report("MINI", "test", raw_root=mini_raw, config_dir=mini_config, values=False)
+    sample = rep["nodes"]["Sample"]
+    assert len(sample["unused"]) > 0
+    assert isinstance(sample["unused"][0], str)
+
+
+def test_format_report_renders_samples(mini_config, mini_raw):
+    from src.standardise.run import format_report, report
+    rep = report("MINI", "test", raw_root=mini_raw, config_dir=mini_config, values=True)
+    text = format_report(rep)
+    assert "method" in text
+    assert "Resection" in text or "Biopsy" in text
+
+
+def test_format_report_no_values_unchanged(mini_config, mini_raw):
+    from src.standardise.run import format_report, report
+    rep = report("MINI", "test", raw_root=mini_raw, config_dir=mini_config, values=False)
+    text = format_report(rep)
+    assert "method" in text
+    # no sample values should appear (bracket notation is only added with --values)
+    assert "[Resection" not in text and "[Biopsy" not in text
+
+
 def test_standardise_skips_missing_and_unbound(mini_config, mini_raw, tmp_path):
     summary = standardise(
         "MINI", "test",

@@ -71,6 +71,52 @@ def test_report_matched_unmatched_unused():
     assert "submitter_id" in rep["unused"]
 
 
+def test_shared_alias_resolves_below_profile_aliases():
+    r = ColumnResolver(["raw_col"], shared_aliases={"raw_col": "canonProp"})
+    assert r.resolve("canonProp") == ("raw_col", "shared_alias")
+
+
+def test_profile_alias_overrides_shared_alias():
+    r = ColumnResolver(
+        ["raw_col"],
+        global_aliases={"raw_col": "profileProp"},
+        shared_aliases={"raw_col": "sharedProp"},
+    )
+    assert r.resolve("profileProp") == ("raw_col", "alias")
+    assert r.resolve("sharedProp").strategy == "unmatched"
+
+
+def test_camel_beats_shared_alias():
+    # auto-camel should win; shared alias for a different canonical is separate
+    r = ColumnResolver(["my_prop"], shared_aliases={"my_prop": "otherProp"})
+    assert r.resolve("myProp").strategy == "camel"
+    assert r.resolve("otherProp") == ("my_prop", "shared_alias")
+
+
+def test_shared_alias_ignored_when_column_absent():
+    r = ColumnResolver(["x"], shared_aliases={"missing_col": "someProp"})
+    assert r.resolve("someProp").strategy == "unmatched"
+
+
+def test_load_mapping_loads_shared_aliases(tmp_path):
+    from src.standardise.mapping import load_mapping
+    cfg = tmp_path / "config"
+    (cfg / "mapping").mkdir(parents=True)
+    (cfg / "mapping" / "test.yaml").write_text("profile: test\n")
+    (cfg / "aliases.yaml").write_text("raw_col: canonProp\n")
+    m = load_mapping("test", config_dir=cfg)
+    assert m.shared_aliases == {"raw_col": "canonProp"}
+
+
+def test_load_mapping_shared_aliases_absent(tmp_path):
+    from src.standardise.mapping import load_mapping
+    cfg = tmp_path / "config"
+    (cfg / "mapping").mkdir(parents=True)
+    (cfg / "mapping" / "test.yaml").write_text("profile: test\n")
+    m = load_mapping("test", config_dir=cfg)
+    assert m.shared_aliases == {}
+
+
 def test_report_over_dataset(mini_config, mini_raw):
     rep = report("MINI", "test", raw_root=mini_raw, config_dir=mini_config)
 
