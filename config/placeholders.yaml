@@ -1,0 +1,18 @@
+# Tokens scrubbed to the empty string during standardise (case-insensitive,
+# after whitespace trim). Keeps sentinel "missing" markers out of the graph.
+placeholders:
+  - "NA"
+  - "N/A"
+  - "na"
+  - "null"
+  - "NULL"
+  - "None"
+  - "none"
+  - "--"
+  - "unknown"
+  - "Unknown"
+  - "not reported"
+  - "Not Reported"
+  - "not available"
+  - "Not Available"
+  - "'--"

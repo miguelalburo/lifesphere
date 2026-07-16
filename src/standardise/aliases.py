@@ -1,78 +1,141 @@
-"""Column-alias detection for the standardisation pipeline.
+"""Column lookup / alias matching — how a raw source column feeds a schema property.
 
-Source datasets often label the same concept with different column names
-(``bcr_patient_uuid`` vs ``case_id``, ``project.project_id`` vs ``project_id``).
-Rather than fork a schema per source, canonical names and their known aliases are
-declared in ``config/schemas/aliases.json`` and every recognised alias is
-rewritten to its canonical form *before* schema matching runs — so entities.json
-and edges.json only ever reference canonical column names.
+A :class:`ColumnResolver` is bound to one file's headers and answers, for each
+canonical schema property, "which raw column supplies this, and by what rule?".
+Resolution is a layered chain tried in strict priority order (first match wins),
+so a binding is either explicit config or an *exact* structural match — never a
+silent guess:
 
-aliases.json format:
-    { "<canonical_name>": ["<alias>", "<alias>", ...], ... }
+    1. override    node ``props: {canonical: raw}``            (highest priority)
+    2. alias       raw->canonical table (node overlays global)
+    3. camel       camelCase(raw) == canonical
+    4. normalized  lower+strip-non-alnum equal on both sides
+    5. suffix      dotted GDC names, e.g. ``diagnoses.tumor_grade`` -> ``tumorGrade``
 
-Alias matching is case-insensitive and ignores surrounding whitespace. Canonical
-names are never remapped, so an alias that collides with a real canonical column
-elsewhere in the schema is a config error the maintainer must avoid.
+Because ``resolve`` also returns the strategy that hit, the same object powers the
+``--report`` coverage view used to fill in a mapping profile against real data.
 """
 
-import json
-import sys
-from pathlib import Path
+from __future__ import annotations
+
+import re
+from typing import NamedTuple
+
+from .transform import camel
+
+_NON_ALNUM = re.compile(r"[^0-9a-z]+")
 
 
-def _norm(col: str) -> str:
-    return (col or "").strip().lower()
+def _normalize(name: str) -> str:
+    """Casefold and drop every non-alphanumeric char (snake/camel/space agnostic)."""
+    return _NON_ALNUM.sub("", name.lower())
 
 
-def load_alias_map(schema_dir: Path) -> dict[str, str]:
-    """Return a lookup of ``normalised_alias -> canonical_name``.
-
-    A missing ``aliases.json`` is non-fatal: an empty map is returned and no
-    renaming happens.  Aliases that resolve to conflicting canonical names are
-    reported and the first mapping wins.
-    """
-    p = schema_dir / "aliases.json"
-    if not p.exists():
-        print(f"  ! {p} not found — no column-alias renaming applied", file=sys.stderr)
-        return {}
-    with open(p) as f:
-        raw: dict[str, list[str]] = json.load(f)
-
-    alias_map: dict[str, str] = {}
-    for canonical, aliases in raw.items():
-        for alias in aliases:
-            key = _norm(alias)
-            if key in alias_map and alias_map[key] != canonical:
-                print(
-                    f"  ! alias '{alias}' maps to both '{alias_map[key]}' and "
-                    f"'{canonical}' — keeping '{alias_map[key]}'",
-                    file=sys.stderr,
-                )
-                continue
-            alias_map[key] = canonical
-    return alias_map
+def _index(pairs: list[tuple[str, str]]) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """Build a first-wins lookup, recording collisions for auditing."""
+    out: dict[str, str] = {}
+    collisions: dict[str, list[str]] = {}
+    for key, value in pairs:
+        if not key:
+            continue
+        if key in out:
+            collisions.setdefault(key, [out[key]]).append(value)
+        else:
+            out[key] = value
+    return out, collisions
 
 
-def canonicalise(columns: list[str], alias_map: dict[str, str]) -> list[str]:
-    """Rewrite any aliased column in ``columns`` to its canonical name.
+class Resolution(NamedTuple):
+    raw: str | None
+    strategy: str
 
-    Columns already matching a canonical name — or entirely unknown — are left
-    untouched.  When two source columns collapse onto the same canonical name a
-    warning is emitted; the downstream ``csv.DictReader`` then keeps the last
-    such column's value per row.
-    """
-    out: list[str] = []
-    origin: dict[str, str] = {}
-    for col in columns:
-        canon = alias_map.get(_norm(col), col)
-        if canon != col:
-            print(f"  · alias: '{col}' -> '{canon}'", file=sys.stderr)
-        if canon in origin and origin[canon] != col:
-            print(
-                f"  ! alias: columns '{origin[canon]}' and '{col}' both map to "
-                f"'{canon}' — later column wins per row",
-                file=sys.stderr,
-            )
-        origin[canon] = col
-        out.append(canon)
-    return out
+
+class ColumnResolver:
+    """Resolves canonical schema properties against one file's raw columns."""
+
+    def __init__(self, fieldnames: list[str], props: dict[str, str] | None = None,
+                 node_aliases: dict[str, str] | None = None,
+                 global_aliases: dict[str, str] | None = None,
+                 strip_prefixes: tuple[str, ...] = ()):
+        self.fieldnames = list(fieldnames)
+        self._present = set(fieldnames)
+        self._props = props or {}
+        self._strip_prefixes = tuple(strip_prefixes)
+
+        # raw->canonical alias table (node entries override global entries)
+        self._canon_to_raw: dict[str, str] = {}
+        for raw, canon in {**(global_aliases or {}), **(node_aliases or {})}.items():
+            if raw in self._present:
+                self._canon_to_raw.setdefault(canon, raw)
+
+        # Index by full header first (higher priority), then by prefix-stripped
+        # header, so an exact `morphology` always beats a stripped
+        # `diagnosis_morphology`. Values stay the real raw column names.
+        full = [(c, c) for c in fieldnames]
+        stripped = [(form, c) for c in fieldnames for form in self._stripped_forms(c)]
+        self._camel, self._camel_collisions = _index(
+            [(camel(name), c) for name, c in full + stripped]
+        )
+        self._norm, _ = _index([(_normalize(name), c) for name, c in full + stripped])
+        dotted = [(c.rsplit(".", 1)[-1], c) for c in fieldnames if "." in c]
+        self._suffix_camel, _ = _index([(camel(seg), c) for seg, c in dotted])
+        self._suffix_norm, _ = _index([(_normalize(seg), c) for seg, c in dotted])
+
+    def _stripped_forms(self, field: str) -> list[str]:
+        """Header names after removing any configured table-name prefix."""
+        return [
+            field[len(p):]
+            for p in self._strip_prefixes
+            if p and field.startswith(p) and len(field) > len(p)
+        ]
+
+    @property
+    def collisions(self) -> dict[str, list[str]]:
+        """camelCase keys that more than one raw column maps to (first was kept)."""
+        return self._camel_collisions
+
+    def resolve(self, prop: str) -> Resolution:
+        override = self._props.get(prop)
+        if override and override in self._present:
+            return Resolution(override, "override")
+        if prop in self._canon_to_raw:
+            return Resolution(self._canon_to_raw[prop], "alias")
+        if prop in self._camel:
+            return Resolution(self._camel[prop], "camel")
+        norm = _normalize(prop)
+        if norm in self._norm:
+            return Resolution(self._norm[norm], "normalized")
+        if prop in self._suffix_camel:
+            return Resolution(self._suffix_camel[prop], "suffix")
+        if norm in self._suffix_norm:
+            return Resolution(self._suffix_norm[norm], "suffix")
+        return Resolution(None, "unmatched")
+
+    def resolved_map(self, props) -> dict[str, str | None]:
+        """Precompute {canonical -> raw column | None} for a set of properties."""
+        return {p: self.resolve(p).raw for p in props}
+
+    def report(self, props, *, reserved: tuple[str, ...] = ()) -> dict:
+        """Coverage for a set of properties: matched / unmatched / unused columns.
+
+        ``reserved`` names raw columns already consumed elsewhere (id key, edge
+        endpoint columns) so they aren't reported as unused.
+        """
+        matched: list[tuple[str, str, str]] = []
+        unmatched: list[str] = []
+        used: set[str] = set()
+        for prop in props:
+            res = self.resolve(prop)
+            if res.raw:
+                matched.append((prop, res.raw, res.strategy))
+                used.add(res.raw)
+            else:
+                unmatched.append(prop)
+        consumed = used | set(reserved)
+        unused = [c for c in self.fieldnames if c not in consumed]
+        return {
+            "matched": matched,
+            "unmatched": unmatched,
+            "unused": unused,
+            "collisions": self.collisions,
+        }

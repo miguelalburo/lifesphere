@@ -1,319 +1,58 @@
-"""Unit tests for Stage 1 standardisation (src/standardise).
+"""End-to-end standardise on a tiny self-contained fixture."""
 
-Uses a tiny synthetic raw extract (no network) to assert the mapping contract:
-grain preservation, prefix-stripping renames, linkage-column dropping,
-Program/Project dedup, placeholder scrub, and edge referential integrity.
-"""
+from __future__ import annotations
 
 import csv
-import json
-import shutil
 from pathlib import Path
 
-import pytest
-
-from src.standardise.aliases import canonicalise, load_alias_map
-from src.standardise.run import run
-
-BASE = "TEST-XX"
-_REAL_SCHEMA_DIR = Path(__file__).resolve().parents[1] / "config" / "schemas"
+from src.standardise import standardise
 
 
-def _write_tsv(path: Path, header: list[str], rows: list[list[str]]) -> None:
-    with open(path, "w", newline="") as f:
-        w = csv.writer(f, delimiter="\t")
-        w.writerow(header)
-        w.writerows(rows)
+def _read(path: Path) -> tuple[list[str], list[list[str]]]:
+    with path.open(newline="", encoding="utf-8") as fh:
+        rows = list(csv.reader(fh))
+    return rows[0], rows[1:]
 
 
-@pytest.fixture(scope="module")
-def std_dir(tmp_path_factory) -> Path:
-    """Build a minimal raw extract, standardise it, return the output dir."""
-    raw = tmp_path_factory.mktemp("raw")
-    out = tmp_path_factory.mktemp("std")
-
-    # 2 cases in the SAME project/program. Subject nodes + HAS_STUDY/HAS_SUBJECT edges
-    # come from this file; the Program/Study *nodes* come from the dedicated
-    # program/project extract files below.
-    _write_tsv(raw / f"{BASE}.subject.tsv",
-        ["case_id", "submitter_id", "disease_type", "primary_site",
-         "index_date", "index_date_type", "project_id", "project_name",
-         "program_name", "demographic_sex_at_birth", "demographic_vital_status"],
-        [["c1", "TCGA-01", "Adeno", "Breast", "Diagnosis", "", "TCGA-BRCA",
-          "Breast Invasive Carcinoma", "TCGA", "Female", "Alive"],
-         ["c2", "TCGA-02", "Adeno", "Breast", "Diagnosis", "", "TCGA-BRCA",
-          "Breast Invasive Carcinoma", "TCGA", "[Not Available]", "Dead"]])
-
-    # Program/Study nodes come from dedicated post-processed extract files; duplicate
-    # rows here exercise dedup on program_name / project_id.
-    _write_tsv(raw / f"{BASE}.program.tsv",
-        ["program_name"],
-        [["TCGA"], ["TCGA"]])
-    _write_tsv(raw / f"{BASE}.project.tsv",
-        ["project_id", "project_name", "disease_type", "primary_site", "program_name"],
-        [["TCGA-BRCA", "Breast Invasive Carcinoma", "Adeno", "Breast", "TCGA"],
-         ["TCGA-BRCA", "Breast Invasive Carcinoma", "Adeno", "Breast", "TCGA"]])
-
-    # case c1 has TWO diagnoses (multiplicity); c2 has one.
-    _write_tsv(raw / f"{BASE}.diagnosis.tsv",
-        ["case_id", "case_submitter_id", "diagnosis_id", "diagnosis_submitter_id",
-         "diagnosis_primary_diagnosis", "diagnosis_ajcc_pathologic_stage"],
-        [["c1", "TCGA-01", "d1", "TCGA-01_d", "Carcinoma", "Stage II"],
-         ["c1", "TCGA-01", "d2", "TCGA-01_d2", "Carcinoma", "[Not Evaluated]"],
-         ["c2", "TCGA-02", "d3", "TCGA-02_d", "Carcinoma", "Stage III"]])
-
-    # After re-parenting, UNDERWENT_INTERVENTION sources from sample_id.
-    _write_tsv(raw / f"{BASE}.treatment.tsv",
-        ["case_id", "case_submitter_id", "diagnosis_id", "sample_id", "treatment_id",
-         "treatment_submitter_id", "treatment_treatment_type"],
-        [["c1", "TCGA-01", "d1", "s1", "t1", "TCGA-01_t", "Pharmaceutical"],
-         ["c1", "TCGA-01", "d1", "s1", "t2", "TCGA-01_t2", "Radiation"]])
-
-    # follow_up.tsv still emitted by extractor but FollowUp entity is retired;
-    # the standardiser skips it. Included here to confirm no crash on unmatched files.
-    _write_tsv(raw / f"{BASE}.follow_up.tsv",
-        ["case_id", "case_submitter_id", "follow_up_id", "follow_up_submitter_id",
-         "follow_up_days_to_follow_up"],
-        [["c1", "TCGA-01", "f1", "TCGA-01_f", "100"]])
-
-    # molecular_test folded into PhenotypeObservation; diagnosis_id links to the edge.
-    _write_tsv(raw / f"{BASE}.molecular_test.tsv",
-        ["case_id", "case_submitter_id", "parent_entity", "parent_id", "diagnosis_id",
-         "molecular_test_id", "molecular_test_submitter_id", "molecular_test_gene_symbol"],
-        [["c1", "TCGA-01", "diagnosis", "d1", "d1", "m1", "TCGA-01_m", "ERBB2"],
-         # follow_up-linked test re-anchored to first diagnosis
-         ["c1", "TCGA-01", "follow_up", "f1", "d1", "m2", "TCGA-01_m2", "ESR1"]])
-
-    _write_tsv(raw / f"{BASE}.sample.tsv",
-        ["case_id", "case_submitter_id", "sample_id", "sample_submitter_id",
-         "sample_sample_type", "sample_tissue_type"],
-        [["c1", "TCGA-01", "s1", "TCGA-01_s", "Primary Tumor", "Tumor"],
-         ["c2", "TCGA-02", "s2", "TCGA-02_s", "Primary Tumor", "Tumor"]])
-
-    run(raw, out)
-    return out
-
-
-def _read(path: Path) -> list[dict]:
-    with open(path) as f:
-        return list(csv.DictReader(f))
-
-
-def _node(std: Path, label: str) -> list[dict]:
-    return _read(std / "nodes" / f"{label}.csv")
-
-
-def _edge(std: Path, label: str) -> list[dict]:
-    return _read(std / "edges" / f"{label}.csv")
-
-
-def test_grain_preserved(std_dir):
-    assert len(_node(std_dir, "Subject")) == 2
-    assert len(_node(std_dir, "Diagnosis")) == 3        # multiplicity kept
-    assert len(_node(std_dir, "Intervention")) == 2
-
-
-def test_program_project_dedup(std_dir):
-    assert len(_node(std_dir, "Program")) == 1
-    assert len(_node(std_dir, "Study")) == 1
-    assert len(_edge(std_dir, "HAS_STUDY")) == 1        # renamed from HAS_PROJECT
-
-
-def test_demographic_folded_and_renamed(std_dir):
-    header = list(_node(std_dir, "Subject")[0].keys())
-    # demographic_ prefix stripped, project/program columns dropped, output camelCased
-    assert "sexAtBirth" in header and "vitalStatus" in header
-    assert not any(h.startswith("demographic") for h in header)
-    # study_id and program_id are in drop list; neither studyId nor programId appears
-    assert "studyId" not in header and "programId" not in header
-
-
-def test_child_prefix_stripped(std_dir):
-    header = list(_node(std_dir, "Diagnosis")[0].keys())
-    assert "ajccPathologicStage" in header      # was diagnosis_ajcc_pathologic_stage
-    assert "subjectId" not in header             # linkage column dropped (was caseId)
-    assert header[0] == "id"
-
-
-def test_placeholder_scrubbed(std_dir):
-    subj = {r["id"]: r for r in _node(std_dir, "Subject")}
-    assert subj["c2"]["sexAtBirth"] == ""        # "[Not Available]" -> ""
-    diag = {r["id"]: r for r in _node(std_dir, "Diagnosis")}
-    assert diag["d2"]["ajccPathologicStage"] == ""  # "[Not Evaluated]" -> ""
-
-
-def test_edge_referential_integrity(std_dir):
-    subj_ids = {r["id"] for r in _node(std_dir, "Subject")}
-    diag_ids = {r["id"] for r in _node(std_dir, "Diagnosis")}
-    hd = _edge(std_dir, "HAS_DIAGNOSIS")
-    assert {r["source_id"] for r in hd} <= subj_ids
-    assert {r["target_id"] for r in hd} == diag_ids
-
-
-def test_biomarker_folded_into_phenotype_observation(std_dir):
-    """MolecularTest rows fold into PhenotypeObservation; HAS_PHENOTYPE_OBSERVATION sources from Diagnosis."""
-    phenotype_ids = {r["id"] for r in _node(std_dir, "PhenotypeObservation")}
-    assert "m1" in phenotype_ids and "m2" in phenotype_ids
-
-    # No FollowUp or MolecularTest nodes should be emitted
-    assert not (std_dir / "nodes" / "FollowUp.csv").exists()
-    assert not (std_dir / "nodes" / "MolecularTest.csv").exists()
-    assert not (std_dir / "edges" / "HAS_MOLECULAR_TEST.csv").exists()
-    assert not (std_dir / "edges" / "HAS_FOLLOWUP.csv").exists()
-
-    # HAS_PHENOTYPE_OBSERVATION sources from diagnosis ids
-    diag_ids = {r["id"] for r in _node(std_dir, "Diagnosis")}
-    pheno_edges = _edge(std_dir, "HAS_PHENOTYPE_OBSERVATION")
-    assert {r["source_id"] for r in pheno_edges} <= diag_ids
-    assert "m1" in {r["target_id"] for r in pheno_edges}
-    assert "m2" in {r["target_id"] for r in pheno_edges}
-
-
-def test_underwent_intervention_sources_from_sample(std_dir):
-    """UNDERWENT_INTERVENTION edge sources from Sample (re-parented from Diagnosis)."""
-    sample_ids = {r["id"] for r in _node(std_dir, "Sample")}
-    edges = _edge(std_dir, "UNDERWENT_INTERVENTION")
-    assert len(edges) == 2
-    assert {r["source_id"] for r in edges} <= sample_ids
-    assert {r["target_id"] for r in edges} == {"t1", "t2"}
-
-
-def test_intervention_subtype_label(std_dir):
-    """Intervention rows carry _subtypeLabel from treatment_type; unmapped → empty."""
-    interventions = {r["id"]: r for r in _node(std_dir, "Intervention")}
-    assert interventions["t1"]["_subtypeLabel"] == "Drug"
-    assert interventions["t2"]["_subtypeLabel"] == "Radiation"
-
-
-def test_intervention_unmapped_subtype_is_empty(tmp_path):
-    """An unmapped treatment_type produces an empty _subtypeLabel, never an error."""
-    raw = tmp_path / "raw"
-    raw.mkdir()
-    out = tmp_path / "std"
-    _write_tsv(raw / f"{BASE}.treatment.tsv",
-        ["case_id", "case_submitter_id", "diagnosis_id", "sample_id", "treatment_id",
-         "treatment_submitter_id", "treatment_treatment_type"],
-        [["c1", "TCGA-01", "d1", "s1", "t1", "TCGA-01_t", "Unknown Treatment Type"]])
-    run(raw, out)
-    rows = _read(out / "nodes" / "Intervention.csv")
-    assert rows[0]["_subtypeLabel"] == ""
-
-
-# --------------------------------------------------------------------------- #
-# Column-alias detection                                                       #
-# --------------------------------------------------------------------------- #
-
-def test_load_alias_map_missing_file(tmp_path):
-    """A schema dir without aliases.json yields an empty (no-op) map."""
-    assert load_alias_map(tmp_path) == {}
-
-
-def test_load_alias_map_normalises_and_inverts(tmp_path):
-    (tmp_path / "aliases.json").write_text(
-        json.dumps({"subject_id": ["BCR_Patient_UUID", " case_uuid "]})
+def test_standardise_nodes_edges(mini_config, mini_raw, tmp_path):
+    out_root = tmp_path / "std"
+    summary = standardise(
+        "MINI", "test",
+        raw_root=mini_raw, out_root=out_root, config_dir=mini_config, log=False,
     )
-    amap = load_alias_map(tmp_path)
-    assert amap == {"bcr_patient_uuid": "subject_id", "case_uuid": "subject_id"}
+    out = out_root / "MINI"
 
+    # dedup + placeholder scrub + explicit and auto camel mapping
+    header, rows = _read(out / "nodes" / "Subject.csv")
+    assert header == ["subjectId", "sexAtBirth", "subjectType"]
+    assert rows == [["c1", "female", "patient"], ["c2", "", "patient"]]
 
-def test_canonicalise_renames_known_leaves_unknown():
-    amap = {"bcr_patient_uuid": "subject_id"}
-    assert canonicalise(["BCR_Patient_UUID", "other"], amap) == ["subject_id", "other"]
+    header, rows = _read(out / "nodes" / "Sample.csv")
+    assert header == ["sampleId", "subjectId", "sampleClass"]
+    assert rows == [["s1", "c1", "Primary Tumor"], ["s2", "c2", ""]]
 
+    # subtype column emitted for the multi-labelled node
+    header, rows = _read(out / "nodes" / "Widget.csv")
+    assert header == ["widgetId", "color", "_subtypeLabel"]
+    assert rows == [["w1", "red", "Big"], ["w2", "blue", "Huge"]]
 
-@pytest.fixture(scope="module")
-def aliased_schema_dir(tmp_path_factory) -> Path:
-    """Real schemas plus a custom aliases.json for an alternately-named source."""
-    d = tmp_path_factory.mktemp("schemas")
-    for fname in ("entities.json", "edges.json", "placeholders.json"):
-        shutil.copy(_REAL_SCHEMA_DIR / fname, d / fname)
-    # Use the new canonical column names with old names as aliases
-    (d / "aliases.json").write_text(
-        json.dumps({
-            "subject_id": ["bcr_patient_uuid"],
-            "study_id": ["project.project_id"],
-            "program_id": ["program.name"],
-        })
-    )
-    return d
-
-
-def test_alias_renaming_end_to_end(tmp_path, aliased_schema_dir):
-    """A subject file using aliased headers still matches schemas and links up."""
-    raw = tmp_path / "raw"
-    raw.mkdir()
-    out = tmp_path / "std"
-    _write_tsv(raw / f"{BASE}.subject.tsv",
-        ["bcr_patient_uuid", "submitter_id", "disease_type", "primary_site",
-         "project.project_id", "project_name", "program.name",
-         "demographic_vital_status"],
-        [["c1", "TCGA-01", "Adeno", "Breast", "TCGA-BRCA",
-          "Breast Invasive Carcinoma", "TCGA", "Alive"]])
-
-    _write_tsv(raw / f"{BASE}.program.tsv",
-        ["program.name"],
-        [["TCGA"]])
-    _write_tsv(raw / f"{BASE}.project.tsv",
-        ["project.project_id"],
-        [["TCGA-BRCA"]])
-
-    run(raw, out, aliased_schema_dir)
-
-    # Subject node keyed by the canonicalised subject_id, not the alias.
-    subjects = _read(out / "nodes" / "Subject.csv")
-    assert [s["id"] for s in subjects] == ["c1"]
-    # Program/Study resolved from aliased columns.
-    assert [p["id"] for p in _read(out / "nodes" / "Program.csv")] == ["TCGA"]
-    assert [p["id"] for p in _read(out / "nodes" / "Study.csv")] == ["TCGA-BRCA"]
-    # Edges built off the canonical FK names.
-    has_subject = _read(out / "edges" / "HAS_SUBJECT.csv")
-    assert has_subject == [{"source_id": "TCGA-BRCA", "target_id": "c1"}]
-
-
-# --------------------------------------------------------------------------- #
-# Edge properties                                                             #
-# --------------------------------------------------------------------------- #
-
-def test_edge_props_emitted_scrubbed_and_missing_dropped(tmp_path):
-    """Declared edge props are emitted (placeholder-scrubbed); absent ones dropped."""
-    from src.standardise.run import _make_clean, standardise_edge
-
-    raw = tmp_path / "in.tsv"
-    _write_tsv(raw,
-        ["sample_id", "cell_set_id", "contributed_cell_count", "fraction_of_sample_cells"],
-        [["s1", "cs1", "120", "0.18"],
-         ["s2", "cs1", "[Not Available]", "0.07"]])
-    (tmp_path / "edges").mkdir()
-
-    schema = {
-        "label": "CONTRIBUTES_TO",
-        "source_id": "sample_id",
-        "target_id": "cell_set_id",
-        # 'missing_col' is declared but not in the file -> dropped from output
-        "props": ["contributed_cell_count", "fraction_of_sample_cells", "missing_col"],
-        "dedup": False,
-    }
-    clean = _make_clean(frozenset({"[Not Available]"}))
-    n = standardise_edge(schema, raw, tmp_path, clean)
-    assert n == 2
-
-    rows = _read(tmp_path / "edges" / "CONTRIBUTES_TO.csv")
-    assert list(rows[0].keys()) == [
-        "source_id", "target_id", "contributedCellCount", "fractionOfSampleCells"
+    # edge with resolved endpoints + startLabel/endLabel
+    header, rows = _read(out / "edges" / "PROVIDED_SAMPLE.csv")
+    assert header == ["startId", "endId", "startLabel", "endLabel", "derivationMethod"]
+    assert rows == [
+        ["c1", "s1", "Subject", "Sample", "Resection"],
+        ["c2", "s2", "Subject", "Sample", "Biopsy"],
     ]
-    assert rows[0]["contributedCellCount"] == "120"
-    assert rows[1]["contributedCellCount"] == ""     # placeholder scrubbed to empty
+
+    assert summary["nodes"] == {"Subject": 2, "Sample": 2, "Widget": 2}
+    assert summary["edges"] == {"PROVIDED_SAMPLE": 2}
 
 
-def test_plain_edge_stays_two_column(tmp_path):
-    """An edge schema with no props declared emits exactly source_id,target_id."""
-    from src.standardise.run import _make_clean, standardise_edge
-
-    raw = tmp_path / "in.tsv"
-    _write_tsv(raw, ["subject_id", "diagnosis_id", "extra"], [["c1", "d1", "ignored"]])
-    (tmp_path / "edges").mkdir()
-    schema = {"label": "HAS_DIAGNOSIS", "source_id": "subject_id",
-              "target_id": "diagnosis_id", "dedup": False}
-    standardise_edge(schema, raw, tmp_path, _make_clean(frozenset()))
-    rows = _read(tmp_path / "edges" / "HAS_DIAGNOSIS.csv")
-    assert list(rows[0].keys()) == ["source_id", "target_id"]
+def test_standardise_skips_missing_and_unbound(mini_config, mini_raw, tmp_path):
+    summary = standardise(
+        "MINI", "test",
+        raw_root=mini_raw, out_root=tmp_path / "std", config_dir=mini_config, log=False,
+    )
+    # Ghost maps to an absent file -> skipped, never raises
+    assert "Ghost" in summary["skipped"]
+    assert not (tmp_path / "std" / "MINI" / "nodes" / "Ghost.csv").exists()

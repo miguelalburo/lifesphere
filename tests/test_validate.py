@@ -1,59 +1,51 @@
-"""Unit tests for the offline referential-integrity validator (src/load/validate)."""
+"""Offline referential-integrity validation against the real schema."""
 
-import csv
+from __future__ import annotations
+
 from pathlib import Path
 
-from src.load.validate import validate
+from conftest import write
+
+from src.validate import validate
 
 
-def _write(path: Path, header: list[str], rows: list[list[str]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(header)
-        w.writerows(rows)
+def _clean(root: Path) -> Path:
+    ds = root / "STD" / "MINI"
+    write(ds / "nodes" / "Subject.csv", "subjectId,sexAtBirth\nTCGA-1,female\n")
+    write(ds / "nodes" / "Sample.csv", "sampleId,subjectId\nS1,TCGA-1\n")
+    write(
+        ds / "edges" / "PROVIDED_SAMPLE.csv",
+        "startId,endId,startLabel,endLabel,derivationMethod\n"
+        "TCGA-1,S1,Subject,Sample,Resection\n",
+    )
+    return root / "STD"
 
 
-def _std_dir(tmp_path: Path) -> Path:
-    # Nodes: Subject c1,c2 ; Diagnosis d1,d2
-    _write(tmp_path / "nodes" / "Subject.csv", ["id", "vital_status"],
-           [["c1", "Alive"], ["c2", "Dead"]])
-    _write(tmp_path / "nodes" / "Diagnosis.csv", ["id", "stage"],
-           [["d1", "II"], ["d2", "III"]])
-    return tmp_path
+def test_clean_dataset_has_no_problems(tmp_path):
+    report = validate("MINI", standardised_root=_clean(tmp_path))
+    assert report["problems"] == []
+    assert report["node_ids"] == 2
+    assert report["edges"] == 1
 
 
-def test_clean_graph_has_no_dangling(tmp_path):
-    std = _std_dir(tmp_path)
-    _write(std / "edges" / "HAS_DIAGNOSIS.csv", ["source_id", "target_id"],
-           [["c1", "d1"], ["c2", "d2"]])
-
-    reports = {r.label: r for r in validate(std)}
-    rep = reports["HAS_DIAGNOSIS"]
-    assert rep.ok
-    assert rep.total == 2
-    assert rep.dangling_source == 0 and rep.dangling_target == 0
-
-
-def test_dangling_endpoints_detected_and_typed(tmp_path):
-    std = _std_dir(tmp_path)
-    # c9 (bad source) and d9 (bad target) reference nonexistent nodes.
-    _write(std / "edges" / "HAS_DIAGNOSIS.csv", ["source_id", "target_id"],
-           [["c1", "d1"], ["c9", "d2"], ["c2", "d9"]])
-
-    rep = {r.label: r for r in validate(std)}["HAS_DIAGNOSIS"]
-    assert not rep.ok
-    assert rep.total == 3
-    assert rep.dangling_source == 1 and "c9" in rep.src_examples
-    assert rep.dangling_target == 1 and "d9" in rep.tgt_examples
+def test_dangling_edge_is_flagged(tmp_path):
+    std_root = _clean(tmp_path)
+    # add an edge pointing at a non-existent Sample
+    write(
+        std_root / "MINI" / "edges" / "PROVIDED_SAMPLE.csv",
+        "startId,endId,startLabel,endLabel,derivationMethod\n"
+        "TCGA-1,S1,Subject,Sample,Resection\n"
+        "TCGA-1,GHOST,Subject,Sample,Resection\n",
+    )
+    report = validate("MINI", standardised_root=std_root)
+    assert any("dangling endId 'GHOST'" in p for p in report["problems"])
 
 
-def test_typed_endpoint_rejects_right_id_wrong_label(tmp_path):
-    """A Subject id used where a Diagnosis is expected counts as dangling."""
-    std = _std_dir(tmp_path)
-    # target 'c1' exists as a Subject but HAS_DIAGNOSIS.target must be a Diagnosis.
-    _write(std / "edges" / "HAS_DIAGNOSIS.csv", ["source_id", "target_id"],
-           [["c1", "c1"]])
-
-    rep = {r.label: r for r in validate(std)}["HAS_DIAGNOSIS"]
-    assert rep.dangling_target == 1
+def test_duplicate_id_is_flagged(tmp_path):
+    std_root = _clean(tmp_path)
+    write(
+        std_root / "MINI" / "nodes" / "Subject.csv",
+        "subjectId,sexAtBirth\nTCGA-1,female\nTCGA-1,male\n",
+    )
+    report = validate("MINI", standardised_root=std_root)
+    assert any("duplicate id" in p for p in report["problems"])

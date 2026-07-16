@@ -1,0 +1,257 @@
+# LifeSphere KG v2 — node catalogue (graph definition).
+#
+# Derived from docs/other/lifesphere_kg_schema_v2.md §4 (labels + key ids) and
+# §7 (property catalogues). Dataset-independent: this is the shape of the graph,
+# not the source->schema binding (that lives in config/mapping/<profile>.yaml).
+#
+# Per label:
+#   id          camelCase primary-key property (doc "Key Identifier").
+#   properties  non-key properties emitted as node columns (camelCase).
+#   subtypeLabels / subtypeFrom  multi-labelling (§2.4); only Intervention today.
+#
+# Property names are authoritative and already camelCase — the standardise engine
+# emits exactly these columns per node.
+
+# ─────────────────────── Study / Sample backbone ───────────────────────
+
+Publication:
+  id: publicationId
+  properties: [title, authors, journal, publicationDate, doi, pmid, publicationType, url, abstract, sourceDatabase]
+
+Program:
+  id: programId
+  properties: [programName, programAbbreviation, description, fundingAgency, programType, country, startDate, endDate, url, sourceDatabase]
+
+Study:
+  id: studyId
+  properties: [studyAbbreviation, studyName, description, diseaseType, primarySite, studyDesign, enrollmentCount, studyPhase, sourceDataset, dataAccessLevel, cohortName]
+
+Subject:
+  id: subjectId
+  properties: [submitterId, subjectType, species, sexAtBirth, race, ethnicity, ageAtIndexDays, ageUnit, geneticAncestry, developmentalStage, strain, baselineBmi, bloodType, consentStatus, donorId]
+
+Sample:
+  id: sampleId
+  properties: [subjectId, externalSampleId, sampleClass, sampleType, sampleMaterial, collectionMethod, daysToCollection, cellularComposition, cellLineName, passageNumber, preservationMethod, purity, suspensionType, sourceDataset, sourceFile]
+
+Assay:
+  id: assayId
+  properties: [assayType, platform, libraryStrategy, referenceGenome, geneAnnotationVersion, sourceDataset, sourceFile, assayDate, omicsInfo, chemistry, isSingleCellAssay]
+
+LibraryPreparation:
+  id: libraryPreparationId
+  properties: [libraryPreparationName, libraryStrategy, libraryProtocol, libraryKit, inputMaterial, selectionMethod, fragmentationMethod, amplificationMethod, barcodeStrategy, libraryLayout, readLength, chemistry, sourceDataset, sourceFile]
+
+Organism:
+  id: taxonId
+  properties: [scientificName, commonName]
+
+Tissue:
+  id: tissueId
+  properties: [tissueName, tissueType, sourceVocabulary]
+
+Organ:
+  id: organId
+  properties: [organName, organSystem]
+
+DevelopmentalStage:
+  id: stageId
+  properties: [stageName, ageRange, sourceVocabulary]
+
+ExperimentalCondition:
+  id: conditionId
+  properties: [conditionName, conditionType, conditionLabel, description, dose, doseUnit, duration, durationUnit]
+
+# ─────────────────────── Clinical layer ───────────────────────
+
+Disease:
+  id: diseaseId
+  properties: [diseaseType, diseaseName, ontologyId, sourceVocabulary, sourceDataset]
+
+Diagnosis:
+  id: diagnosisId
+  properties: [subjectId, diseaseId, diagnosisRole, diagnosisCode, diagnosisCodeSystem, diagnosisMethod, ageAtDiagnosisDays, diseaseSubtype, pathologicStage, tumorGrade, tumorSubtype, ageOfOnsetDays, severityScore, severityScale, infectiousAgentId, infectiousAgentName, isNormal, sourceDataset]
+
+PathologyDetail:
+  id: pathologyDetailId
+  properties: [diagnosisId, sampleId, tissueCondition, cellularityPercent, inflammationScore, necrosisPercent, morphologyDescription, pathologyMethod, anatomicalSite]
+
+Survival:
+  id: survivalId
+  properties: [subjectId, survivalType, timeOrigin, timeToEventDays, eventType, eventOccurred, lastFollowUpDays, censoringReason, derivationMethod]
+
+PhenotypeObservation:
+  id: phenotypeObservationId
+  properties: [subjectId, sampleId, diagnosisId, perturbationId, hpoId, phenotypeName, category, phenotypeType, value, status, unit, severityScore, severityScale, observationDay, observationDate, sourceDataset, sourceFile]
+
+# ─────────────────────── Evidence layer ───────────────────────
+
+Evidence:
+  id: evidenceId
+  properties: [publicationId, evidenceText, claimText, evidenceType, evidenceLevel, evidenceScope, associationType, confidenceScore, extractionMethod, section, page, paragraphIndex, sourceFile, sourceDatabase]
+
+# ─────────────────────── Genomic / regulatory reference ───────────────────────
+
+Gene:
+  id: geneId
+  properties: [symbol, name, organismTaxonId, ensemblGeneId, hgncId, entrezId, aliases, description, chromosome, startPosition, endPosition, strand]
+
+GenomicRegion:
+  id: regionId
+  properties: [referenceGenome, chromosome, start, end, name, description]
+
+Variant:
+  id: variantId
+  properties: [variantClass, referenceGenome, chromosome, positionStart, positionEnd, referenceAllele, alternateAllele, displayName, geneId, regionId]
+
+RegulatoryElement:
+  id: elementId
+  properties: [elementName, elementType, referenceGenome, chromosome, startPosition, endPosition, strand, coordinateSystem, tissueSpecificity, cellTypeSpecificity, elementStatus, sourceDatabase, annotationVersion]
+
+# ─────────────────────── Epigenome / methylation ───────────────────────
+
+CpGSite:
+  id: cpgId
+  properties: [chromosome, startPosition, endPosition, strand, geneSymbol, ensemblGeneId, annotationSource, annotationVersion, genomeBuild]
+
+MethylationObservation:
+  id: methylationObservationId
+  properties: [observationType, sampleId, assayId, cpgId, betaValue, methylationStatus, methylationStatusMethod, numCpGSites, modificationType, qualityScore, normalizationMethod, sourceDataset, sourceFile, pipelineVersion, configKey]
+
+MethylationStatusRule:
+  id: methylationStatusRuleId
+  properties: [ruleName, ruleType, ruleDescription, betaValueScale, hypoThreshold, hyperThreshold, intermediateLowerBound, intermediateUpperBound, sourcePublicationId]
+
+# ─────────────────────── Molecular observations ───────────────────────
+
+VariantObservation:
+  id: variantObservationId
+  properties: [variantCaller, callStatus, somaticStatus, zygosity, variantAlleleFrequency, tumorReadCount, tumorVariantCount, normalReadCount, normalVariantCount, clinicalSignificance, pathogenicityScore, filterStatus, pipelineVersion, sourceDataset, sourceFile, assayId, sampleId, variantId, qualityScore]
+
+ExpressionObservation:
+  id: expressionObservationId
+  properties: [sampleId, assayId, geneId, observationType, expressionValue, expressionUnit, qualityScore, normalizationMethod, sourceDataset, sourceFile, pipelineVersion, configKey]
+
+ProteinObservation:
+  id: proteinObservationId
+  properties: [sampleId, assayId, proteinId, observationType, expressionValue, expressionUnit, qualityScore, detectionStatus, quantificationMethod, normalizationMethod, sourceDataset, sourceFile, configKey]
+
+MetaboliteObservation:
+  id: metaboliteObservationId
+  properties: [sampleId, assayId, metaboliteId, observationType, abundanceValue, abundanceUnit, qualityScore, detectionStatus, quantificationMethod, normalizationMethod, sourceDataset, sourceFile, configKey]
+
+# ─────────────────────── Protein / metabolite / pathway reference ───────────────────────
+
+Protein:
+  id: proteinId
+  properties: [uniprotId, proteinName, geneId, organismTaxonId, sequenceLength, proteinFamilies, ptmTypes, sourceDatabase, annotationVersion]
+
+Metabolite:
+  id: metaboliteId
+  properties: [metaboliteName, chemicalFormula, monoisotopicWeight, hmdbId, keggId, chebiId]
+
+Pathway:
+  id: pathwayId
+  properties: [pathwayName, description, organismTaxonId, organism, ontologyId, sourceVocabulary, pathwayType, annotationVersion]
+
+# ─────────────────────── Single-cell ───────────────────────
+
+Repository:
+  id: repositoryId
+  properties: [repositoryName, curationLevel, url, dataAccessLevel]
+
+SingleCellDataset:
+  id: singleCellDatasetId
+  properties: [datasetTitle, repositoryDatasetId, cellCount, modality, downloadUrl, datasetVersion, dataAccessLevel, license, sourceDataset]
+
+CellSet:
+  id: cellSetId
+  properties: [cellSetType, sourceClusterId, cellCount, sourceCellTypeLabel, sourceAnnotationField, sourceAnnotationValue]
+
+CellType:
+  id: cellTypeId
+  properties: [cellTypeName]
+
+CellState:
+  id: cellStateId
+  properties: [cellStateName]
+
+Feature:
+  id: featureId
+  properties: [featureName, featureType]
+
+# ─────────────────────── Intervention / agent / perturbation ───────────────────────
+
+Intervention:
+  id: interventionId
+  subtypeLabels: [Drug, Radiation, Immunotherapy, Surgery, Therapy, Exposure]
+  subtypeFrom: _subtypeLabel
+  properties:
+    # base (:Intervention)
+    - sampleId
+    - interventionName
+    - interventionType
+    - interventionSubtype
+    - startDay
+    - endDay
+    - durationDays
+    - intentType
+    - status
+    - sourceDataset
+    - sourceFile
+    # :Drug
+    - doseValue
+    - doseUnit
+    - doseFrequency
+    - routeOfAdministration
+    - lineOfTherapy
+    - regimenName
+    - cycleNumber
+    - cycleLengthDays
+    - combinationTherapyFlag
+    # :Radiation
+    - radiationType
+    - targetSite
+    - totalDoseCGy
+    - fractionDoseCGy
+    - numberOfFractions
+    - radiationTechnique
+    # :Immunotherapy
+    - immunotherapyType
+    - checkpointTarget
+    - immuneTarget
+    - cellTherapyType
+    - vaccineType
+    - biomarkerRequirement
+    # :Surgery
+    - anatomicalSite
+    - laterality
+    - surgeryType
+    - resectionStatus
+    - marginStatus
+    # :Therapy
+    - therapyType
+    - therapyFocusArea
+    - sessionCount
+    - durationMinutes
+    - providerType
+    # :Exposure
+    - exposureType
+    - exposureDose
+    - exposureUnit
+    - exposureDuration
+    - exposureRoute
+    - exposureSetting
+    - exposureFrequency
+
+ChemicalEntity:
+  id: chemicalEntityId
+  properties: [name, genericName, brandName, chemicalClass, mechanismOfAction, drugBankId, chemblId, pubChemCid, rxNormCode, agentCategory, sourceDatabase, description]
+
+Procedure:
+  id: procedureId
+  properties: [procedureName, procedureCode, procedureCodeSystem, procedureType, sourceVocabulary, description, sourceDatabase]
+
+Perturbation:
+  id: perturbationId
+  properties: [sampleId, perturbationName, perturbationType, perturbationMethod, targetSequence, guideRnaSequence, overexpressionVector, perturbationDose, doseUnit, duration, durationUnit, knockdownEfficiency, knockoutStatus, confirmationStatus, sourceDataset, sourceFile, sourceRecordId, configKey]

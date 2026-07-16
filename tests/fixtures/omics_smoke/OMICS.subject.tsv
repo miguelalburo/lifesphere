@@ -1,3 +1,0 @@
-case_id	case_submitter_id	program_name	project_id	project_name	disease_type	primary_site	demographic_sex_at_birth	demographic_vital_status
-C1	TCGA-XX-0001	TCGA	TCGA-BRCA	Breast Invasive Carcinoma	Adenomas and Adenocarcinomas	Breast	Female	Alive
-C2	TCGA-XX-0002	TCGA	TCGA-BRCA	Breast Invasive Carcinoma	Adenomas and Adenocarcinomas	Breast	Female	Dead

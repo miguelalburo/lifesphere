@@ -1,9 +1,0 @@
-source_term,ontology_id,match_type,confidence_score
-G1,WHO Grade 1,exact_match,
-G2,WHO Grade 2,exact_match,
-G3,WHO Grade 3,exact_match,
-G4,WHO Grade 4,exact_match,
-GB,WHO Grade B,exact_match,
-GX,WHO Grade X (undetermined),exact_match,
-High Grade,WHO High Grade,exact_match,
-Low Grade,WHO Low Grade,exact_match,

@@ -1,0 +1,248 @@
+# LifeSphere KG v2 — relationship catalogue (graph definition).
+#
+# Derived from docs/other/lifesphere_kg_schema_v2.md §5 (relationship definitions)
+# and §8 (relationship attribute catalogue).
+#
+# Per relationship type:
+#   pairs       list of [sourceLabel, targetLabel] endpoint pairs. Polymorphic
+#               types (same type, several endpoint shapes) list multiple pairs;
+#               each emitted edge row records its actual startLabel/endLabel.
+#   properties  relationship properties (camelCase). Structural links have [].
+#
+# Endpoint labels must all be defined in nodes.yaml (schema.py enforces this).
+
+# ─────────────────────── Study / Sample flow (§5.1) ───────────────────────
+
+HAS_STUDY:
+  pairs: [[Program, Study]]
+  properties: [studyRole, membershipType]
+
+DESCRIBES_STUDY:
+  pairs: [[Publication, Study]]
+  properties: [evidenceScope]
+
+HAS_SUBJECT:
+  pairs: [[Study, Subject]]
+  properties: []
+
+PROVIDED_SAMPLE:
+  pairs: [[Subject, Sample]]
+  properties: [derivationMethod]
+
+HAS_ORGANISM:
+  pairs: [[Subject, Organism]]
+  properties: []
+
+PAIRED_WITH:
+  pairs: [[Sample, Sample]]
+  properties: [pairingType, referenceRole]
+
+SAMPLED_FROM_TISSUE:
+  pairs: [[Sample, Tissue]]
+  properties: []
+
+PART_OF_ORGAN:
+  pairs: [[Tissue, Organ]]
+  properties: []
+
+COLLECTED_AT_STAGE:
+  pairs: [[Sample, DevelopmentalStage]]
+  properties: [daysPostConception]
+
+# ─────────────────────── Experimental / clinical context (§5.2) ───────────────────────
+
+HAS_CONDITION:
+  pairs: [[Sample, ExperimentalCondition]]
+  properties: [conditionRole]
+
+HAS_DIAGNOSIS:
+  pairs: [[Subject, Diagnosis]]
+  properties: [temporalOrder, isPrimaryDiagnosis, confidenceScore]
+
+OF_DISEASE:
+  pairs: [[Diagnosis, Disease]]
+  properties: [mappingMethod, ontologyMappingStatus, confidenceScore]
+
+HAS_PATHOLOGY:
+  pairs: [[Diagnosis, PathologyDetail]]
+  properties: [pathologyRole, evidenceType, specimenBasis]
+
+HAS_PHENOTYPE_OBSERVATION:
+  pairs: [[Diagnosis, PhenotypeObservation], [Perturbation, PhenotypeObservation]]
+  properties: [daysToEvent]
+
+HAS_SURVIVAL_RECORD:
+  pairs: [[Subject, Survival]]
+  properties: [endpointRole, confidenceScore]
+
+# ─────────────────────── Assay (§5.3) ───────────────────────
+
+ASSAYED_BY:
+  pairs: [[Sample, Assay]]
+  properties: [assayRole]
+
+USED_LIBRARY:
+  pairs: [[Assay, LibraryPreparation]]
+  properties: [protocolSource, chemistryVersion]
+
+# ─────────────────────── Molecular observation (§5.4) ───────────────────────
+
+HAS_METHYLATION_OBSERVATION:
+  pairs: [[Sample, MethylationObservation]]
+  properties: []
+
+MEASURES_CPG:
+  pairs: [[MethylationObservation, CpGSite]]
+  properties: [mappingConfidence]
+
+HAS_EXPRESSION_OBSERVATION:
+  pairs: [[Sample, ExpressionObservation]]
+  properties: []
+
+MEASURES_GENE:
+  pairs: [[ExpressionObservation, Gene], [MethylationObservation, Gene]]
+  properties: [functionalDomain]
+
+HAS_VARIANT_OBSERVATION:
+  pairs: [[Sample, VariantObservation]]
+  properties: []
+
+OBSERVED_VARIANT:
+  pairs: [[VariantObservation, Variant]]
+  properties: [mappingConfidence]
+
+HAS_PROTEIN_OBSERVATION:
+  pairs: [[Sample, ProteinObservation]]
+  properties: []
+
+MEASURES_PROTEIN:
+  pairs: [[ProteinObservation, Protein]]
+  properties: [mappingMethod, sourceProteinIdentifier, annotationSource, annotationVersion, confidenceScore]
+
+HAS_METABOLITE_OBSERVATION:
+  pairs: [[Sample, MetaboliteObservation]]
+  properties: []
+
+MEASURES_METABOLITE:
+  pairs: [[MetaboliteObservation, Metabolite]]
+  properties: [mappingMethod, sourceMetaboliteIdentifier, annotationSource, annotationVersion, confidenceScore]
+
+# ─────────────────────── Genomic / regulatory reference (§5.5) ───────────────────────
+
+MAPS_TO_GENE:
+  pairs: [[CpGSite, Gene], [Feature, Gene]]
+  properties: [mappingMethod, geneContext, distanceToTSS, annotationSource, confidenceScore]
+
+LOCATED_IN_REGION:
+  pairs: [[CpGSite, GenomicRegion], [RegulatoryElement, GenomicRegion], [Variant, GenomicRegion]]
+  properties: [overlapPercentage]
+
+REGULATES_GENE:
+  pairs: [[RegulatoryElement, Gene], [Gene, Gene]]
+  properties: [evidenceLevel, regulatoryType, confidenceScore, distanceBp, tissueContext]
+
+IS_WITHIN_GENE:
+  pairs: [[Variant, Gene]]
+  properties: [geneRegion, transcriptId, exonNumber, annotationSource]
+
+MODULATES_REGULATION_OF:
+  pairs: [[Variant, RegulatoryElement]]
+  properties: [evidenceType, evidenceLevel, sourceDatabase, confidenceScore, mechanism]
+
+ENCODES:
+  pairs: [[Gene, Protein]]
+  properties: [mappingMethod, isoformRole, transcriptId, confidenceScore]
+
+PARTICIPATES_IN_PATHWAY:
+  pairs: [[Gene, Pathway]]
+  properties: [participationRole, evidenceCode, confidenceScore]
+
+HAS_REGULATORY_ELEMENT:
+  pairs: [[Sample, RegulatoryElement]]
+  properties: [elementRole, activityStatus, evidenceType, assayId, signalValue, signalUnit, confidenceScore]
+
+ASSOCIATED_WITH_GENE:
+  pairs: [[GenomicRegion, Gene]]
+  properties: [associationType, distanceBp, overlapPercentage, relativePosition, referenceGenome, annotationSource, annotationVersion, confidenceScore]
+
+# ─────────────────────── Methylation rule (§5.6) ───────────────────────
+
+CLASSIFIED_USING:
+  pairs: [[MethylationObservation, MethylationStatusRule]]
+  properties: []
+
+# ─────────────────────── Evidence (§5.7) ───────────────────────
+
+PROVIDES_EVIDENCE_FOR:
+  pairs: [[Publication, Evidence]]
+  properties: [sourceRole, extractionStatus, confidenceScore]
+
+SUPPORTS_ASSOCIATION_WITH:
+  pairs:
+    - [Evidence, Gene]
+    - [Evidence, Protein]
+    - [Evidence, CpGSite]
+    - [Evidence, RegulatoryElement]
+    - [Evidence, Variant]
+    - [Evidence, Disease]
+    - [Evidence, GenomicRegion]
+    - [Evidence, MethylationStatusRule]
+  properties: [entityRole, supportDirection, mappingMethod, confidenceScore]
+
+# ─────────────────────── Single-cell dataset (§5.8) ───────────────────────
+
+HOSTS_DATASET:
+  pairs: [[Repository, SingleCellDataset]]
+  properties: [repositoryDatasetId, accessDate]
+
+REPRESENTS_STUDY:
+  pairs: [[SingleCellDataset, Study]]
+  properties: [mappingMethod, sourceAccession]
+
+CONTRIBUTES_TO:
+  pairs: [[Sample, CellSet]]
+  properties: [contributedCellCount, fractionOfSampleCells, fractionOfCellSet, sourceSampleField, sourceSampleValue, contributionBasis, aggregationMethod]
+
+ANNOTATED_AS_CELL_TYPE:
+  pairs: [[CellSet, CellType]]
+  properties: [annotationMethod, ontologyMappingStatus, sourceField]
+
+HAS_CELL_STATE:
+  pairs: [[CellSet, CellState]]
+  properties: [sourceField, annotationMethod]
+
+HAS_FEATURE:
+  pairs: [[CellSet, Feature]]
+  properties: []
+
+MAPS_TO_PROTEIN:
+  pairs: [[Feature, Protein]]
+  properties: [mappingSource, sourceFeatureIdentifier, annotationSource, annotationVersion, confidenceScore]
+
+# ─────────────────────── Intervention (§5.9) ───────────────────────
+
+UNDERWENT_INTERVENTION:
+  pairs: [[Sample, Intervention]]
+  properties: [sequenceOrder, interventionTiming, sampleRole, confidenceScore]
+
+USES_AGENT:
+  pairs: [[Intervention, ChemicalEntity]]
+  properties: [agentRole, sequence, doseValue, doseUnit, doseFrequency, routeOfAdministration]
+
+USES_PROCEDURE:
+  pairs: [[Intervention, Procedure]]
+  properties: [procedureRole, sequence, anatomicalSite, laterality, confidenceScore]
+
+RESULTED_IN:
+  pairs: [[Intervention, PhenotypeObservation]]
+  properties: [outcomeRole, assessmentTimepoint, timeFromInterventionStart, timeUnit, causalInterpretation, confidenceScore]
+
+# ─────────────────────── Perturbation (§5.10) ───────────────────────
+
+UNDERWENT_PERTURBATION:
+  pairs: [[Sample, Perturbation]]
+  properties: [sequenceOrder, perturbationTiming, experimentalRole, replicateId, confidenceScore]
+
+TARGETS:
+  pairs: [[Perturbation, Gene], [Perturbation, Protein], [Perturbation, GenomicRegion], [Perturbation, RegulatoryElement]]
+  properties: [targetRole, targetLevel, targetingMethod, targetSequence, effectDirection, matchStatus, confidenceScore]
