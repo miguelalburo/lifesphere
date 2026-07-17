@@ -192,6 +192,15 @@ edges:
     props:
       isPrimaryDiagnosis: diagnosis_is_primary_disease
 
+  # Connects each Diagnosis to its canonical Disease reference node.
+  # Both keys come from the same diagnosis.tsv row.
+  OF_DISEASE:
+    file: diagnosis.tsv
+    pair: [Diagnosis, Disease]
+    start_key: diagnosis_id
+    end_key: icd_10_code
+    dedup: true
+
   HAS_PATHOLOGY:
     file: pathology_detail.tsv
     pair: [Diagnosis, PathologyDetail]

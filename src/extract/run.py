@@ -39,6 +39,10 @@ def fetch_project(project_id: str) -> list[dict]:
     return _fetch({"op": "=", "content": {"field": "project.project_id", "value": project_id}})
 
 
+def fetch_program(program_name: str) -> list[dict]:
+    return _fetch({"op": "=", "content": {"field": "project.program.name", "value": program_name}})
+
+
 def write_entities(hits: list[dict], out_dir: Path) -> None:
     """Write {NAME}.tsv for every registered emitter (columns discovered dynamically)."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -56,6 +60,17 @@ def write_entities(hits: list[dict], out_dir: Path) -> None:
 def extract(project_id: str, out_dir: Path) -> None:
     print(f"Fetching {project_id} from GDC /cases...", file=sys.stderr, flush=True)
     hits = fetch_project(project_id)
+    if not hits:
+        print("  No cases found.", file=sys.stderr)
+        return
+    print(f"Writing TSVs to {out_dir}...", file=sys.stderr, flush=True)
+    write_entities(hits, out_dir)
+    print(f"Done — {len(EMITTERS)} entity files written.", file=sys.stderr, flush=True)
+
+
+def extract_program(program_name: str, out_dir: Path) -> None:
+    print(f"Fetching all cases in program {program_name} from GDC /cases...", file=sys.stderr, flush=True)
+    hits = fetch_program(program_name)
     if not hits:
         print("  No cases found.", file=sys.stderr)
         return
