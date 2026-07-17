@@ -2,7 +2,7 @@
 
 Layer flags (at least one required):
   --clinical    fetch /cases and emit clinical TSVs (existing behaviour)
-  --expression  RNA-seq download (not yet wired)
+  --expression  RNA-seq STAR-Counts download + reshape
   --methylation DNA-methylation download (not yet wired)
   --variation   somatic-variation download (not yet wired)
   --omics       shorthand for --expression --methylation --variation
@@ -33,7 +33,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     parser.add_argument("--clinical", action="store_true", help="fetch /cases clinical layer")
-    parser.add_argument("--expression", action="store_true", help="RNA-seq layer (not yet wired)")
+    parser.add_argument("--expression", action="store_true", help="RNA-seq layer (STAR-Counts download + reshape)")
     parser.add_argument("--methylation", action="store_true", help="DNA-methylation layer (not yet wired)")
     parser.add_argument("--variation", action="store_true", help="somatic-variation layer (not yet wired)")
     parser.add_argument(
@@ -56,22 +56,27 @@ def main(argv: list[str] | None = None) -> int:
             "--methylation, --variation, or --omics"
         )
 
-    # Fail before doing any work if any omics layer is requested (not yet wired).
-    # All requested layers are reported so --omics surfaces all three messages.
-    if omics_requested:
-        for layer in omics_requested:
-            print(
-                f"Layer '{layer}' is not yet wired — omics download not implemented.",
-                file=sys.stderr,
-            )
-        return 1
-
     selector = args.program or args.project_id
     out_dir = args.out or (DATA_RAW / selector)
-    if args.program:
-        extract_program(args.program, out_dir)
-    else:
-        extract(args.project_id, out_dir)
+
+    # Dispatch each requested omics layer; fail on any that are not yet wired.
+    if omics_requested:
+        for layer in omics_requested:
+            if layer == "expression":
+                from .omics.expression import extract_expression
+                extract_expression(selector, out_dir)
+            else:
+                print(
+                    f"Layer '{layer}' is not yet wired — omics download not implemented.",
+                    file=sys.stderr,
+                )
+                return 1
+
+    if args.clinical:
+        if args.program:
+            extract_program(args.program, out_dir)
+        else:
+            extract(args.project_id, out_dir)
     return 0
 
 

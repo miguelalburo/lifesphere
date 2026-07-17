@@ -78,39 +78,58 @@ class TestNoLayerFlag:
 # ---------------------------------------------------------------------------
 
 class TestOmicsStubs:
-    @pytest.mark.parametrize("flag", ["--expression", "--methylation", "--variation"])
-    def test_omics_layer_exits_nonzero(self, flag, tmp_path):
+    @pytest.mark.parametrize("flag", ["--methylation", "--variation"])
+    def test_unwired_layer_exits_nonzero(self, flag, tmp_path):
         rc = main(["TCGA-CHOL", flag, "--out", str(tmp_path)])
         assert rc != 0
 
-    @pytest.mark.parametrize("flag", ["--expression", "--methylation", "--variation"])
-    def test_omics_layer_prints_not_yet_wired(self, flag, tmp_path, capsys):
+    @pytest.mark.parametrize("flag", ["--methylation", "--variation"])
+    def test_unwired_layer_prints_not_yet_wired(self, flag, tmp_path, capsys):
         main(["TCGA-CHOL", flag, "--out", str(tmp_path)])
         captured = capsys.readouterr()
         assert "not yet wired" in captured.err.lower()
 
     def test_omics_flag_exits_nonzero(self, tmp_path):
-        rc = main(["TCGA-CHOL", "--omics", "--out", str(tmp_path)])
+        # --omics includes methylation and variation which are not yet wired
+        with patch("src.extract.omics.expression.extract_expression"):
+            rc = main(["TCGA-CHOL", "--omics", "--out", str(tmp_path)])
         assert rc != 0
 
     def test_omics_flag_prints_not_yet_wired(self, tmp_path, capsys):
-        main(["TCGA-CHOL", "--omics", "--out", str(tmp_path)])
-        captured = capsys.readouterr()
-        assert "not yet wired" in captured.err.lower()
+        with patch("src.extract.omics.expression.extract_expression"):
+            main(["TCGA-CHOL", "--omics", "--out", str(tmp_path)])
+        assert "not yet wired" in capsys.readouterr().err.lower()
 
     def test_omics_composes_with_program(self, tmp_path, capsys):
-        rc = main(["--program", "TCGA", "--omics", "--out", str(tmp_path)])
+        with patch("src.extract.omics.expression.extract_expression"):
+            rc = main(["--program", "TCGA", "--omics", "--out", str(tmp_path)])
         assert rc != 0
         assert "not yet wired" in capsys.readouterr().err.lower()
 
-    def test_omics_reports_all_three_layers(self, tmp_path, capsys):
-        main(["TCGA-CHOL", "--omics", "--out", str(tmp_path)])
-        err = capsys.readouterr().err
-        for layer in ("expression", "methylation", "variation"):
-            assert layer in err
 
-    def test_clinical_plus_omics_does_not_run_clinical(self, tmp_path):
-        with patch("src.extract.__main__.extract") as m:
+class TestExpressionWired:
+    def test_expression_returns_zero(self, tmp_path):
+        with patch("src.extract.omics.expression.extract_expression"):
+            rc = main(["TCGA-CHOL", "--expression", "--out", str(tmp_path)])
+        assert rc == 0
+
+    def test_expression_calls_extract_expression(self, tmp_path):
+        with patch("src.extract.omics.expression.extract_expression") as m:
+            main(["TCGA-CHOL", "--expression", "--out", str(tmp_path)])
+        m.assert_called_once_with("TCGA-CHOL", tmp_path)
+
+    def test_expression_with_program(self, tmp_path):
+        with patch("src.extract.omics.expression.extract_expression") as m:
+            rc = main(["--program", "TCGA", "--expression", "--out", str(tmp_path)])
+        assert rc == 0
+        m.assert_called_once_with("TCGA", tmp_path)
+
+    def test_clinical_plus_expression_both_run(self, tmp_path):
+        with (
+            patch("src.extract.__main__.extract") as mc,
+            patch("src.extract.omics.expression.extract_expression") as me,
+        ):
             rc = main(["TCGA-CHOL", "--clinical", "--expression", "--out", str(tmp_path)])
-        assert rc != 0
-        m.assert_not_called()
+        assert rc == 0
+        mc.assert_called_once()
+        me.assert_called_once()

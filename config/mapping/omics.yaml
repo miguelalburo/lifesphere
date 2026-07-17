@@ -1,0 +1,59 @@
+# Source -> schema binding for the omics layer.
+#
+# Reads expression_observation.tsv produced by:
+#   src.extract.omics.expression.reshape()
+#
+# Run with:
+#   python -m src.standardise <dataset> --profile omics
+#
+# All non-id node properties auto-bind via the camelCase resolver strategy:
+#   expression_observation_id → expressionObservationId (id key)
+#   sample_id  → sampleId,  gene_id  → geneId,  assay_id  → assayId
+#   expression_value → expressionValue, expression_unit → expressionUnit
+#   source_dataset → sourceDataset, source_file → sourceFile
+#   pipeline_version → pipelineVersion
+#
+# NOTE: Gene and Assay nodes are dedup reference dimensions. Only the id
+# column is populated from this source; all other properties (symbol, name,
+# platform, etc.) come from dedicated reference annotation sources.
+# Sample nodes are expected to already exist from the clinical standardise
+# pass; omics does not emit them so cross-layer references resolve at
+# validate time.
+
+profile: omics
+
+nodes:
+  ExpressionObservation:
+    file: expression_observation.tsv
+    key: expression_observation_id
+    dedup: true
+
+  Gene:
+    file: expression_observation.tsv
+    key: gene_id
+    dedup: true
+
+  Assay:
+    file: expression_observation.tsv
+    key: assay_id
+    dedup: true
+
+edges:
+  HAS_EXPRESSION_OBSERVATION:
+    file: expression_observation.tsv
+    pair: [Sample, ExpressionObservation]
+    start_key: sample_id
+    end_key: expression_observation_id
+
+  MEASURES_GENE:
+    file: expression_observation.tsv
+    pair: [ExpressionObservation, Gene]
+    start_key: expression_observation_id
+    end_key: gene_id
+
+  ASSAYED_BY:
+    file: expression_observation.tsv
+    pair: [Sample, Assay]
+    start_key: sample_id
+    end_key: assay_id
+    dedup: true
