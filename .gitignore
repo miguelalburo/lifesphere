@@ -14,7 +14,7 @@ logs/
 
 # BioCypher generated output
 logs/biocypher-out/
-logs/biocypher-log/
+biocypher-log/
 
 # Python virtual environment
 .venv/
