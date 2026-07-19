@@ -4,7 +4,7 @@ Layer flags (at least one required):
   --clinical    fetch /cases and emit clinical TSVs (existing behaviour)
   --expression  RNA-seq STAR-Counts download + reshape
   --methylation DNA-methylation download + reshape
-  --variation   somatic-variation download (not yet wired)
+  --variation   somatic-variation MAF download + reshape
   --omics       shorthand for --expression --methylation --variation
 """
 
@@ -35,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--clinical", action="store_true", help="fetch /cases clinical layer")
     parser.add_argument("--expression", action="store_true", help="RNA-seq layer (STAR-Counts download + reshape)")
     parser.add_argument("--methylation", action="store_true", help="DNA-methylation layer (Methylation Beta Value download + reshape)")
-    parser.add_argument("--variation", action="store_true", help="somatic-variation layer (not yet wired)")
+    parser.add_argument("--variation", action="store_true", help="somatic-variation layer (Masked Somatic Mutation MAF download + reshape)")
     parser.add_argument(
         "--omics", action="store_true",
         help="all molecular layers (--expression --methylation --variation)",
@@ -59,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     selector = args.program or args.project_id
     out_dir = args.out or (DATA_RAW / selector)
 
-    # Dispatch each requested omics layer; fail on any that are not yet wired.
+    # Dispatch each requested omics layer.
     if omics_requested:
         for layer in omics_requested:
             if layer == "expression":
@@ -68,12 +68,9 @@ def main(argv: list[str] | None = None) -> int:
             elif layer == "methylation":
                 from .omics.methylation import extract_methylation
                 extract_methylation(selector, out_dir)
-            else:
-                print(
-                    f"Layer '{layer}' is not yet wired — omics download not implemented.",
-                    file=sys.stderr,
-                )
-                return 1
+            elif layer == "variation":
+                from .omics.variation import extract_variation
+                extract_variation(selector, out_dir)
 
     if args.clinical:
         if args.program:

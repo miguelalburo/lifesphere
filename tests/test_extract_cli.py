@@ -1,8 +1,8 @@
 """CLI layer-flag framework — tests for __main__.py.
 
 Covers: --clinical runs extraction; no-layer-flag exits non-zero;
---clinical composes with --program; --expression and --methylation wired;
-remaining omics stubs (--variation) fail with 'not yet wired'.
+--clinical composes with --program; --expression, --methylation, and
+--variation all wired; --omics composes all three layers.
 """
 
 from __future__ import annotations
@@ -75,46 +75,49 @@ class TestNoLayerFlag:
 
 
 # ---------------------------------------------------------------------------
-# Omics stubs — accepted, fail with "not yet wired" (--variation still unwired)
+# --variation wired
 # ---------------------------------------------------------------------------
 
-class TestOmicsStubs:
-    @pytest.mark.parametrize("flag", ["--variation"])
-    def test_unwired_layer_exits_nonzero(self, flag, tmp_path):
-        rc = main(["TCGA-CHOL", flag, "--out", str(tmp_path)])
-        assert rc != 0
+class TestVariationWired:
+    def test_variation_returns_zero(self, tmp_path):
+        with patch("src.extract.omics.variation.extract_variation"):
+            rc = main(["TCGA-CHOL", "--variation", "--out", str(tmp_path)])
+        assert rc == 0
 
-    @pytest.mark.parametrize("flag", ["--variation"])
-    def test_unwired_layer_prints_not_yet_wired(self, flag, tmp_path, capsys):
-        main(["TCGA-CHOL", flag, "--out", str(tmp_path)])
-        captured = capsys.readouterr()
-        assert "not yet wired" in captured.err.lower()
+    def test_variation_calls_extract_variation(self, tmp_path):
+        with patch("src.extract.omics.variation.extract_variation") as m:
+            main(["TCGA-CHOL", "--variation", "--out", str(tmp_path)])
+        m.assert_called_once_with("TCGA-CHOL", tmp_path)
 
-    def test_omics_flag_exits_nonzero(self, tmp_path):
-        # --omics includes variation which is not yet wired
+    def test_variation_with_program(self, tmp_path):
+        with patch("src.extract.omics.variation.extract_variation") as m:
+            rc = main(["--program", "TCGA", "--variation", "--out", str(tmp_path)])
+        assert rc == 0
+        m.assert_called_once_with("TCGA", tmp_path)
+
+    def test_omics_flag_calls_all_three_layers(self, tmp_path):
         with (
-            patch("src.extract.omics.expression.extract_expression"),
-            patch("src.extract.omics.methylation.extract_methylation"),
+            patch("src.extract.omics.expression.extract_expression") as me,
+            patch("src.extract.omics.methylation.extract_methylation") as mm,
+            patch("src.extract.omics.variation.extract_variation") as mv,
         ):
             rc = main(["TCGA-CHOL", "--omics", "--out", str(tmp_path)])
-        assert rc != 0
+        assert rc == 0
+        me.assert_called_once_with("TCGA-CHOL", tmp_path)
+        mm.assert_called_once_with("TCGA-CHOL", tmp_path)
+        mv.assert_called_once_with("TCGA-CHOL", tmp_path)
 
-    def test_omics_flag_prints_not_yet_wired(self, tmp_path, capsys):
+    def test_omics_composes_with_program(self, tmp_path):
         with (
-            patch("src.extract.omics.expression.extract_expression"),
-            patch("src.extract.omics.methylation.extract_methylation"),
-        ):
-            main(["TCGA-CHOL", "--omics", "--out", str(tmp_path)])
-        assert "not yet wired" in capsys.readouterr().err.lower()
-
-    def test_omics_composes_with_program(self, tmp_path, capsys):
-        with (
-            patch("src.extract.omics.expression.extract_expression"),
-            patch("src.extract.omics.methylation.extract_methylation"),
+            patch("src.extract.omics.expression.extract_expression") as me,
+            patch("src.extract.omics.methylation.extract_methylation") as mm,
+            patch("src.extract.omics.variation.extract_variation") as mv,
         ):
             rc = main(["--program", "TCGA", "--omics", "--out", str(tmp_path)])
-        assert rc != 0
-        assert "not yet wired" in capsys.readouterr().err.lower()
+        assert rc == 0
+        me.assert_called_once_with("TCGA", tmp_path)
+        mm.assert_called_once_with("TCGA", tmp_path)
+        mv.assert_called_once_with("TCGA", tmp_path)
 
 
 class TestMethylationWired:

@@ -24,7 +24,9 @@ nodes:
     dedup: true
 
   Gene:
-    file: expression_observation.tsv
+    file:
+      - expression_observation.tsv
+      - variation_observation.tsv
     key: gene_id
     dedup: true
 
@@ -32,6 +34,7 @@ nodes:
     file:
       - expression_observation.tsv
       - methylation_observation.tsv
+      - variation_observation.tsv
     key: assay_id
     dedup: true
 
@@ -43,6 +46,16 @@ nodes:
   CpGSite:
     file: methylation_observation.tsv
     key: cpg_id
+    dedup: true
+
+  VariantObservation:
+    file: variation_observation.tsv
+    key: variant_observation_id
+    dedup: true
+
+  Variant:
+    file: variation_observation.tsv
+    key: variant_id
     dedup: true
 
 edges:
@@ -62,6 +75,7 @@ edges:
     file:
       - expression_observation.tsv
       - methylation_observation.tsv
+      - variation_observation.tsv
     pair: [Sample, Assay]
     start_key: sample_id
     end_key: assay_id
@@ -78,3 +92,22 @@ edges:
     pair: [MethylationObservation, CpGSite]
     start_key: methylation_observation_id
     end_key: cpg_id
+
+  HAS_VARIANT_OBSERVATION:
+    file: variation_observation.tsv
+    pair: [Sample, VariantObservation]
+    start_key: sample_id
+    end_key: variant_observation_id
+
+  OBSERVED_VARIANT:
+    file: variation_observation.tsv
+    pair: [VariantObservation, Variant]
+    start_key: variant_observation_id
+    end_key: variant_id
+
+  IS_WITHIN_GENE:
+    file: variation_observation.tsv
+    pair: [Variant, Gene]
+    start_key: variant_id
+    end_key: gene_id
+    dedup: true
