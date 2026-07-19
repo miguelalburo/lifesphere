@@ -1,7 +1,8 @@
 """CLI layer-flag framework — tests for __main__.py.
 
 Covers: --clinical runs extraction; no-layer-flag exits non-zero;
---clinical composes with --program; omics stubs fail with 'not yet wired'.
+--clinical composes with --program; --expression and --methylation wired;
+remaining omics stubs (--variation) fail with 'not yet wired'.
 """
 
 from __future__ import annotations
@@ -74,37 +75,74 @@ class TestNoLayerFlag:
 
 
 # ---------------------------------------------------------------------------
-# Omics stubs — accepted, fail with "not yet wired"
+# Omics stubs — accepted, fail with "not yet wired" (--variation still unwired)
 # ---------------------------------------------------------------------------
 
 class TestOmicsStubs:
-    @pytest.mark.parametrize("flag", ["--methylation", "--variation"])
+    @pytest.mark.parametrize("flag", ["--variation"])
     def test_unwired_layer_exits_nonzero(self, flag, tmp_path):
         rc = main(["TCGA-CHOL", flag, "--out", str(tmp_path)])
         assert rc != 0
 
-    @pytest.mark.parametrize("flag", ["--methylation", "--variation"])
+    @pytest.mark.parametrize("flag", ["--variation"])
     def test_unwired_layer_prints_not_yet_wired(self, flag, tmp_path, capsys):
         main(["TCGA-CHOL", flag, "--out", str(tmp_path)])
         captured = capsys.readouterr()
         assert "not yet wired" in captured.err.lower()
 
     def test_omics_flag_exits_nonzero(self, tmp_path):
-        # --omics includes methylation and variation which are not yet wired
-        with patch("src.extract.omics.expression.extract_expression"):
+        # --omics includes variation which is not yet wired
+        with (
+            patch("src.extract.omics.expression.extract_expression"),
+            patch("src.extract.omics.methylation.extract_methylation"),
+        ):
             rc = main(["TCGA-CHOL", "--omics", "--out", str(tmp_path)])
         assert rc != 0
 
     def test_omics_flag_prints_not_yet_wired(self, tmp_path, capsys):
-        with patch("src.extract.omics.expression.extract_expression"):
+        with (
+            patch("src.extract.omics.expression.extract_expression"),
+            patch("src.extract.omics.methylation.extract_methylation"),
+        ):
             main(["TCGA-CHOL", "--omics", "--out", str(tmp_path)])
         assert "not yet wired" in capsys.readouterr().err.lower()
 
     def test_omics_composes_with_program(self, tmp_path, capsys):
-        with patch("src.extract.omics.expression.extract_expression"):
+        with (
+            patch("src.extract.omics.expression.extract_expression"),
+            patch("src.extract.omics.methylation.extract_methylation"),
+        ):
             rc = main(["--program", "TCGA", "--omics", "--out", str(tmp_path)])
         assert rc != 0
         assert "not yet wired" in capsys.readouterr().err.lower()
+
+
+class TestMethylationWired:
+    def test_methylation_returns_zero(self, tmp_path):
+        with patch("src.extract.omics.methylation.extract_methylation"):
+            rc = main(["TCGA-CHOL", "--methylation", "--out", str(tmp_path)])
+        assert rc == 0
+
+    def test_methylation_calls_extract_methylation(self, tmp_path):
+        with patch("src.extract.omics.methylation.extract_methylation") as m:
+            main(["TCGA-CHOL", "--methylation", "--out", str(tmp_path)])
+        m.assert_called_once_with("TCGA-CHOL", tmp_path)
+
+    def test_methylation_with_program(self, tmp_path):
+        with patch("src.extract.omics.methylation.extract_methylation") as m:
+            rc = main(["--program", "TCGA", "--methylation", "--out", str(tmp_path)])
+        assert rc == 0
+        m.assert_called_once_with("TCGA", tmp_path)
+
+    def test_clinical_plus_methylation_both_run(self, tmp_path):
+        with (
+            patch("src.extract.__main__.extract") as mc,
+            patch("src.extract.omics.methylation.extract_methylation") as mm,
+        ):
+            rc = main(["TCGA-CHOL", "--clinical", "--methylation", "--out", str(tmp_path)])
+        assert rc == 0
+        mc.assert_called_once()
+        mm.assert_called_once()
 
 
 class TestExpressionWired:

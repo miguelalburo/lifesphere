@@ -1,24 +1,19 @@
 # Source -> schema binding for the omics layer.
 #
-# Reads expression_observation.tsv produced by:
-#   src.extract.omics.expression.reshape()
+# Sources:
+#   expression_observation.tsv  — produced by src.extract.omics.expression.reshape()
+#   methylation_observation.tsv — produced by src.extract.omics.methylation.reshape()
 #
 # Run with:
 #   python -m src.standardise <dataset> --profile omics
 #
-# All non-id node properties auto-bind via the camelCase resolver strategy:
-#   expression_observation_id → expressionObservationId (id key)
-#   sample_id  → sampleId,  gene_id  → geneId,  assay_id  → assayId
-#   expression_value → expressionValue, expression_unit → expressionUnit
-#   source_dataset → sourceDataset, source_file → sourceFile
-#   pipeline_version → pipelineVersion
+# All non-id properties auto-bind via the camelCase resolver strategy.
+# Assay and ASSAYED_BY are multi-source (expression + methylation) so the
+# shared Assay dimension is populated from whichever files are present.
 #
-# NOTE: Gene and Assay nodes are dedup reference dimensions. Only the id
-# column is populated from this source; all other properties (symbol, name,
-# platform, etc.) come from dedicated reference annotation sources.
-# Sample nodes are expected to already exist from the clinical standardise
-# pass; omics does not emit them so cross-layer references resolve at
-# validate time.
+# NOTE: Gene, CpGSite, and Assay are dedup reference dimensions. Only the id
+# column is populated here; full annotation comes from reference sources.
+# Sample nodes are expected from the clinical pass; omics does not emit them.
 
 profile: omics
 
@@ -34,8 +29,20 @@ nodes:
     dedup: true
 
   Assay:
-    file: expression_observation.tsv
+    file:
+      - expression_observation.tsv
+      - methylation_observation.tsv
     key: assay_id
+    dedup: true
+
+  MethylationObservation:
+    file: methylation_observation.tsv
+    key: methylation_observation_id
+    dedup: true
+
+  CpGSite:
+    file: methylation_observation.tsv
+    key: cpg_id
     dedup: true
 
 edges:
@@ -52,8 +59,22 @@ edges:
     end_key: gene_id
 
   ASSAYED_BY:
-    file: expression_observation.tsv
+    file:
+      - expression_observation.tsv
+      - methylation_observation.tsv
     pair: [Sample, Assay]
     start_key: sample_id
     end_key: assay_id
     dedup: true
+
+  HAS_METHYLATION_OBSERVATION:
+    file: methylation_observation.tsv
+    pair: [Sample, MethylationObservation]
+    start_key: sample_id
+    end_key: methylation_observation_id
+
+  MEASURES_CPG:
+    file: methylation_observation.tsv
+    pair: [MethylationObservation, CpGSite]
+    start_key: methylation_observation_id
+    end_key: cpg_id

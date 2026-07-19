@@ -18,13 +18,18 @@ from .. import CONFIG_DIR
 @dataclass(frozen=True)
 class NodeMapping:
     label: str
-    file: str
+    files: tuple[str, ...]            # one or more source files (union, shared dedup)
     key: str | None = None            # raw column holding the node id
     strip_prefix: str | None = None
     dedup: bool = True
     props: dict[str, str] = field(default_factory=dict)    # canonicalProp -> raw_col
     aliases: dict[str, str] = field(default_factory=dict)  # raw_col -> canonicalProp
     strip_header_prefix: tuple[str, ...] = ()              # table-name prefixes on headers
+
+    @property
+    def file(self) -> str:
+        """First source file (backward-compat accessor)."""
+        return self.files[0] if self.files else ""
 
     @property
     def bound(self) -> bool:
@@ -34,7 +39,7 @@ class NodeMapping:
 @dataclass(frozen=True)
 class EdgeMapping:
     type: str
-    file: str
+    files: tuple[str, ...]            # one or more source files (union, shared dedup)
     pair: tuple[str, str]
     start_key: str | None = None
     end_key: str | None = None
@@ -44,6 +49,11 @@ class EdgeMapping:
     props: dict[str, str] = field(default_factory=dict)    # relProp -> raw_col
     aliases: dict[str, str] = field(default_factory=dict)  # raw_col -> relProp
     strip_header_prefix: tuple[str, ...] = ()              # table-name prefixes on headers
+
+    @property
+    def file(self) -> str:
+        """First source file (backward-compat accessor)."""
+        return self.files[0] if self.files else ""
 
     @property
     def bound(self) -> bool:
@@ -90,9 +100,11 @@ def load_mapping(profile: str = "extract", config_dir: Path | None = None) -> Ma
 
     nodes: dict[str, NodeMapping] = {}
     for label, spec in (data.get("nodes") or {}).items():
+        raw_file = spec["file"]
+        files = tuple(raw_file) if isinstance(raw_file, list) else (raw_file,)
         nodes[label] = NodeMapping(
             label=label,
-            file=spec["file"],
+            files=files,
             key=spec.get("key"),
             strip_prefix=spec.get("strip_prefix"),
             dedup=spec.get("dedup", True),
@@ -104,9 +116,11 @@ def load_mapping(profile: str = "extract", config_dir: Path | None = None) -> Ma
     edges: dict[str, EdgeMapping] = {}
     for type_, spec in (data.get("edges") or {}).items():
         pair = spec.get("pair")
+        raw_file = spec["file"]
+        files = tuple(raw_file) if isinstance(raw_file, list) else (raw_file,)
         edges[type_] = EdgeMapping(
             type=type_,
-            file=spec["file"],
+            files=files,
             pair=tuple(pair) if pair else (),
             start_key=spec.get("start_key"),
             end_key=spec.get("end_key"),

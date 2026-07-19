@@ -37,91 +37,113 @@ def _header(path: Path) -> list[str]:
         return csv.DictReader(fh, delimiter=_delimiter(path)).fieldnames or []
 
 
-def _write_node(node: Node, cfg: NodeMapping, src: Path, out_dir: Path,
+def _write_node(node: Node, cfg: NodeMapping, srcs: list[Path], out_dir: Path,
                 placeholders: frozenset[str], mapping: "Mapping",
                 log: bool) -> int | None:
     columns = list(node.columns)
     if node.subtype_from and node.subtype_from not in columns:
         columns.append(node.subtype_from)
 
-    delim = _delimiter(src)
-    with src.open(newline="", encoding="utf-8") as fh:
-        reader = csv.DictReader(fh, delimiter=delim)
-        fields = reader.fieldnames or []
-        if cfg.key not in fields:
-            _log(f"! skip node {node.label}: id column {cfg.key!r} not in {src.name}", log)
-            return None
-        resolver = ColumnResolver(
-            fields, cfg.props, cfg.aliases, mapping.aliases,
-            (*mapping.strip_header_prefix, *cfg.strip_header_prefix),
-            shared_aliases=mapping.shared_aliases,
-        )
-        resolved = resolver.resolved_map(columns[1:])  # prop -> raw column | None
+    out_path = out_dir / f"{node.label}.csv"
+    seen: set[str] = set()
+    count = 0
+    first_write = True
 
-        out_path = out_dir / f"{node.label}.csv"
-        seen: set[str] = set()
-        count = 0
-        with out_path.open("w", newline="", encoding="utf-8") as out_fh:
-            writer = csv.writer(out_fh)
-            writer.writerow(columns)
-            for row in reader:
-                node_id = strip_prefix(scrub(row.get(cfg.key), placeholders), cfg.strip_prefix)
-                if not node_id:
-                    continue
-                if cfg.dedup and node_id in seen:
-                    continue
-                seen.add(node_id)
-                record = [node_id]
-                for prop in columns[1:]:
-                    raw = resolved[prop]
-                    record.append(scrub(row.get(raw) if raw else "", placeholders))
-                writer.writerow(record)
-                count += 1
+    for src in srcs:
+        if not src.exists():
+            continue
+        delim = _delimiter(src)
+        with src.open(newline="", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh, delimiter=delim)
+            fields = reader.fieldnames or []
+            if cfg.key not in fields:
+                _log(f"! skip node {node.label}: id column {cfg.key!r} not in {src.name}", log)
+                continue
+            resolver = ColumnResolver(
+                fields, cfg.props, cfg.aliases, mapping.aliases,
+                (*mapping.strip_header_prefix, *cfg.strip_header_prefix),
+                shared_aliases=mapping.shared_aliases,
+            )
+            resolved = resolver.resolved_map(columns[1:])  # prop -> raw column | None
+
+            mode = "w" if first_write else "a"
+            with out_path.open(mode, newline="", encoding="utf-8") as out_fh:
+                writer = csv.writer(out_fh)
+                if first_write:
+                    writer.writerow(columns)
+                    first_write = False
+                for row in reader:
+                    node_id = strip_prefix(scrub(row.get(cfg.key), placeholders), cfg.strip_prefix)
+                    if not node_id:
+                        continue
+                    if cfg.dedup and node_id in seen:
+                        continue
+                    seen.add(node_id)
+                    record = [node_id]
+                    for prop in columns[1:]:
+                        raw = resolved[prop]
+                        record.append(scrub(row.get(raw) if raw else "", placeholders))
+                    writer.writerow(record)
+                    count += 1
+
+    if first_write:  # no source file was processed
+        return None
     _log(f"  wrote nodes/{node.label}.csv ({count} rows)", log)
     return count
 
 
-def _write_edge(edge_type: str, cfg: EdgeMapping, pair: tuple[str, str], src: Path,
+def _write_edge(edge_type: str, cfg: EdgeMapping, pair: tuple[str, str], srcs: list[Path],
                 out_dir: Path, properties: tuple[str, ...], placeholders: frozenset[str],
                 mapping: "Mapping", log: bool) -> int | None:
     start_label, end_label = pair
     header = ["startId", "endId", "startLabel", "endLabel", *properties]
 
-    delim = _delimiter(src)
-    with src.open(newline="", encoding="utf-8") as fh:
-        reader = csv.DictReader(fh, delimiter=delim)
-        fields = reader.fieldnames or []
-        for key in (cfg.start_key, cfg.end_key):
-            if key not in fields:
-                _log(f"! skip edge {edge_type}: column {key!r} not in {src.name}", log)
-                return None
-        resolver = ColumnResolver(
-            fields, cfg.props, cfg.aliases, mapping.aliases,
-            (*mapping.strip_header_prefix, *cfg.strip_header_prefix),
-            shared_aliases=mapping.shared_aliases,
-        )
-        resolved = resolver.resolved_map(properties)
+    out_path = out_dir / f"{edge_type}.csv"
+    seen: set[tuple[str, str]] = set()
+    count = 0
+    first_write = True
 
-        out_path = out_dir / f"{edge_type}.csv"
-        seen: set[tuple[str, str]] = set()
-        count = 0
-        with out_path.open("w", newline="", encoding="utf-8") as out_fh:
-            writer = csv.writer(out_fh)
-            writer.writerow(header)
-            for row in reader:
-                start_id = strip_prefix(scrub(row.get(cfg.start_key), placeholders), cfg.strip_start_prefix)
-                end_id = strip_prefix(scrub(row.get(cfg.end_key), placeholders), cfg.strip_end_prefix)
-                if not start_id or not end_id:
-                    continue
-                if cfg.dedup and (start_id, end_id) in seen:
-                    continue
-                seen.add((start_id, end_id))
-                record = [start_id, end_id, start_label, end_label]
-                for prop in properties:
-                    raw = resolved[prop]
-                    record.append(scrub(row.get(raw) if raw else "", placeholders))
-                writer.writerow(record)
-                count += 1
+    for src in srcs:
+        if not src.exists():
+            continue
+        delim = _delimiter(src)
+        with src.open(newline="", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh, delimiter=delim)
+            fields = reader.fieldnames or []
+            missing_keys = [k for k in (cfg.start_key, cfg.end_key) if k not in fields]
+            if missing_keys:
+                _log(f"! skip edge {edge_type}: column(s) {missing_keys!r} not in {src.name}", log)
+                continue
+            resolver = ColumnResolver(
+                fields, cfg.props, cfg.aliases, mapping.aliases,
+                (*mapping.strip_header_prefix, *cfg.strip_header_prefix),
+                shared_aliases=mapping.shared_aliases,
+            )
+            resolved = resolver.resolved_map(properties)
+
+            mode = "w" if first_write else "a"
+            with out_path.open(mode, newline="", encoding="utf-8") as out_fh:
+                writer = csv.writer(out_fh)
+                if first_write:
+                    writer.writerow(header)
+                    first_write = False
+                for row in reader:
+                    start_id = strip_prefix(scrub(row.get(cfg.start_key), placeholders), cfg.strip_start_prefix)
+                    end_id = strip_prefix(scrub(row.get(cfg.end_key), placeholders), cfg.strip_end_prefix)
+                    if not start_id or not end_id:
+                        continue
+                    if cfg.dedup and (start_id, end_id) in seen:
+                        continue
+                    seen.add((start_id, end_id))
+                    record = [start_id, end_id, start_label, end_label]
+                    for prop in properties:
+                        raw = resolved[prop]
+                        record.append(scrub(row.get(raw) if raw else "", placeholders))
+                    writer.writerow(record)
+                    count += 1
+
+    if first_write:  # no source file was processed
+        return None
     _log(f"  wrote edges/{edge_type}.csv ({count} rows)", log)
     return count
 
@@ -152,12 +174,8 @@ def standardise(dataset: str, profile: str = "extract", *, raw_root: Path | None
             _log(f"! skip node {label}: mapping unbound (no key)", log)
             summary["skipped"].append(label)
             continue
-        src = raw_dir / cfg.file
-        if not src.exists():
-            _log(f"! skip node {label}: {cfg.file} not found", log)
-            summary["skipped"].append(label)
-            continue
-        count = _write_node(node, cfg, src, nodes_dir, placeholders, mapping, log)
+        srcs = [raw_dir / f for f in cfg.files]
+        count = _write_node(node, cfg, srcs, nodes_dir, placeholders, mapping, log)
         if count is None:
             summary["skipped"].append(label)
         else:
@@ -178,12 +196,8 @@ def standardise(dataset: str, profile: str = "extract", *, raw_root: Path | None
             _log(f"! skip edge {edge_type}: pair {pair} not in schema", log)
             summary["skipped"].append(edge_type)
             continue
-        src = raw_dir / cfg.file
-        if not src.exists():
-            _log(f"! skip edge {edge_type}: {cfg.file} not found", log)
-            summary["skipped"].append(edge_type)
-            continue
-        count = _write_edge(edge_type, cfg, pair, src, edges_dir, edge.properties,
+        srcs = [raw_dir / f for f in cfg.files]
+        count = _write_edge(edge_type, cfg, pair, srcs, edges_dir, edge.properties,
                             placeholders, mapping, log)
         if count is None:
             summary["skipped"].append(edge_type)
@@ -236,8 +250,8 @@ def report(dataset: str, profile: str = "extract", *, raw_root: Path | None = No
         if node is None:
             out["skipped"].append((label, "not in schema"))
             continue
-        src = raw_dir / cfg.file
-        if not src.exists():
+        src = next((raw_dir / f for f in cfg.files if (raw_dir / f).exists()), None)
+        if src is None:
             out["skipped"].append((label, f"{cfg.file} not found"))
             continue
         fields = _header(src)
@@ -261,8 +275,8 @@ def report(dataset: str, profile: str = "extract", *, raw_root: Path | None = No
         if edge is None:
             out["skipped"].append((edge_type, "not in schema"))
             continue
-        src = raw_dir / cfg.file
-        if not src.exists():
+        src = next((raw_dir / f for f in cfg.files if (raw_dir / f).exists()), None)
+        if src is None:
             out["skipped"].append((edge_type, f"{cfg.file} not found"))
             continue
         fields = _header(src)

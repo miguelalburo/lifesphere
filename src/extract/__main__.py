@@ -3,7 +3,7 @@
 Layer flags (at least one required):
   --clinical    fetch /cases and emit clinical TSVs (existing behaviour)
   --expression  RNA-seq STAR-Counts download + reshape
-  --methylation DNA-methylation download (not yet wired)
+  --methylation DNA-methylation download + reshape
   --variation   somatic-variation download (not yet wired)
   --omics       shorthand for --expression --methylation --variation
 """
@@ -34,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.add_argument("--clinical", action="store_true", help="fetch /cases clinical layer")
     parser.add_argument("--expression", action="store_true", help="RNA-seq layer (STAR-Counts download + reshape)")
-    parser.add_argument("--methylation", action="store_true", help="DNA-methylation layer (not yet wired)")
+    parser.add_argument("--methylation", action="store_true", help="DNA-methylation layer (Methylation Beta Value download + reshape)")
     parser.add_argument("--variation", action="store_true", help="somatic-variation layer (not yet wired)")
     parser.add_argument(
         "--omics", action="store_true",
@@ -65,6 +65,9 @@ def main(argv: list[str] | None = None) -> int:
             if layer == "expression":
                 from .omics.expression import extract_expression
                 extract_expression(selector, out_dir)
+            elif layer == "methylation":
+                from .omics.methylation import extract_methylation
+                extract_methylation(selector, out_dir)
             else:
                 print(
                     f"Layer '{layer}' is not yet wired — omics download not implemented.",
