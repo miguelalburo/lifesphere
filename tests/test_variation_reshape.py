@@ -238,3 +238,63 @@ class TestReshape:
         out = tmp_path / "obs.tsv"
         n = reshape([{"path": gz_path, "assay_id": "A1"}], out)
         assert n == 2
+
+    def test_sample_id_map_remaps_barcode_to_uuid(self, tmp_path):
+        maf_path = _write_maf(tmp_path, "maf.tsv", MAF_FILE)
+        out = tmp_path / "obs.tsv"
+        barcode = "TCGA-XX-0001-01A-11D-0001-08"
+        uuid = "aliquot-uuid-0001"
+        reshape(
+            [{"path": maf_path, "assay_id": "A1"}],
+            out,
+            sample_id_map={barcode: uuid},
+        )
+        _, rows = _read_obs(out)
+        sample_ids = {r["sample_id"] for r in rows}
+        assert sample_ids == {uuid}, f"Expected {{uuid}}, got {sample_ids}"
+        assert barcode not in sample_ids
+
+    def test_sample_id_map_fallback_to_barcode_when_unmapped(self, tmp_path):
+        maf_path = _write_maf(tmp_path, "maf.tsv", MAF_FILE)
+        out = tmp_path / "obs.tsv"
+        # Map does NOT include the barcode in the file → barcode is kept as-is
+        reshape(
+            [{"path": maf_path, "assay_id": "A1"}],
+            out,
+            sample_id_map={"OTHER-BARCODE": "other-uuid"},
+        )
+        _, rows = _read_obs(out)
+        sample_ids = {r["sample_id"] for r in rows}
+        assert "TCGA-XX-0001-01A-11D-0001-08" in sample_ids
+
+    def test_keep_barcodes_filters_rows(self, tmp_path):
+        # Two samples in MAF; keep only one
+        other_barcode = "TCGA-YY-0002-01A-11D-0002-08"
+        maf_two = MAF_FILE + (
+            f"TP53\t17\t7674220\t7674220\tMissense_Mutation\tSNP\tC\tT"
+            f"\t{other_barcode}\tENSG00000141510.11\tMODERATE\t100\t25\t80\t0\tPASS\n"
+        )
+        maf_path = _write_maf(tmp_path, "maf.tsv", maf_two)
+        out = tmp_path / "obs.tsv"
+        keep = {"TCGA-XX-0001-01A-11D-0001-08"}
+        n = reshape([{"path": maf_path, "assay_id": "A1"}], out, keep_barcodes=keep)
+        _, rows = _read_obs(out)
+        sample_ids = {r["sample_id"] for r in rows}
+        assert other_barcode not in sample_ids
+        assert "TCGA-XX-0001-01A-11D-0001-08" in sample_ids
+
+    def test_keep_barcodes_and_sample_id_map_compose(self, tmp_path):
+        # Filter to one barcode AND remap it to a UUID
+        barcode = "TCGA-XX-0001-01A-11D-0001-08"
+        uuid = "aliquot-uuid-0001"
+        maf_path = _write_maf(tmp_path, "maf.tsv", MAF_FILE)
+        out = tmp_path / "obs.tsv"
+        reshape(
+            [{"path": maf_path, "assay_id": "A1"}],
+            out,
+            sample_id_map={barcode: uuid},
+            keep_barcodes={barcode},
+        )
+        _, rows = _read_obs(out)
+        sample_ids = {r["sample_id"] for r in rows}
+        assert sample_ids == {uuid}

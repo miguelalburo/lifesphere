@@ -72,7 +72,8 @@ def _read_edge_groups(path: Path) -> dict[tuple[str, str], list[dict]]:
 
 def load(dataset: str, *, standardised_root: Path | None = None,
          config_dir: Path | None = None, batch_size: int = DEFAULT_BATCH,
-         constraints: bool = True, dry_run: bool = False, log: bool = True) -> dict:
+         constraints: bool = True, dry_run: bool = False, log: bool = True,
+         database: str | None = None) -> dict:
     """Load one standardised dataset into Neo4j (or plan it when ``dry_run``)."""
     schema: Schema = load_schema(config_dir)
     base = (standardised_root or DATA_STANDARDISED) / dataset
@@ -84,7 +85,7 @@ def load(dataset: str, *, standardised_root: Path | None = None,
 
     client = None
     if not dry_run:
-        client = Neo4jClient().__enter__()
+        client = Neo4jClient(database=database).__enter__()
     try:
         # 1) constraints for every loaded node label
         if constraints:

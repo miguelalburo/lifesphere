@@ -19,6 +19,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="skip creating uniqueness constraints")
     parser.add_argument("--dry-run", action="store_true",
                         help="plan the load (print queries/counts) without a database")
+    parser.add_argument("--database", default=None,
+                        help="target Neo4j database name (overrides NEO4J_DATABASE env var)")
     args = parser.parse_args(argv)
 
     plan = load(
@@ -26,6 +28,7 @@ def main(argv: list[str] | None = None) -> int:
         batch_size=args.batch_size,
         constraints=not args.no_constraints,
         dry_run=args.dry_run,
+        database=args.database,
     )
     n_nodes = sum(plan["nodes"].values())
     n_edges = sum(plan["edges"].values())

@@ -66,8 +66,8 @@ def _obs_id(sample_id: str, cpg_id: str) -> str:
     return f"{sample_id}:{cpg_id}"
 
 
-def _aliquot_id(file_meta: dict) -> str:
-    """Extract aliquot_id from the nested /files response structure."""
+def aliquot_id(file_meta: dict) -> str:
+    """Return the aliquot UUID from a GDC /files response entry (cases expand)."""
     try:
         return (
             file_meta["cases"][0]
@@ -81,15 +81,15 @@ def _aliquot_id(file_meta: dict) -> str:
         return ""
 
 
-def _assay_id(file_meta: dict) -> str:
-    """Derive a deterministic assay id from platform | strategy | data_type."""
+def assay_id(file_meta: dict) -> str:
+    """Return a deterministic assay id as 'platform|strategy|Methylation Beta Value'."""
     platform = file_meta.get("platform") or "unknown"
     strategy = file_meta.get("experimental_strategy") or "unknown"
     return f"{platform}|{strategy}|Methylation Beta Value"
 
 
-def _pipeline_version(file_meta: dict) -> str:
-    """Extract workflow_type string from a /files response entry."""
+def pipeline_version(file_meta: dict) -> str:
+    """Return the workflow_type string from a GDC /files response entry."""
     return (file_meta.get("analysis") or {}).get("workflow_type", "")
 
 
@@ -168,16 +168,17 @@ def reshape(entries: list[dict], out_path: Path, *, dataset: str = "") -> int:
     return count
 
 
-def query_methylation_files(project_id: str) -> list[dict]:
-    """Query GDC /files for open Methylation Beta Value files in a project."""
+def query_methylation_files(project_id: str, case_id: str | None = None) -> list[dict]:
+    """Query GDC /files for open Methylation Beta Value files; scoped to case_id when given."""
+    clauses: list[dict] = [
+        {"op": "=", "content": {"field": "cases.project.project_id", "value": project_id}},
+        *_METHYLATION_FILTERS,
+    ]
+    if case_id:
+        clauses.append({"op": "=", "content": {"field": "cases.case_id", "value": case_id}})
     filters = {
         "op": "and",
-        "content": [
-            {"op": "=", "content": {
-                "field": "cases.project.project_id", "value": project_id,
-            }},
-            *_METHYLATION_FILTERS,
-        ],
+        "content": clauses,
     }
     hits: list[dict] = []
     from_pos, total = 0, None
@@ -234,9 +235,9 @@ def write_file_metadata(files: list[dict], metadata_path: Path) -> None:
             writer.writerow({
                 "file_id": f.get("file_id", ""),
                 "file_name": f.get("file_name", ""),
-                "sample_id": _aliquot_id(f),
-                "assay_id": _assay_id(f),
-                "pipeline_version": _pipeline_version(f),
+                "sample_id": aliquot_id(f),
+                "assay_id": assay_id(f),
+                "pipeline_version": pipeline_version(f),
             })
 
 
@@ -284,10 +285,10 @@ def extract_methylation(project_id: str, out_dir: Path) -> None:
         local_path = download_file(file_id, file_name, meth_dir)
         entries.append({
             "path": local_path,
-            "sample_id": _aliquot_id(f),
-            "assay_id": _assay_id(f),
+            "sample_id": aliquot_id(f),
+            "assay_id": assay_id(f),
             "source_file": file_id,
-            "pipeline_version": _pipeline_version(f),
+            "pipeline_version": pipeline_version(f),
         })
 
     print(f"Reshaping {len(entries)} methylation files...", file=sys.stderr, flush=True)

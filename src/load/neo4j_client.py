@@ -3,11 +3,15 @@
 Connection details come from ``.env`` (``NEO4J_URI`` / ``NEO4J_USER`` /
 ``NEO4J_PASSWORD``). The driver import is lazy so schema/validate/cypher tests
 run without ``neo4j`` installed or a live database.
+
+Enterprise extras (``verify_create_database_privilege``, ``provision_database``)
+raise ``RuntimeError`` when the connected instance is not Neo4j Enterprise.
 """
 
 from __future__ import annotations
 
 import os
+import re
 from typing import Iterable, Iterator
 
 try:  # optional at import time; only needed when actually loading
@@ -18,6 +22,9 @@ except Exception:  # pragma: no cover - dotenv is a convenience only
 
 DEFAULT_URI = "bolt://localhost:7687"
 DEFAULT_BATCH = 1000
+
+# Safe database name: letters, digits, hyphens, underscores only.
+_SAFE_DB_NAME = re.compile(r"^[A-Za-z0-9_\-]+$")
 
 
 def _chunks(rows: list[dict], size: int) -> Iterator[list[dict]]:
@@ -61,3 +68,68 @@ class Neo4jClient:
             for chunk in _chunks(rows, batch_size):
                 session.execute_write(lambda tx, c=chunk: tx.run(query, rows=c).consume())
         return len(rows)
+
+    # ── Enterprise database management ────────────────────────────────────────
+
+    def verify_create_database_privilege(self) -> bool:
+        """Return True if the connected user has the CREATE DATABASE privilege.
+
+        Requires an active driver (call inside ``with Neo4jClient() as c:``).
+        Runs ``SHOW CURRENT USER PRIVILEGES`` against the ``system`` database.
+
+        Raises ``RuntimeError`` if the instance is not Neo4j Enterprise (Community
+        edition does not expose a ``system`` database or multi-database commands).
+        """
+        try:
+            with self._driver.session(database="system") as session:
+                result = session.run("SHOW CURRENT USER PRIVILEGES")
+                rows = [r.data() for r in result]
+        except Exception as exc:
+            raise RuntimeError(
+                "Cannot query Neo4j system database — this instance may be "
+                "Community Edition (no multi-database support). "
+                f"Original error: {exc}"
+            ) from exc
+
+        for row in rows:
+            action = str(row.get("action") or "").lower()
+            segment = str(row.get("segment") or "").lower()
+            # Enterprise grants: "database_management" or specific "create_database"
+            if "create_database" in action or (
+                "database_management" in action and segment in ("", "*", "database")
+            ):
+                return True
+        return False
+
+    def provision_database(self, name: str) -> None:
+        """Drop (if it exists) and create a fresh Enterprise database named ``name``.
+
+        Raises ``ValueError`` for unsafe database names.
+        Raises ``RuntimeError`` if the instance is not Enterprise or if the
+        current user lacks CREATE DATABASE privilege.
+        """
+        if not _SAFE_DB_NAME.match(name):
+            raise ValueError(
+                f"Unsafe database name {name!r}. "
+                "Use letters, digits, hyphens, and underscores only."
+            )
+
+        has_priv = self.verify_create_database_privilege()
+        if not has_priv:
+            raise RuntimeError(
+                f"The current Neo4j user does not have CREATE DATABASE privilege. "
+                f"Cannot provision database {name!r}. "
+                "Grant the privilege with: "
+                f"GRANT CREATE DATABASE ON DBMS TO <role>;"
+            )
+
+        with self._driver.session(database="system") as session:
+            session.run(f"DROP DATABASE `{name}` IF EXISTS")
+            session.run(f"CREATE DATABASE `{name}`")
+
+    def query(self, cypher: str, database: str | None = None, **params) -> list[dict]:
+        """Run a read query and return all rows as dicts."""
+        db = database or self.database
+        with self._driver.session(database=db) as session:
+            result = session.run(cypher, **params)
+            return [r.data() for r in result]

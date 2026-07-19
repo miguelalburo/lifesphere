@@ -96,11 +96,13 @@ def _compute_vaf(t_depth: str, t_alt_count: str) -> str:
         return ""
 
 
-def _pipeline_version(file_meta: dict) -> str:
+def pipeline_version(file_meta: dict) -> str:
+    """Return the workflow_type string from a GDC /files response entry."""
     return (file_meta.get("analysis") or {}).get("workflow_type", "")
 
 
-def _assay_id(file_meta: dict) -> str:
+def assay_id(file_meta: dict) -> str:
+    """Return a deterministic assay id as 'platform|strategy|workflow'."""
     platform = file_meta.get("platform") or "unknown"
     strategy = file_meta.get("experimental_strategy") or "unknown"
     workflow = (file_meta.get("analysis") or {}).get("workflow_type") or "unknown"
@@ -129,15 +131,10 @@ def _parse_maf(path: Path) -> Iterator[dict]:
             yield dict(zip(header, parts))
 
 
-def reshape(entries: list[dict], out_path: Path, *, dataset: str = "") -> int:
-    """Reshape MAF file(s) to observation-grain TSV.
-
-    Each entry dict must have: ``path``, ``assay_id``.
-    Optional keys: ``source_file``, ``pipeline_version``.
-    The sample_id is read from each row's Tumor_Sample_Barcode column.
-
-    Returns the number of observations written.
-    """
+def reshape(entries: list[dict], out_path: Path, *, dataset: str = "",
+            sample_id_map: dict[str, str] | None = None,
+            keep_barcodes: set[str] | None = None) -> int:
+    """Reshape MAF file(s) to observation-grain TSV; returns observation count."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     count = 0
     with out_path.open("w", newline="", encoding="utf-8") as fh:
@@ -148,7 +145,12 @@ def reshape(entries: list[dict], out_path: Path, *, dataset: str = "") -> int:
             source_file = entry.get("source_file", "")
             pipeline_ver = entry.get("pipeline_version", "")
             for row in _parse_maf(entry["path"]):
-                sample_id = row.get("Tumor_Sample_Barcode", "")
+                barcode = row.get("Tumor_Sample_Barcode", "")
+                if not barcode:
+                    continue
+                if keep_barcodes is not None and barcode not in keep_barcodes:
+                    continue
+                sample_id = sample_id_map.get(barcode, barcode) if sample_id_map else barcode
                 if not sample_id:
                     continue
                 chrom = row.get("Chromosome", "")
@@ -256,8 +258,8 @@ def write_file_metadata(files: list[dict], metadata_path: Path) -> None:
             writer.writerow({
                 "file_id": f.get("file_id", ""),
                 "file_name": f.get("file_name", ""),
-                "assay_id": _assay_id(f),
-                "pipeline_version": _pipeline_version(f),
+                "assay_id": assay_id(f),
+                "pipeline_version": pipeline_version(f),
             })
 
 
@@ -305,9 +307,9 @@ def extract_variation(project_id: str, out_dir: Path) -> None:
         local_path = download_file(file_id, file_name, var_dir)
         entries.append({
             "path": local_path,
-            "assay_id": _assay_id(f),
+            "assay_id": assay_id(f),
             "source_file": file_id,
-            "pipeline_version": _pipeline_version(f),
+            "pipeline_version": pipeline_version(f),
         })
 
     print(f"Reshaping {len(entries)} variation file(s)...", file=sys.stderr, flush=True)
