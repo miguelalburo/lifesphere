@@ -2,10 +2,12 @@
 
 Tests cover:
   - _case_ids_from_files: extract GDC case UUIDs from file hits
-  - _aliquot_map_from_files: build barcode→UUID map from nested structure
   - _preferred_case_id: prefer primary-tumor cases; fall back to any case
   - select_case: integration with mocked GDC API (3-type intersection,
     widening to fallback projects, RuntimeError when nothing qualifies)
+
+The barcode→UUID map builder (aliquot_map) lives in src.extract.omics.variation
+and is tested in test_variation_reshape.py.
 """
 
 from __future__ import annotations
@@ -16,7 +18,6 @@ import pytest
 
 from src.extract.case_selector import (
     CaseSelection,
-    _aliquot_map_from_files,
     _case_ids_from_files,
     _preferred_case_id,
     select_case,
@@ -76,37 +77,6 @@ class TestCaseIdsFromFiles:
 
     def test_no_cases_key(self):
         assert _case_ids_from_files([{"file_id": "f1"}]) == set()
-
-
-# ─────────────────────────── _aliquot_map_from_files ─────────────────────────
-
-
-class TestAliquotMapFromFiles:
-    def test_builds_barcode_to_uuid(self):
-        files = [_make_file("f1", "c1", barcode="TCGA-AB-0001-01", uuid="uuid-001")]
-        assert _aliquot_map_from_files(files) == {"TCGA-AB-0001-01": "uuid-001"}
-
-    def test_multiple_aliquots(self):
-        files = [
-            _make_file("f1", "c1", barcode="TCGA-AB-0001-01", uuid="uuid-001"),
-            _make_file("f2", "c1", barcode="TCGA-AB-0002-01", uuid="uuid-002"),
-        ]
-        m = _aliquot_map_from_files(files)
-        assert m == {"TCGA-AB-0001-01": "uuid-001", "TCGA-AB-0002-01": "uuid-002"}
-
-    def test_skips_incomplete_aliquots(self):
-        # barcode without uuid → not added
-        files = [{"file_id": "f1", "cases": [
-            {"case_id": "c1", "samples": [
-                {"portions": [{"analytes": [{"aliquots": [
-                    {"submitter_id": "TCGA-X", "aliquot_id": ""}
-                ]}]}]}
-            ]}
-        ]}]
-        assert _aliquot_map_from_files(files) == {}
-
-    def test_empty_input(self):
-        assert _aliquot_map_from_files([]) == {}
 
 
 # ─────────────────────────── _preferred_case_id ──────────────────────────────

@@ -15,7 +15,13 @@ from textwrap import dedent
 
 import pytest
 
-from src.extract.omics.variation import _compute_vaf, _strip_version, _variant_id, reshape
+from src.extract.omics.variation import (
+    _compute_vaf,
+    _strip_version,
+    _variant_id,
+    aliquot_map,
+    reshape,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -298,3 +304,54 @@ class TestReshape:
         _, rows = _read_obs(out)
         sample_ids = {r["sample_id"] for r in rows}
         assert sample_ids == {uuid}
+
+
+# ---------------------------------------------------------------------------
+# aliquot_map: build {aliquot barcode → aliquot UUID} from /files hits
+# ---------------------------------------------------------------------------
+
+
+def _file_with_aliquots(*aliquots: tuple[str, str]) -> dict:
+    """A /files hit with one case whose sole sample carries the given aliquots.
+
+    Each aliquot is a (submitter_id, aliquot_id) pair; empty strings are kept so
+    incomplete-aliquot handling can be exercised.
+    """
+    entries = [{"submitter_id": bc, "aliquot_id": uid} for bc, uid in aliquots]
+    return {"cases": [
+        {"case_id": "c1", "samples": [
+            {"portions": [{"analytes": [{"aliquots": entries}]}]}
+        ]}
+    ]}
+
+
+class TestAliquotMap:
+    def test_builds_barcode_to_uuid(self):
+        files = [_file_with_aliquots(("TCGA-AB-0001-01A-11D-0001-08", "uuid-001"))]
+        assert aliquot_map(files) == {"TCGA-AB-0001-01A-11D-0001-08": "uuid-001"}
+
+    def test_unions_across_files_and_aliquots(self):
+        files = [
+            _file_with_aliquots(("TCGA-AB-0001-01A-11D-0001-08", "uuid-001")),
+            _file_with_aliquots(
+                ("TCGA-AB-0002-01A-11D-0002-08", "uuid-002"),
+                ("TCGA-AB-0003-10A-11D-0003-08", "uuid-003"),
+            ),
+        ]
+        assert aliquot_map(files) == {
+            "TCGA-AB-0001-01A-11D-0001-08": "uuid-001",
+            "TCGA-AB-0002-01A-11D-0002-08": "uuid-002",
+            "TCGA-AB-0003-10A-11D-0003-08": "uuid-003",
+        }
+
+    def test_skips_incomplete_aliquots(self):
+        # barcode without uuid (and vice versa) → not added
+        files = [_file_with_aliquots(("TCGA-X", ""), ("", "uuid-orphan"))]
+        assert aliquot_map(files) == {}
+
+    def test_tolerates_missing_nesting(self):
+        # hits without the cases/samples/... expand must not raise
+        assert aliquot_map([{"file_id": "f1"}, {"cases": [{"case_id": "c1"}]}]) == {}
+
+    def test_empty_input(self):
+        assert aliquot_map([]) == {}

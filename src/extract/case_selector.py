@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from . import gdc_api
 from .omics.expression import _EXPRESSION_FILTERS
 from .omics.methylation import _METHYLATION_FILTERS
-from .omics.variation import _VARIATION_FILTERS
+from .omics.variation import _VARIATION_FILTERS, aliquot_map
 
 _FILE_FIELDS = [
     "file_id",
@@ -90,22 +90,6 @@ def _case_ids_from_files(files: list[dict]) -> set[str]:
             if cid:
                 ids.add(cid)
     return ids
-
-
-def _aliquot_map_from_files(files: list[dict]) -> dict[str, str]:
-    """Build {submitter_barcode: aliquot_uuid} from /files response (with aliquot expand)."""
-    mapping: dict[str, str] = {}
-    for f in files:
-        for case in f.get("cases") or []:
-            for smp in case.get("samples") or []:
-                for portion in smp.get("portions") or []:
-                    for analyte in portion.get("analytes") or []:
-                        for aliquot in analyte.get("aliquots") or []:
-                            barcode = aliquot.get("submitter_id", "")
-                            uuid = aliquot.get("aliquot_id", "")
-                            if barcode and uuid:
-                                mapping[barcode] = uuid
-    return mapping
 
 
 def _preferred_case_id(case_ids: set[str], expr_files: list[dict]) -> str | None:
@@ -197,8 +181,8 @@ def select_case(
         _log("  Fetching per-case variation files for aliquot map...")
         case_var_for_map = _query_files(_VARIATION_FILTERS, project_id, case_id=case_id)
         _log(f"    {len(case_var_for_map)} file(s)")
-        aliquot_map = _aliquot_map_from_files(case_expr + case_meth + case_var_for_map)
-        _log(f"  Aliquot map: {len(aliquot_map)} barcode→UUID entries")
+        case_aliquot_map = aliquot_map(case_expr + case_meth + case_var_for_map)
+        _log(f"  Aliquot map: {len(case_aliquot_map)} barcode→UUID entries")
 
         return CaseSelection(
             case_id=case_id,
@@ -206,7 +190,7 @@ def select_case(
             expression_files=case_expr,
             methylation_files=case_meth,
             variation_files=var_files,
-            aliquot_map=aliquot_map,
+            aliquot_map=case_aliquot_map,
         )
 
     raise RuntimeError(

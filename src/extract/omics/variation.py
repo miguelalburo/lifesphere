@@ -9,8 +9,10 @@ Pipeline:
   6. extract_variation()      — orchestrate the full pipeline
 
 reshape() writes variation_observation.tsv to the dataset raw directory.
-The sample_id is read from each MAF row's Tumor_Sample_Barcode column.
-Run ``standardise --profile omics`` on that directory to produce graph CSVs.
+Each MAF row's Tumor_Sample_Barcode (an aliquot barcode) is remapped to the
+aliquot UUID via aliquot_map() so sample_id keys the Sample node like the other
+omics layers. Run ``standardise --profile omics`` on that directory to produce
+graph CSVs.
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ _FILE_FIELDS = [
 ]
 _FILE_EXPAND = [
     "analysis",
+    "cases.samples.portions.analytes.aliquots",
 ]
 _VARIATION_FILTERS = [
     {"op": "=", "content": {"field": "data_type", "value": "Masked Somatic Mutation"}},
@@ -107,6 +110,29 @@ def assay_id(file_meta: dict) -> str:
     strategy = file_meta.get("experimental_strategy") or "unknown"
     workflow = (file_meta.get("analysis") or {}).get("workflow_type") or "unknown"
     return f"{platform}|{strategy}|{workflow}"
+
+
+def aliquot_map(files: list[dict]) -> dict[str, str]:
+    """Build {aliquot_submitter_barcode: aliquot_uuid} from /files hits.
+
+    Requires the hits to be expanded with
+    ``cases.samples.portions.analytes.aliquots``. The MAF's ``Tumor_Sample_Barcode``
+    is an aliquot barcode; this map remaps it to the aliquot UUID that keys the
+    Sample node (see ``src/extract/entities/sample.py``), so variation
+    observations align with expression/methylation on ``sample_id``.
+    """
+    mapping: dict[str, str] = {}
+    for f in files:
+        for case in f.get("cases") or []:
+            for smp in case.get("samples") or []:
+                for portion in smp.get("portions") or []:
+                    for analyte in portion.get("analytes") or []:
+                        for aliquot in analyte.get("aliquots") or []:
+                            barcode = aliquot.get("submitter_id", "")
+                            uuid = aliquot.get("aliquot_id", "")
+                            if barcode and uuid:
+                                mapping[barcode] = uuid
+    return mapping
 
 
 def _parse_maf(path: Path) -> Iterator[dict]:
@@ -309,6 +335,14 @@ def extract_variation(selector: str, out_dir: Path, *, is_program: bool = False)
     write_manifest(files, var_dir / "manifest.tsv")
     write_file_metadata(files, var_dir / "file_metadata.tsv")
 
+    # Remap each MAF's Tumor_Sample_Barcode → aliquot UUID so variation
+    # sample_ids align with the Sample node key (and expression/methylation).
+    sample_map = aliquot_map(files)
+    print(
+        f"  Aliquot map: {len(sample_map)} barcode→UUID entries",
+        file=sys.stderr, flush=True,
+    )
+
     print(f"Downloading variation files to {var_dir}...", file=sys.stderr, flush=True)
     entries: list[dict] = []
     for i, f in enumerate(files, 1):
@@ -325,7 +359,7 @@ def extract_variation(selector: str, out_dir: Path, *, is_program: bool = False)
 
     print(f"Reshaping {len(entries)} variation file(s)...", file=sys.stderr, flush=True)
     obs_path = out_dir / "variation_observation.tsv"
-    count = reshape(entries, obs_path, dataset=selector)
+    count = reshape(entries, obs_path, dataset=selector, sample_id_map=sample_map)
     print(
         f"  Wrote {count:,} observations to {obs_path.name}",
         file=sys.stderr, flush=True,
