@@ -40,9 +40,10 @@ python3 -m src.standardise.run    # Stage 1: standardise raw data
 python3 -m src.load.run           # Stage 2: import into Neo4j
 ```
 
-On the HPC cluster, submit via SLURM instead:
+On the HPC cluster, submit the extraction jobs via SLURM instead:
 ```bash
-sbatch scripts/slurm/<job>.sh
+scripts/submit_extract_TCGA.sh   # sbatches the per-layer jobs in scripts/extract_TCGA/
+scripts/submit_resume_TCGA.sh    # resumes omics reshape offline (expression + methylation)
 ```
 
 ## Directory Map
@@ -64,8 +65,10 @@ lifesphere/
 │
 ├── tests/              # unit + integration tests mirroring src/ structure
 │
-├── scripts/
-│   └── slurm/          # HPC job submission scripts
+├── scripts/                    # operational entrypoints that orchestrate src/
+│   ├── submit_extract_TCGA.sh  # sbatches the per-layer extraction jobs
+│   ├── submit_resume_TCGA.sh   # sbatches the omics reshape resume jobs
+│   └── extract_TCGA/           # HPC (SLURM) job scripts + resume_omics_reshape.py
 │
 ├── logs/               # run logs (gitignored)
 ├── .venv/              # Python virtual environment (gitignored)

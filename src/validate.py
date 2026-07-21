@@ -40,24 +40,52 @@ def _node_ids(path: Path, id_prop: str) -> tuple[set[str], list[str]]:
     return ids, problems
 
 
-def validate(dataset: str, *, standardised_root: Path | None = None,
-             config_dir: Path | None = None) -> dict:
-    """Validate a standardised dataset. Returns a report with a ``problems`` list."""
-    schema: Schema = load_schema(config_dir)
-    base = (standardised_root or DATA_STANDARDISED) / dataset
-    nodes_dir, edges_dir = base / "nodes", base / "edges"
+def _load_node_index(nodes_dir: Path, schema: Schema,
+                     problems: list[str] | None = None) -> dict[str, set[str]]:
+    """Return {label: id set} for every node CSV in ``nodes_dir``.
 
-    problems: list[str] = []
-    id_index: dict[str, set[str]] = {}
-
+    When ``problems`` is given, undefined labels and blank/duplicate ids are
+    appended to it; otherwise the dir is loaded silently (used for reference
+    datasets, which are validated on their own).
+    """
+    index: dict[str, set[str]] = {}
     for path in sorted(nodes_dir.glob("*.csv")) if nodes_dir.exists() else []:
         node = schema.nodes.get(path.stem)
         if node is None:
-            problems.append(f"{path.name}: {path.stem} is not a defined node label")
+            if problems is not None:
+                problems.append(f"{path.name}: {path.stem} is not a defined node label")
             continue
         ids, node_problems = _node_ids(path, node.id)
-        id_index[node.label] = ids
-        problems.extend(node_problems)
+        index.setdefault(node.label, set()).update(ids)
+        if problems is not None:
+            problems.extend(node_problems)
+    return index
+
+
+def validate(dataset: str, *, standardised_root: Path | None = None,
+             config_dir: Path | None = None,
+             reference_datasets: tuple[str, ...] | list[str] = ()) -> dict:
+    """Validate a standardised dataset. Returns a report with a ``problems`` list.
+
+    ``reference_datasets`` names sibling standardised datasets whose node ids
+    are made available for edge-endpoint resolution without being validated
+    themselves. This lets a dataset that legitimately references nodes owned by
+    another (e.g. omics edges into clinical ``Sample`` nodes) be checked
+    strictly against those real ids rather than flagged as dangling.
+    """
+    schema: Schema = load_schema(config_dir)
+    root = standardised_root or DATA_STANDARDISED
+    base = root / dataset
+    nodes_dir, edges_dir = base / "nodes", base / "edges"
+
+    problems: list[str] = []
+    id_index = _load_node_index(nodes_dir, schema, problems)
+
+    # Reference datasets contribute node ids for FK resolution only.
+    ref_index: dict[str, set[str]] = {}
+    for ref in reference_datasets:
+        for label, ids in _load_node_index(root / ref / "nodes", schema).items():
+            ref_index.setdefault(label, set()).update(ids)
 
     n_edges = 0
     for path in sorted(edges_dir.glob("*.csv")) if edges_dir.exists() else []:
@@ -69,13 +97,13 @@ def validate(dataset: str, *, standardised_root: Path | None = None,
                 n_edges += 1
                 start_label, end_label = row.get("startLabel", ""), row.get("endLabel", "")
                 for label, key in ((start_label, "startId"), (end_label, "endId")):
-                    if label not in id_index:
+                    if label not in id_index and label not in ref_index:
                         problems.append(
                             f"{path.name}:{i}: endpoint label {label!r} has no loaded node CSV"
                         )
                         continue
                     value = (row.get(key) or "").strip()
-                    if value not in id_index[label]:
+                    if value not in id_index.get(label, set()) and value not in ref_index.get(label, set()):
                         problems.append(
                             f"{path.name}:{i}: dangling {key} {value!r} (no {label} node)"
                         )
@@ -97,9 +125,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("dataset", help="dataset folder name under data/standardised/")
     parser.add_argument("--strict", action="store_true",
                         help="exit non-zero if any problem is found")
+    parser.add_argument("--reference", metavar="DATASET", nargs="*", default=[],
+                        help="sibling dataset(s) whose node ids resolve cross-dataset "
+                             "edge endpoints (e.g. clinical for omics Sample edges)")
     args = parser.parse_args(argv)
 
-    report = validate(args.dataset)
+    report = validate(args.dataset, reference_datasets=args.reference)
     for problem in report["problems"]:
         print(problem, file=sys.stderr)
     print(

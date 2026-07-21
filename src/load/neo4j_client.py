@@ -75,14 +75,15 @@ class Neo4jClient:
         """Return True if the connected user has the CREATE DATABASE privilege.
 
         Requires an active driver (call inside ``with Neo4jClient() as c:``).
-        Runs ``SHOW CURRENT USER PRIVILEGES`` against the ``system`` database.
+        Runs ``SHOW USER PRIVILEGES`` (the current user's privileges) against the
+        ``system`` database.
 
         Raises ``RuntimeError`` if the instance is not Neo4j Enterprise (Community
         edition does not expose a ``system`` database or multi-database commands).
         """
         try:
             with self._driver.session(database="system") as session:
-                result = session.run("SHOW CURRENT USER PRIVILEGES")
+                result = session.run("SHOW USER PRIVILEGES")
                 rows = [r.data() for r in result]
         except Exception as exc:
             raise RuntimeError(
@@ -91,13 +92,19 @@ class Neo4jClient:
                 f"Original error: {exc}"
             ) from exc
 
+        # Any of these GRANTED DBMS actions imply CREATE DATABASE:
+        #   create_database      — the specific privilege
+        #   database_management  — ALL DATABASE MANAGEMENT
+        #   dbms_actions         — ALL DBMS PRIVILEGES (held by the admin role)
+        granting = {"create_database", "database_management", "dbms_actions"}
         for row in rows:
-            action = str(row.get("action") or "").lower()
-            segment = str(row.get("segment") or "").lower()
-            # Enterprise grants: "database_management" or specific "create_database"
-            if "create_database" in action or (
-                "database_management" in action and segment in ("", "*", "database")
-            ):
+            # Scope to the connected user when the query returns a user column.
+            row_user = row.get("user")
+            if self.user and row_user and row_user != self.user:
+                continue
+            if str(row.get("access") or "").upper() == "DENIED":
+                continue
+            if str(row.get("action") or "").lower() in granting:
                 return True
         return False
 

@@ -96,9 +96,16 @@ def pipeline_version(file_meta: dict) -> str:
 def _parse_beta_file(path: Path) -> Iterator[dict]:
     """Yield one dict per CpG row from a GDC Methylation Beta Value TSV.
 
-    Skips comment lines (starting with #) and the column-header row.
-    Expected columns: Composite Element REF, Beta_value, Chromosome, Start,
-    End, Gene_Symbol, ...
+    Handles both GDC methylation layouts:
+
+    * Annotated array files carry a header row beginning ``Composite Element
+      REF`` with columns Beta_value, Chromosome, Start, End, Gene_Symbol, ...
+    * ``sesame`` level3betas files are headerless, two columns:
+      ``<probe_id>\\t<beta_value>``.
+
+    Comment lines (starting with #) are skipped. For the headerless format a
+    synthetic ``Composite Element REF`` / ``Beta_value`` header is applied and
+    the first line is treated as data.
     """
     with path.open(newline="", encoding="utf-8") as fh:
         header: list[str] | None = None
@@ -108,8 +115,12 @@ def _parse_beta_file(path: Path) -> Iterator[dict]:
                 continue
             parts = line.split("\t")
             if header is None:
-                header = parts
-                continue
+                if parts and parts[0] == "Composite Element REF":
+                    header = parts  # annotated format: consume the header row
+                    continue
+                # headerless sesame format: (probe_id, beta_value)
+                header = ["Composite Element REF", "Beta_value"]
+                # fall through — this first line is already data
             if len(parts) < 2:
                 continue
             yield dict(zip(header, parts))

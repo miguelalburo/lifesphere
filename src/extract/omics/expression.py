@@ -98,20 +98,21 @@ def assay_id(file_meta: dict) -> str:
 def _parse_star_counts(path: Path) -> Iterator[dict]:
     """Yield one dict per gene row from a GDC STAR-Counts TSV.
 
-    Skips N_* summary rows (N_unmapped, N_multimapping, N_noFeature,
-    N_ambiguous) and the column-header row itself.
+    Skips leading ``#`` comment lines (GDC files begin with e.g.
+    ``# gene-model: GENCODE v36``), the N_* summary rows (N_unmapped,
+    N_multimapping, N_noFeature, N_ambiguous) and the column-header row itself.
     """
     with path.open(newline="", encoding="utf-8") as fh:
         header: list[str] | None = None
         for line in fh:
             line = line.rstrip("\n\r")
-            if not line:
+            if not line or line.startswith("#"):
                 continue
             parts = line.split("\t")
             if parts[0].startswith("N_"):
                 continue
             if header is None:
-                header = parts  # first non-N_ line is the column header
+                header = parts  # first non-comment, non-N_ line is the column header
                 continue
             if len(parts) < len(header):
                 continue
