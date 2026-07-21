@@ -37,6 +37,15 @@ nodes:
       - variation_observation.tsv
     key: assay_id
     dedup: true
+    # Provenance properties. Present on traditional-reshape observation TSVs
+    # (stamped from the profile's assay: sub-block); absent on GDC observation
+    # TSVs, where the resolver simply leaves them empty — so this is additive and
+    # harmless for the GDC path.
+    props:
+      platform: platform
+      libraryStrategy: library_strategy
+      referenceGenome: reference_genome
+      geneAnnotationVersion: gene_annotation_version
 
   MethylationObservation:
     file: methylation_observation.tsv

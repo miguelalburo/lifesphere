@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .. import gdc_api
+from ...observation import EXPRESSION_OBS_COLUMNS, obs_id as _obs_id, strip_version as _strip_version
 
 _DATA_URL = "https://api.gdc.cancer.gov/data"
 
@@ -44,27 +45,10 @@ _EXPRESSION_FILTERS = [
     {"op": "=", "content": {"field": "access", "value": "open"}},
 ]
 
-_OBS_COLUMNS = [
-    "expression_observation_id",
-    "sample_id",
-    "gene_id",
-    "expression_value",
-    "expression_unit",
-    "assay_id",
-    "source_dataset",
-    "source_file",
-    "pipeline_version",
-]
-
-
-def _strip_version(gene_id: str) -> str:
-    """Strip Ensembl version suffix: 'ENSG00000141510.12' → 'ENSG00000141510'."""
-    return gene_id.split(".")[0]
-
-
-def _obs_id(sample_id: str, gene_id: str) -> str:
-    """Return '{sample_id}:{gene_id}' as the observation surrogate key."""
-    return f"{sample_id}:{gene_id}"
+# Observation column set, surrogate-id minting, and Ensembl stripping are the
+# shared canonical contract (src/observation.py) so this GDC reshaper and the
+# traditional reshaper cannot drift.
+_OBS_COLUMNS = EXPRESSION_OBS_COLUMNS
 
 
 def pipeline_version(file_meta: dict) -> str:

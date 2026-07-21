@@ -16,7 +16,7 @@ import csv
 import sys
 from pathlib import Path
 
-from .. import DATA_RAW, DATA_STANDARDISED
+from .. import DATA_INTERIM, DATA_RAW, DATA_STANDARDISED
 from ..schema import Node, Schema, load_schema
 from .aliases import ColumnResolver
 from .mapping import EdgeMapping, Mapping, NodeMapping, load_mapping, load_placeholders
@@ -30,6 +30,20 @@ def _log(msg: str, enabled: bool) -> None:
 
 def _delimiter(path: Path) -> str:
     return "\t" if path.suffix.lower() in (".tsv", ".tab") else ","
+
+
+def _resolve_source(filename: str, interim_dir: Path, raw_dir: Path) -> Path:
+    """Resolve a source filename interim-first, then raw.
+
+    The reshape pre-pass writes melted observation TSVs to ``data/interim/``
+    while single-homed tables (e.g. sample metadata) stay in ``data/raw/``. A
+    filename present in interim wins over the same name in raw; a filename only
+    in raw resolves unchanged. Reshaped interim files are regenerated each run,
+    so a stale interim output never misleads a re-load. This is the one place
+    the engine is reshape-aware — the pure row-wise binder is untouched.
+    """
+    interim_path = interim_dir / filename
+    return interim_path if interim_path.exists() else raw_dir / filename
 
 
 def _header(path: Path) -> list[str]:
@@ -148,19 +162,64 @@ def _write_edge(edge_type: str, cfg: EdgeMapping, pair: tuple[str, str], srcs: l
     return count
 
 
+def _sample_id_set(mapping: "Mapping", interim_dir: Path, raw_dir: Path,
+                   placeholders: frozenset[str]) -> set[str] | None:
+    """The metadata ``Sample`` id set, used to reconcile reshape sample axes.
+
+    Reads the ids the ``Sample`` node binding would produce (same scrub +
+    prefix-strip), so a matrix header must exact-match a real Sample id. Returns
+    ``None`` when the profile binds no ``Sample`` — then reconciliation is off.
+    """
+    cfg = mapping.nodes.get("Sample")
+    if cfg is None or not cfg.bound:
+        return None
+    ids: set[str] = set()
+    for f in cfg.files:
+        src = _resolve_source(f, interim_dir, raw_dir)
+        if not src.exists():
+            continue
+        with src.open(newline="", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh, delimiter=_delimiter(src))
+            if cfg.key not in (reader.fieldnames or []):
+                continue
+            for row in reader:
+                sid = strip_prefix(scrub(row.get(cfg.key), placeholders), cfg.strip_prefix)
+                if sid:
+                    ids.add(sid)
+    return ids
+
+
 def standardise(dataset: str, profile: str = "extract", *, raw_root: Path | None = None,
-                out_root: Path | None = None, config_dir: Path | None = None,
-                log: bool = True) -> dict:
-    """Standardise one dataset. Returns a summary of row counts and skips."""
+                out_root: Path | None = None, interim_root: Path | None = None,
+                config_dir: Path | None = None, log: bool = True) -> dict:
+    """Standardise one dataset. Returns a summary of row counts and skips.
+
+    When the profile carries a ``reshape:`` block, the reshape pre-pass runs
+    first — melting traditional matrices/VCFs into canonical observation TSVs in
+    ``data/interim/`` — then the pure binder emits graph CSVs as usual. One fused
+    action, not a manual multi-stage dance.
+    """
     schema = load_schema(config_dir)
     mapping: Mapping = load_mapping(profile, config_dir)
     placeholders = load_placeholders(config_dir)
 
-    raw_dir = (raw_root or DATA_RAW) / dataset
+    raw_root_r = raw_root or DATA_RAW
+    interim_root_r = interim_root or DATA_INTERIM
+    raw_dir = raw_root_r / dataset
+    interim_dir = interim_root_r / dataset
     out_dir = (out_root or DATA_STANDARDISED) / dataset
     nodes_dir, edges_dir = out_dir / "nodes", out_dir / "edges"
     nodes_dir.mkdir(parents=True, exist_ok=True)
     edges_dir.mkdir(parents=True, exist_ok=True)
+
+    if mapping.reshape:
+        from ..reshape import parse_specs, reshape_dataset
+        sample_ids = _sample_id_set(mapping, interim_dir, raw_dir, placeholders)
+        reshape_dataset(
+            dataset, parse_specs(mapping.reshape),
+            raw_root=raw_root_r, interim_root=interim_root_r,
+            sample_ids=sample_ids, log=log,
+        )
 
     summary: dict = {"nodes": {}, "edges": {}, "skipped": []}
 
@@ -174,7 +233,7 @@ def standardise(dataset: str, profile: str = "extract", *, raw_root: Path | None
             _log(f"! skip node {label}: mapping unbound (no key)", log)
             summary["skipped"].append(label)
             continue
-        srcs = [raw_dir / f for f in cfg.files]
+        srcs = [_resolve_source(f, interim_dir, raw_dir) for f in cfg.files]
         count = _write_node(node, cfg, srcs, nodes_dir, placeholders, mapping, log)
         if count is None:
             summary["skipped"].append(label)
@@ -196,7 +255,7 @@ def standardise(dataset: str, profile: str = "extract", *, raw_root: Path | None
             _log(f"! skip edge {edge_type}: pair {pair} not in schema", log)
             summary["skipped"].append(edge_type)
             continue
-        srcs = [raw_dir / f for f in cfg.files]
+        srcs = [_resolve_source(f, interim_dir, raw_dir) for f in cfg.files]
         count = _write_edge(edge_type, cfg, pair, srcs, edges_dir, edge.properties,
                             placeholders, mapping, log)
         if count is None:
@@ -228,7 +287,8 @@ def _sample_values(src: Path, columns: list[str], max_values: int = 5) -> dict[s
 
 
 def report(dataset: str, profile: str = "extract", *, raw_root: Path | None = None,
-           config_dir: Path | None = None, values: bool = False) -> dict:
+           interim_root: Path | None = None, config_dir: Path | None = None,
+           values: bool = False) -> dict:
     """Column-binding coverage per node/edge, without writing any output.
 
     For each entry whose source file exists, reports which schema properties were
@@ -238,10 +298,15 @@ def report(dataset: str, profile: str = "extract", *, raw_root: Path | None = No
     When ``values=True``, unused columns are returned as ``{"column": str,
     "samples": list[str]}`` dicts with up to 5 distinct non-empty sample values.
     When ``values=False`` (default) they remain plain strings.
+
+    Note: unlike :func:`standardise`, this does not run the reshape pre-pass. It
+    resolves interim-first, so reshaped observation columns only appear in the
+    coverage report after a real ``standardise`` run has written them to interim.
     """
     schema: Schema = load_schema(config_dir)
     mapping: Mapping = load_mapping(profile, config_dir)
     raw_dir = (raw_root or DATA_RAW) / dataset
+    interim_dir = (interim_root or DATA_INTERIM) / dataset
 
     out: dict = {"nodes": {}, "edges": {}, "skipped": []}
 
@@ -250,7 +315,8 @@ def report(dataset: str, profile: str = "extract", *, raw_root: Path | None = No
         if node is None:
             out["skipped"].append((label, "not in schema"))
             continue
-        src = next((raw_dir / f for f in cfg.files if (raw_dir / f).exists()), None)
+        src = next((p for f in cfg.files
+                    if (p := _resolve_source(f, interim_dir, raw_dir)).exists()), None)
         if src is None:
             out["skipped"].append((label, f"{cfg.file} not found"))
             continue
@@ -275,7 +341,8 @@ def report(dataset: str, profile: str = "extract", *, raw_root: Path | None = No
         if edge is None:
             out["skipped"].append((edge_type, "not in schema"))
             continue
-        src = next((raw_dir / f for f in cfg.files if (raw_dir / f).exists()), None)
+        src = next((p for f in cfg.files
+                    if (p := _resolve_source(f, interim_dir, raw_dir)).exists()), None)
         if src is None:
             out["skipped"].append((edge_type, f"{cfg.file} not found"))
             continue

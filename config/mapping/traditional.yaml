@@ -1,0 +1,118 @@
+# Source -> schema binding for a TRADITIONAL bioinformatics dataset:
+# one sample-metadata table plus wide matrices (expression, methylation) and a
+# VCF, dropped under data/raw/<dataset>/.
+#
+# Run with the single fused command (reshape pre-pass + bind, one action):
+#   python -m src.standardise <dataset> --profile traditional
+#
+# This profile does two things:
+#   1. `reshape:` — structural melt directives. The pre-pass melts the matrices
+#      and VCF into canonical observation TSVs in data/interim/<dataset>/, which
+#      the binder then resolves interim-first.
+#   2. `nodes:`/`edges:` — bind ONLY the sample-metadata table to Sample/Subject/
+#      clinical nodes, leaning on the alias dictionaries for arbitrary lab column
+#      names. The reshaped observation TSVs are bound by REUSING the omics
+#      profile (`include: [omics]`), no special-casing.
+#
+# Expected raw files (rename in this profile to match your dataset):
+#   sample_metadata.tsv   one row per sample (sample id, subject id, clinical)
+#   expression_matrix.tsv genes_x_samples TPM matrix (Ensembl gene ids on rows)
+#   methylation_matrix.tsv samples_x_genes / genes_x_samples beta matrix (CpG ids)
+#   variants.vcf          bcftools-norm'd VCF (optionally VEP-annotated)
+
+profile: traditional
+
+# Reuse the observation-grain bindings (ExpressionObservation, Gene, Assay,
+# MethylationObservation, CpGSite, VariantObservation, Variant + their edges).
+include: [omics]
+
+# Arbitrary lab column names -> canonical schema property (lowest of the explicit
+# layers). Structural snake_case columns (e.g. sample_type -> sampleType) already
+# auto-bind, so only the irregular ones need listing here.
+aliases:
+  sex: sexAtBirth
+
+reshape:
+  # ── Expression matrix: genes on rows, samples on columns (TPM) ──
+  - type: matrix
+    input: expression_matrix.tsv
+    output: expression_observation.tsv
+    observation: expression
+    orientation: genes_x_samples
+    feature_id_column: gene_id
+    feature_id_type: ensembl
+    unit: TPM
+    assay:
+      assay_id: traditional-rnaseq-grch38
+      platform: Illumina NovaSeq
+      library_strategy: RNA-Seq
+      reference_genome: GRCh38
+      gene_annotation_version: GENCODE v36
+
+  # ── Methylation matrix: samples on rows, CpG probes on columns (beta) ──
+  # Same generic matrix path as expression — no methylation-specific reshaper —
+  # here declared in the transposed samples_x_genes orientation to show one melt
+  # handles both layouts. CpG probe ids are carried through as-is (already the
+  # shared CpGSite dimension). The assay: sub-block is optional and omitted here:
+  # observations still emit, while Assay / ASSAYED_BY skip cleanly on the blank
+  # key. Add an assay: block (as in the expression spec) to attach provenance.
+  - type: matrix
+    input: methylation_matrix.tsv
+    output: methylation_observation.tsv
+    observation: methylation
+    orientation: samples_x_genes
+    feature_id_column: sample_id
+    feature_id_type: illumina_cpg
+    unit: beta
+
+  # ── VCF: dedicated reader (not the matrix melt) ──
+  # Emits variation_observation.tsv (Variant / VariantObservation) plus, when the
+  # VCF is VEP-annotated, variant_gene.tsv (IS_WITHIN_GENE, one row per distinct
+  # gene). Un-annotated VCFs still land — only the gene edge is dropped.
+  - type: vcf
+    input: variants.vcf
+    output: variation_observation.tsv
+    gene_edge_output: variant_gene.tsv
+    assay:
+      assay_id: traditional-wgs-grch38
+      platform: Illumina NovaSeq
+      library_strategy: WGS
+      reference_genome: GRCh38
+
+nodes:
+  Subject:
+    file: sample_metadata.tsv
+    key: subject_id
+    dedup: true
+
+  Sample:
+    file: sample_metadata.tsv
+    key: sample_id
+    dedup: true
+
+  # Override the omics Gene binding so variant-annotation genes (from the VCF's
+  # variant_gene.tsv) also mint shared Gene nodes — otherwise IS_WITHIN_GENE
+  # endpoints would dangle. Traditional variation obs carry no gene_id column;
+  # gene links live in variant_gene.tsv.
+  Gene:
+    file:
+      - expression_observation.tsv
+      - variant_gene.tsv
+    key: gene_id
+    dedup: true
+
+edges:
+  PROVIDED_SAMPLE:
+    file: sample_metadata.tsv
+    pair: [Subject, Sample]
+    start_key: subject_id
+    end_key: sample_id
+
+  # Override the omics IS_WITHIN_GENE binding: traditional gene links come from
+  # the VCF reader's per-gene edge TSV, not from a gene_id column on the obs TSV.
+  IS_WITHIN_GENE:
+    file: variant_gene.tsv
+    pair: [Variant, Gene]
+    start_key: variant_id
+    end_key: gene_id
+    dedup: true

@@ -68,6 +68,7 @@ class Mapping:
     strip_header_prefix: tuple[str, ...] = ()
     nodes: dict[str, NodeMapping] = field(default_factory=dict)
     edges: dict[str, EdgeMapping] = field(default_factory=dict)
+    reshape: list = field(default_factory=list)   # raw reshape: block (parsed by src.reshape)
 
 
 def _as_tuple(value) -> tuple[str, ...]:
@@ -89,7 +90,8 @@ def load_placeholders(config_dir: Path | None = None) -> frozenset[str]:
     return frozenset(t.lower() for t in (data.get("placeholders") or []))
 
 
-def load_mapping(profile: str = "extract", config_dir: Path | None = None) -> Mapping:
+def load_mapping(profile: str = "extract", config_dir: Path | None = None,
+                 _seen: frozenset[str] = frozenset()) -> Mapping:
     path = (config_dir or CONFIG_DIR) / "mapping" / f"{profile}.yaml"
     data = _load_yaml(path)
 
@@ -97,6 +99,20 @@ def load_mapping(profile: str = "extract", config_dir: Path | None = None) -> Ma
     shared_aliases: dict[str, str] = {}
     if shared_path.exists():
         shared_aliases = dict(_load_yaml(shared_path) or {})
+
+    # A profile may `include:` others to reuse their bindings (e.g. traditional
+    # reuses omics' observation node/edge bindings). Included entries are merged
+    # first; this profile's own entries override on conflict.
+    inc_nodes: dict[str, NodeMapping] = {}
+    inc_edges: dict[str, EdgeMapping] = {}
+    inc_aliases: dict[str, str] = {}
+    for inc in (data.get("include") or []):
+        if inc in _seen or inc == profile:
+            continue
+        inc_map = load_mapping(inc, config_dir, _seen | {profile})
+        inc_nodes.update(inc_map.nodes)
+        inc_edges.update(inc_map.edges)
+        inc_aliases.update(inc_map.aliases)
 
     nodes: dict[str, NodeMapping] = {}
     for label, spec in (data.get("nodes") or {}).items():
@@ -134,9 +150,10 @@ def load_mapping(profile: str = "extract", config_dir: Path | None = None) -> Ma
 
     return Mapping(
         profile=data.get("profile", profile),
-        aliases=dict(data.get("aliases") or {}),
+        aliases={**inc_aliases, **dict(data.get("aliases") or {})},
         shared_aliases=shared_aliases,
         strip_header_prefix=_as_tuple(data.get("strip_header_prefix")),
-        nodes=nodes,
-        edges=edges,
+        nodes={**inc_nodes, **nodes},
+        edges={**inc_edges, **edges},
+        reshape=list(data.get("reshape") or []),
     )

@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .. import gdc_api
+from ...observation import METHYLATION_OBS_COLUMNS, obs_id as _obs_id
 
 _DATA_URL = "https://api.gdc.cancer.gov/data"
 
@@ -43,27 +44,10 @@ _METHYLATION_FILTERS = [
     {"op": "=", "content": {"field": "access", "value": "open"}},
 ]
 
-_OBS_COLUMNS = [
-    "methylation_observation_id",
-    "sample_id",
-    "cpg_id",
-    "beta_value",
-    "num_cpg_sites",
-    "modification_type",
-    "methylation_status",
-    "chromosome",
-    "start_position",
-    "gene_symbol",
-    "assay_id",
-    "source_dataset",
-    "source_file",
-    "pipeline_version",
-]
-
-
-def _obs_id(sample_id: str, cpg_id: str) -> str:
-    """Return '{sample_id}:{cpg_id}' as the observation surrogate key."""
-    return f"{sample_id}:{cpg_id}"
+# Observation column set and surrogate-id minting are the shared canonical
+# contract (src/observation.py) so this GDC reshaper and the traditional
+# reshaper cannot drift. CpG probe ids are used as-is (no version stripping).
+_OBS_COLUMNS = METHYLATION_OBS_COLUMNS
 
 
 def aliquot_id(file_meta: dict) -> str:

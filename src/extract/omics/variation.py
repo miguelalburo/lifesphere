@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .. import gdc_api
+from ...observation import VARIATION_OBS_COLUMNS, obs_id as _obs_id, strip_version as _strip_version
 
 _DATA_URL = "https://api.gdc.cancer.gov/data"
 
@@ -47,45 +48,16 @@ _VARIATION_FILTERS = [
     {"op": "=", "content": {"field": "access", "value": "open"}},
 ]
 
-_OBS_COLUMNS = [
-    "variant_observation_id",
-    "sample_id",
-    "variant_id",
-    "gene_id",
-    "chromosome",
-    "position_start",
-    "position_end",
-    "reference_allele",
-    "alternate_allele",
-    "variant_class",
-    "impact",
-    "variant_allele_frequency",
-    "tumor_read_count",
-    "tumor_variant_count",
-    "normal_read_count",
-    "normal_variant_count",
-    "filter_status",
-    "somatic_status",
-    "assay_id",
-    "source_dataset",
-    "source_file",
-    "pipeline_version",
-]
-
-
-def _strip_version(gene_id: str) -> str:
-    """Strip Ensembl version suffix: 'ENSG00000141510.12' → 'ENSG00000141510'."""
-    return gene_id.split(".")[0]
+# Observation column set, surrogate-id minting, and Ensembl stripping are the
+# shared canonical contract (src/observation.py). The GDC MAF variant key uses
+# a colon form (chrom:pos:ref:alt) and is local to this reshaper — the
+# traditional VCF reader mints its own dash form, a deliberately distinct set.
+_OBS_COLUMNS = VARIATION_OBS_COLUMNS
 
 
 def _variant_id(chrom: str, pos: str, ref: str, alt: str) -> str:
-    """Return 'chrom:pos:ref:alt' as the canonical variant key (GRCh38)."""
+    """Return 'chrom:pos:ref:alt' as the canonical GDC variant key (GRCh38)."""
     return f"{chrom}:{pos}:{ref}:{alt}"
-
-
-def _obs_id(sample_id: str, var_id: str) -> str:
-    """Return '{sample_id}:{variant_id}' as the observation surrogate key."""
-    return f"{sample_id}:{var_id}"
 
 
 def _compute_vaf(t_depth: str, t_alt_count: str) -> str:

@@ -85,6 +85,32 @@ def test_format_report_no_values_unchanged(mini_config, mini_raw):
     assert "[Resection" not in text and "[Biopsy" not in text
 
 
+def test_interim_overrides_raw_for_same_filename(mini_config, mini_raw, tmp_path):
+    """A filename present in interim wins over the same name in raw."""
+    from tests.conftest import write
+
+    interim_root = tmp_path / "interim"
+    # Interim subject.tsv carries a different subject set than raw's c1/c2.
+    write(interim_root / "MINI" / "subject.tsv", """
+        case_id\tsex\tsubject_type
+        c9\tmale\tpatient
+    """)
+
+    out_root = tmp_path / "std"
+    standardise(
+        "MINI", "test",
+        raw_root=mini_raw, out_root=out_root, interim_root=interim_root,
+        config_dir=mini_config, log=False,
+    )
+    header, rows = _read(out_root / "MINI" / "nodes" / "Subject.csv")
+    # Subject came from interim (c9), not raw (c1/c2).
+    assert rows == [["c9", "male", "patient"]]
+
+    # sample.tsv exists only in raw -> still resolves unchanged.
+    header, rows = _read(out_root / "MINI" / "nodes" / "Sample.csv")
+    assert [r[0] for r in rows] == ["s1", "s2"]
+
+
 def test_standardise_skips_missing_and_unbound(mini_config, mini_raw, tmp_path):
     summary = standardise(
         "MINI", "test",
