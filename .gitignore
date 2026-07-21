@@ -22,7 +22,6 @@ biocypher-log/
 # Python cache
 __pycache__/
 *.pyc
-*.pyo
 
 # Test output
 tests/output/*
@@ -43,7 +42,3 @@ docs/agents/*
 # Excalidraw Raw
 *.excalidraw.md
 docs/excalidraw/*
-docs/excalidraw/Drawing 2026-06-30 20.24.43.excalidraw.md
-
-docs/agents/issue-tracker.md
-docs/agents/issue-tracker.md
