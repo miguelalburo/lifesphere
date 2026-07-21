@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=08:00:00
-#SBATCH --output=".temp"
+#SBATCH --output=".temp_%j"
 
 set -e
 
@@ -17,7 +17,9 @@ set -e
 SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 source "${SCRIPT_DIR}/../.env"
 
-mv .temp "${LOG_DIR}/clinical_extraction_$(date -d "today" +"%d%m%Y%H%M")".log
+TS="$(date -d "today" +"%d%m%Y%H%M")"
+mv ".temp_${SLURM_JOB_ID}"  "${LOG_DIR}/clinical_extraction_${TS}.log"
+mv ".temp_${SLURM_JOB_ID}.stats" "${LOG_DIR}/clinical_extraction_${TS}.stats"
 cd "${PROJECT_DIR}"
 
 # ---------------------------------------------------------------------------
