@@ -14,9 +14,6 @@ set -e
 
 source .env
 
-TS="$(date -d "today" +"%d%m%Y%H%M")"
-exec > "${LOG_DIR}/variation_extraction_${TS}.log" 2>&1
-
 # ---------------------------------------------------------------------------
 # MODULES
 # ---------------------------------------------------------------------------
@@ -54,4 +51,4 @@ python -m src.extract --program TCGA --variation --out "${RAW_DIR}/TCGA_VARIATIO
 
 echo "=== COMPLETED SUCCESSFULLY? $(date -Is) ==="
 
-mv "slurm-${SLURM_JOB_ID}.out.stats" "${LOG_DIR}/variation_extraction_${TS}.stats"
+mv "slurm-${SLURM_JOB_ID}.out.stats" "${LOG_DIR}/extraction/variation_extraction_${SLURM_JOB_ID}_${TS}.stats"

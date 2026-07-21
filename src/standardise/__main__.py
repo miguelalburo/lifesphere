@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from .. import LOG_DIR
 from .run import format_report, report, standardise
 
 
@@ -23,7 +24,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.report or args.values:
-        print(format_report(report(args.dataset, args.profile, values=args.values)))
+        text = format_report(report(args.dataset, args.profile, values=args.values))
+        if LOG_DIR:
+            out = LOG_DIR / "standardisation" / f"{args.dataset}.txt"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(text, encoding="utf-8")
+            print(f"Coverage report written to {out}", file=sys.stderr)
+        else:
+            print(text)
         return 0
 
     summary = standardise(args.dataset, args.profile, log=not args.quiet)

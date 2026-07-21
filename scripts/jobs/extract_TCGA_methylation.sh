@@ -14,9 +14,6 @@ set -e
 
 source .env
 
-TS="$(date -d "today" +"%d%m%Y%H%M")"
-exec > "${LOG_DIR}/methylation_extraction_${TS}.log" 2>&1
-
 # ---------------------------------------------------------------------------
 # MODULES
 # ---------------------------------------------------------------------------
@@ -54,4 +51,4 @@ python -m src.extract --program TCGA --methylation --out "${RAW_DIR}/TCGA_METHYL
 
 echo "=== COMPLETED SUCCESSFULLY? $(date -Is) ==="
 
-mv "slurm-${SLURM_JOB_ID}.out.stats" "${LOG_DIR}/methylation_extraction_${TS}.stats"
+mv "slurm-${SLURM_JOB_ID}.out.stats" "${LOG_DIR}/extraction/methylation_extraction_${SLURM_JOB_ID}_${TS}.stats"

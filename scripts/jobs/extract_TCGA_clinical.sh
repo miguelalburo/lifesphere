@@ -14,9 +14,6 @@ set -e
 
 source .env
 
-TS="$(date -d "today" +"%d%m%Y%H%M")"
-exec > "${LOG_DIR}/clinical_extraction_${TS}.log" 2>&1
-
 # ---------------------------------------------------------------------------
 # MODULES
 # ---------------------------------------------------------------------------
@@ -54,4 +51,4 @@ python -m src.extract --program TCGA --clinical --out "${RAW_DIR}/TCGA_CLINICAL"
 
 echo "=== COMPLETED SUCCESSFULLY? $(date -Is) ==="
 
-mv "slurm-${SLURM_JOB_ID}.out.stats" "${LOG_DIR}/clinical_extraction_${TS}.stats"
+mv "slurm-${SLURM_JOB_ID}.out.stats" "${LOG_DIR}/extraction/clinical_extraction_${SLURM_JOB_ID}_${TS}.stats"
