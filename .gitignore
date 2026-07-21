@@ -2,19 +2,15 @@
 .env
 
 # Data
-data/raw/
-data/standardised/
+data/raw/*
+!data/raw/.gitkeep
+data/standardised/*
+!data/standardised/.gitkeep
 data/interim/
 
 # Log files
-logs/
-
-# Load ledger (tracks which datasets have been loaded into Neo4j)
-.load_ledger.json
-
-# BioCypher generated output
-logs/biocypher-out/
-biocypher-log/
+logs/*
+!logs/.gitkeep
 
 # Python virtual environment
 .venv/
