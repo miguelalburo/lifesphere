@@ -59,18 +59,20 @@ def main(argv: list[str] | None = None) -> int:
     selector = args.program or args.project_id
     out_dir = args.out or (DATA_RAW / selector)
 
+    is_program = bool(args.program)
+
     # Dispatch each requested omics layer.
     if omics_requested:
         for layer in omics_requested:
             if layer == "expression":
                 from .omics.expression import extract_expression
-                extract_expression(selector, out_dir)
+                extract_expression(selector, out_dir, is_program=is_program)
             elif layer == "methylation":
                 from .omics.methylation import extract_methylation
-                extract_methylation(selector, out_dir)
+                extract_methylation(selector, out_dir, is_program=is_program)
             elif layer == "variation":
                 from .omics.variation import extract_variation
-                extract_variation(selector, out_dir)
+                extract_variation(selector, out_dir, is_program=is_program)
 
     if args.clinical:
         if args.program:

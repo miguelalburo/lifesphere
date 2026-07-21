@@ -168,12 +168,22 @@ def reshape(entries: list[dict], out_path: Path, *, dataset: str = "") -> int:
     return count
 
 
-def query_methylation_files(project_id: str, case_id: str | None = None) -> list[dict]:
-    """Query GDC /files for open Methylation Beta Value files; scoped to case_id when given."""
-    clauses: list[dict] = [
-        {"op": "=", "content": {"field": "cases.project.project_id", "value": project_id}},
-        *_METHYLATION_FILTERS,
-    ]
+def query_methylation_files(
+    project_id: str | None = None,
+    case_id: str | None = None,
+    *,
+    program_name: str | None = None,
+) -> list[dict]:
+    """Query GDC /files for open Methylation Beta Value files.
+
+    Scope by project_id (single project) or program_name (all projects in program).
+    case_id further narrows to a single case.
+    """
+    clauses: list[dict] = [*_METHYLATION_FILTERS]
+    if program_name:
+        clauses.insert(0, {"op": "=", "content": {"field": "cases.project.program.name", "value": program_name}})
+    elif project_id:
+        clauses.insert(0, {"op": "=", "content": {"field": "cases.project.project_id", "value": project_id}})
     if case_id:
         clauses.append({"op": "=", "content": {"field": "cases.case_id", "value": case_id}})
     filters = {
@@ -258,16 +268,20 @@ def download_file(file_id: str, file_name: str, out_dir: Path) -> Path:
     return out_path
 
 
-def extract_methylation(project_id: str, out_dir: Path) -> None:
-    """Full methylation extraction pipeline for one GDC project."""
+def extract_methylation(selector: str, out_dir: Path, *, is_program: bool = False) -> None:
+    """Full methylation extraction pipeline for one GDC project or program."""
     meth_dir = out_dir / "methylation"
     meth_dir.mkdir(parents=True, exist_ok=True)
 
+    scope = f"program {selector}" if is_program else selector
     print(
-        f"Querying GDC /files for {project_id} Methylation Beta Value files...",
+        f"Querying GDC /files for {scope} Methylation Beta Value files...",
         file=sys.stderr, flush=True,
     )
-    files = query_methylation_files(project_id)
+    files = query_methylation_files(
+        program_name=selector if is_program else None,
+        project_id=None if is_program else selector,
+    )
     if not files:
         print("  No methylation files found.", file=sys.stderr)
         return
@@ -293,7 +307,7 @@ def extract_methylation(project_id: str, out_dir: Path) -> None:
 
     print(f"Reshaping {len(entries)} methylation files...", file=sys.stderr, flush=True)
     obs_path = out_dir / "methylation_observation.tsv"
-    count = reshape(entries, obs_path, dataset=project_id)
+    count = reshape(entries, obs_path, dataset=selector)
     print(
         f"  Wrote {count:,} observations to {obs_path.name}",
         file=sys.stderr, flush=True,
