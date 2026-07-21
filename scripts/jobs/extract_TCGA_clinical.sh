@@ -49,9 +49,7 @@ pip install -r requirements.txt
 # ---------------------------------------------------------------------------
 echo "=== RUNNING EXTRACTION $(date -Is) ==="
 
-python scripts/download_gdc.py\
- --program TCGA\
- "${RAW_DIR}/TCGA_CLINICAL"
+python -m src.extract --program TCGA --clinical --out "${RAW_DIR}/TCGA_CLINICAL"
 
 echo "=== COMPLETED SUCCESSFULLY? $(date -Is) ==="
 

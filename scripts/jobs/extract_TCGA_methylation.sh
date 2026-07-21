@@ -49,9 +49,7 @@ pip install -r requirements.txt
 # ---------------------------------------------------------------------------
 echo "=== RUNNING EXTRACTION $(date -Is) ==="
 
-python scripts/download_gdc.py\
- --program TCGA --methylation\
- "${RAW_DIR}/TCGA_METHYLATION"
+python -m src.extract --program TCGA --methylation --out "${RAW_DIR}/TCGA_METHYLATION"
 
 echo "=== COMPLETED SUCCESSFULLY? $(date -Is) ==="
 

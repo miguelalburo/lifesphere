@@ -49,9 +49,7 @@ pip install -r requirements.txt
 # ---------------------------------------------------------------------------
 echo "=== RUNNING EXTRACTION $(date -Is) ==="
 
-python scripts/download_gdc.py\
- --program TCGA --expression\
- "${RAW_DIR}/TCGA_EXPRESSION"
+python -m src.extract --program TCGA --expression --out "${RAW_DIR}/TCGA_EXPRESSION"
 
 echo "=== COMPLETED SUCCESSFULLY? $(date -Is) ==="
 

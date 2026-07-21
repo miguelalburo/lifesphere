@@ -49,9 +49,7 @@ pip install -r requirements.txt
 # ---------------------------------------------------------------------------
 echo "=== RUNNING EXTRACTION $(date -Is) ==="
 
-python scripts/download_gdc.py\
- --program TCGA --variation\
- "${RAW_DIR}/TCGA_VARIATION"
+python -m src.extract --program TCGA --variation --out "${RAW_DIR}/TCGA_VARIATION"
 
 echo "=== COMPLETED SUCCESSFULLY? $(date -Is) ==="
 
