@@ -1,5 +1,4 @@
-pandas
+PyYAML
 neo4j
-biocypher
 python-dotenv
 pytest
