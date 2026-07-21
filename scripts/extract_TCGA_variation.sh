@@ -14,7 +14,8 @@ set -e
 # PATHS  (all vars must be set in .env — no defaults)
 # ---------------------------------------------------------------------------
 
-source .env
+SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+source "${SCRIPT_DIR}/../.env"
 
 mv .temp "${LOG_DIR}/variation_extraction_$(date -d "today" +"%d%m%Y%H%M")".log
 cd "${PROJECT_DIR}"

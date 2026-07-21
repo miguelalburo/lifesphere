@@ -15,7 +15,8 @@ set -e
 # ---------------------------------------------------------------------------
 # REQS="numpy pandas" # Not all deps needed
 
-source .env
+SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+source "${SCRIPT_DIR}/../.env"
 
 mv .temp "${LOG_DIR}/extraction_$(date -d "today" +"%d%m%Y%H%M")".log
 cd "${PROJECT_DIR}"
