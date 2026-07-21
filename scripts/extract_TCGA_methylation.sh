@@ -14,8 +14,7 @@ set -e
 # PATHS  (all vars must be set in .env — no defaults)
 # ---------------------------------------------------------------------------
 
-SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
-source "${SCRIPT_DIR}/../.env"
+source .env
 
 TS="$(date -d "today" +"%d%m%Y%H%M")"
 mv ".temp_${SLURM_JOB_ID}"       "${LOG_DIR}/methylation_extraction_${TS}.log"

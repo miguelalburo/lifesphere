@@ -15,8 +15,7 @@ set -e
 # ---------------------------------------------------------------------------
 # REQS="numpy pandas" # Not all deps needed
 
-SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
-source "${SCRIPT_DIR}/../.env"
+source .env
 
 TS="$(date -d "today" +"%d%m%Y%H%M")"
 mv ".temp_${SLURM_JOB_ID}"       "${LOG_DIR}/extraction_${TS}.log"
