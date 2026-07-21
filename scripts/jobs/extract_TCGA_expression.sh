@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=extract_tcga_clinical
+#SBATCH --job-name=extract_tcga_expression
 #SBATCH --qos=bbdefault
 #SBATCH --nodes=1
 #SBATCH --ntasks=2
@@ -15,11 +15,6 @@ set -e
 # ---------------------------------------------------------------------------
 
 source .env
-
-TS="$(date -d "today" +"%d%m%Y%H%M")"
-mv ".temp_${SLURM_JOB_ID}"  "${LOG_DIR}/clinical_extraction_${TS}.log"
-mv ".temp_${SLURM_JOB_ID}.stats" "${LOG_DIR}/clinical_extraction_${TS}.stats"
-cd "${PROJECT_DIR}"
 
 # ---------------------------------------------------------------------------
 # MODULES
@@ -55,7 +50,11 @@ pip install -r requirements.txt
 echo "=== RUNNING EXTRACTION $(date -Is) ==="
 
 python scripts/download_gdc.py\
- --program TCGA\
- "${RAW_DIR}/TCGA_CLINICAL"
+ --program TCGA --expression\
+ "${RAW_DIR}/TCGA_EXPRESSION"
 
 echo "=== COMPLETED SUCCESSFULLY? $(date -Is) ==="
+
+TS="$(date -d "today" +"%d%m%Y%H%M")"
+mv "${LOG_DIR}/.temp_${SLURM_JOB_ID}"       "${LOG_DIR}/expression_extraction_${TS}.log"
+mv "${LOG_DIR}/.temp_${SLURM_JOB_ID}.stats" "${LOG_DIR}/expression_extraction_${TS}.stats"

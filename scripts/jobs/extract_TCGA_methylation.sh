@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=extract_tcga
+#SBATCH --job-name=extract_tcga_methylation
 #SBATCH --qos=bbdefault
 #SBATCH --nodes=1
 #SBATCH --ntasks=2
-#SBATCH --cpus-per-task=4                # rioxarray/rasterio reproject can use threads
+#SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=08:00:00
 #SBATCH --output=".temp_%j"
@@ -13,14 +13,8 @@ set -e
 # ---------------------------------------------------------------------------
 # PATHS  (all vars must be set in .env — no defaults)
 # ---------------------------------------------------------------------------
-# REQS="numpy pandas" # Not all deps needed
 
 source .env
-
-TS="$(date -d "today" +"%d%m%Y%H%M")"
-mv ".temp_${SLURM_JOB_ID}"       "${LOG_DIR}/extraction_${TS}.log"
-mv ".temp_${SLURM_JOB_ID}.stats" "${LOG_DIR}/extraction_${TS}.stats"
-cd "${PROJECT_DIR}"
 
 # ---------------------------------------------------------------------------
 # MODULES
@@ -50,14 +44,17 @@ source ${VENV_DIR}/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-
 # ---------------------------------------------------------------------------
 # RUN EXTRACTION
 # ---------------------------------------------------------------------------
 echo "=== RUNNING EXTRACTION $(date -Is) ==="
 
 python scripts/download_gdc.py\
- --program TCGA --variation --methylation --expression\
- "${RAW_DIR}/TCGA_COMPLETE"
+ --program TCGA --methylation\
+ "${RAW_DIR}/TCGA_METHYLATION"
 
 echo "=== COMPLETED SUCCESSFULLY? $(date -Is) ==="
+
+TS="$(date -d "today" +"%d%m%Y%H%M")"
+mv "${LOG_DIR}/.temp_${SLURM_JOB_ID}"       "${LOG_DIR}/methylation_extraction_${TS}.log"
+mv "${LOG_DIR}/.temp_${SLURM_JOB_ID}.stats" "${LOG_DIR}/methylation_extraction_${TS}.stats"
