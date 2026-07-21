@@ -30,14 +30,8 @@ module load gdc-client/1.6.0-GCCcore-13.3.0
 # VIRTUAL ENVIRONMENT
 # ---------------------------------------------------------------------------
 echo "=== SETTING UP VIRTUAL ENVIRONMENT $(date -Is) ==="
-mkdir -p ${VENV_DIR}
-if [[ ! -d ${VENV_DIR} ]] || [[ ! -f ${VENV_DIR}/bin/activate ]]; then
-    rm -rf ${VENV_DIR}
+if [[ ! -f ${VENV_DIR}/bin/activate ]]; then
     python3 -m venv --system-site-packages ${VENV_DIR}
-    if [[ $? -ne 0 ]]; then
-        echo "ERROR: venv creation failed" >&2
-        exit 1
-    fi
 fi
 source ${VENV_DIR}/bin/activate
 pip install --upgrade pip
