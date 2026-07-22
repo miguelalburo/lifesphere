@@ -45,5 +45,3 @@ echo "=== RUNNING EXTRACTION $(date -Is) ==="
 python -m src.extract --program TCGA --variation --out "${RAW_DIR}/TCGA_VARIATION"
 
 echo "=== COMPLETED SUCCESSFULLY? $(date -Is) ==="
-
-mv "slurm-${SLURM_JOB_ID}.out.stats" "${LOG_DIR}/extraction/variation_extraction_${SLURM_JOB_ID}_${TS}.stats"
