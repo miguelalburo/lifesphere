@@ -16,14 +16,12 @@ from __future__ import annotations
 
 import csv
 import sys
-import urllib.request
 from pathlib import Path
 from typing import Iterator
 
 from .. import gdc_api
+from .download import download_file
 from ...observation import METHYLATION_OBS_COLUMNS, obs_id as _obs_id
-
-_DATA_URL = "https://api.gdc.cancer.gov/data"
 
 _FILE_FIELDS = [
     "file_id",
@@ -246,23 +244,6 @@ def write_file_metadata(files: list[dict], metadata_path: Path) -> None:
             })
 
 
-def download_file(file_id: str, file_name: str, out_dir: Path) -> Path:
-    """Download one GDC file to out_dir/{file_id}/{file_name}.
-
-    Resume-safe: skips the download if the file already exists.
-    """
-    dest = out_dir / file_id
-    dest.mkdir(parents=True, exist_ok=True)
-    out_path = dest / file_name
-    if out_path.exists():
-        return out_path
-    url = f"{_DATA_URL}/{file_id}"
-    req = urllib.request.Request(url)
-    with urllib.request.urlopen(req, timeout=300) as resp:
-        out_path.write_bytes(resp.read())
-    return out_path
-
-
 def extract_methylation(selector: str, out_dir: Path, *, is_program: bool = False) -> None:
     """Full methylation extraction pipeline for one GDC project or program."""
     meth_dir = out_dir / "methylation"
@@ -291,7 +272,10 @@ def extract_methylation(selector: str, out_dir: Path, *, is_program: bool = Fals
         file_id = f.get("file_id", "")
         file_name = f.get("file_name", file_id)
         print(f"  [{i}/{len(files)}] {file_name}", file=sys.stderr, flush=True)
-        local_path = download_file(file_id, file_name, meth_dir)
+        local_path = download_file(
+            file_id, file_name, meth_dir,
+            md5=f.get("md5sum"), size=f.get("file_size"),
+        )
         entries.append({
             "path": local_path,
             "sample_id": aliquot_id(f),
