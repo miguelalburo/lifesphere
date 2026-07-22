@@ -23,7 +23,8 @@ except ImportError:
 DATA_RAW = Path(os.environ["RAW_DIR"]) if "RAW_DIR" in os.environ else PROJECT_ROOT / "data" / "raw"
 DATA_INTERIM = Path(os.environ["INTERIM_DIR"]) if "INTERIM_DIR" in os.environ else PROJECT_ROOT / "data" / "interim"
 DATA_STANDARDISED = Path(os.environ["STD_DIR"]) if "STD_DIR" in os.environ else PROJECT_ROOT / "data" / "standardised"
+DATA_IMPORT = Path(os.environ["IMPORT_DIR"]) if "IMPORT_DIR" in os.environ else PROJECT_ROOT / "data" / "import"
 
 LOG_DIR = Path(os.environ["LOG_DIR"]) if "LOG_DIR" in os.environ else PROJECT_ROOT / "logs"
 
-__all__ = ["PROJECT_ROOT", "CONFIG_DIR", "DATA_RAW", "DATA_INTERIM", "DATA_STANDARDISED", "LOG_DIR"]
+__all__ = ["PROJECT_ROOT", "CONFIG_DIR", "DATA_RAW", "DATA_INTERIM", "DATA_STANDARDISED", "DATA_IMPORT", "LOG_DIR"]

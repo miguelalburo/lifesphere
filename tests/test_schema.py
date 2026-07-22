@@ -42,3 +42,69 @@ def test_inconsistent_schema_is_detected():
     # an edge referencing undefined nodes must produce validation errors
     bad = Schema(nodes={}, edges={"E": Edge("E", (("X", "Y"),))})
     assert bad.validate()  # non-empty errors
+
+
+# ─────────────────────── typed properties (admin-import) ───────────────────────
+
+from conftest import write  # noqa: E402
+
+
+def _load(tmp_path, nodes_yaml, edges_yaml="{}"):
+    cfg = tmp_path / "config"
+    write(cfg / "schema" / "nodes.yaml", nodes_yaml)
+    write(cfg / "schema" / "edges.yaml", edges_yaml)
+    return load_schema(cfg)
+
+
+def test_property_types_parse(tmp_path):
+    schema = _load(
+        tmp_path,
+        """
+        Obs:
+          id: obsId
+          properties: [sampleId, {value: float}, {count: long}]
+        """,
+    )
+    node = schema.node("Obs")
+    # names keep declared order; untyped and typed alike appear in .properties
+    assert node.properties == ("sampleId", "value", "count")
+    assert node.columns == ("obsId", "sampleId", "value", "count")
+    # only the annotated ones carry a type; everything else defaults to string
+    assert node.property_type("value") == "float"
+    assert node.property_type("count") == "long"
+    assert node.property_type("sampleId") == "string"
+    assert node.property_type("obsId") == "string"
+
+
+def test_edge_property_types_parse(tmp_path):
+    schema = _load(
+        tmp_path,
+        """
+        Obs:
+          id: obsId
+          properties: []
+        Gene:
+          id: geneId
+        """,
+        """
+        MEASURES:
+          pairs: [[Obs, Gene]]
+          properties: [{confidence: double}, note]
+        """,
+    )
+    edge = schema.edge("MEASURES")
+    assert edge.properties == ("confidence", "note")
+    assert edge.property_type("confidence") == "double"
+    assert edge.property_type("note") == "string"
+
+
+def test_unknown_property_type_is_rejected(tmp_path):
+    with pytest.raises(ValueError, match="unknown property type"):
+        _load(
+            tmp_path,
+            """
+            Obs:
+              id: obsId
+              properties: [{value: flaot}]
+            """,
+        )

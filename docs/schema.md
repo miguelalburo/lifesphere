@@ -44,6 +44,8 @@ These conventions align with Neo4j/Cypher [naming rules and recommendations](htt
 
 > **Implementation warning:** Do not mix legacy `snake_case` properties such as `source_dataset` with updated `camelCase` properties such as `sourceDataset`, unless a legacy compatibility layer explicitly requires it.
 
+**Property types.** In `config/schema/nodes.yaml` / `edges.yaml` a property is a bare name (imported as `string`) or a single-key mapping `{name: type}` declaring a non-string scalar type — e.g. `{betaValue: float}`. Allowed types are the `neo4j-admin database import` scalar tokens (`int`, `long`, `float`, `double`, `boolean`, …; the full set is `schema.PROPERTY_TYPES`, validated at load time). The type is consumed **only** by the offline bulk-import path (`src/load/bulk.py`, `python -m src.load <dataset> --bulk`), which rewrites the standardised CSVs into admin-import headers for the initial build of a fresh, empty database; the online `MERGE` loader ignores it. Annotate only reliably-numeric columns — a non-numeric cell aborts a typed import. Currently the omics measurement values (`expressionValue`, `betaValue`, `abundanceValue`, `variantAlleleFrequency`) carry `float`.
+
 ### 2.2 Relationship Property Modelling Philosophy
 
 LifeSphere uses relationship properties only when the property describes the **association between two nodes**, rather than the intrinsic identity of either node. This distinction is important because the graph separates stable biomedical entities, sample-specific observations, provenance records, and biological assertions.

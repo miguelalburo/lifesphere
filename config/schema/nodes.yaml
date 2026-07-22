@@ -11,6 +11,13 @@
 #
 # Property names are authoritative and already camelCase — the standardise engine
 # emits exactly these columns per node.
+#
+# A property is a bare name (string) or, to declare a non-string type for the
+# neo4j-admin bulk-import path (src/load/bulk.py), a single-key mapping
+# {name: type} — e.g. {betaValue: float}. Allowed types are the admin-import
+# scalar tokens (int, long, float, double, boolean, ...); see schema.PROPERTY_TYPES.
+# The type only affects bulk-import headers; the online MERGE loader ignores it.
+# Annotate only reliably-numeric columns: a non-numeric cell fails a typed import.
 
 # ─────────────────────── Study / Sample backbone ───────────────────────
 
@@ -116,7 +123,7 @@ CpGSite:
 
 MethylationObservation:
   id: methylationObservationId
-  properties: [observationType, sampleId, assayId, cpgId, betaValue, methylationStatus, methylationStatusMethod, numCpGSites, modificationType, qualityScore, normalizationMethod, sourceDataset, sourceFile, pipelineVersion, configKey]
+  properties: [observationType, sampleId, assayId, cpgId, {betaValue: float}, methylationStatus, methylationStatusMethod, numCpGSites, modificationType, qualityScore, normalizationMethod, sourceDataset, sourceFile, pipelineVersion, configKey]
 
 MethylationStatusRule:
   id: methylationStatusRuleId
@@ -126,19 +133,19 @@ MethylationStatusRule:
 
 VariantObservation:
   id: variantObservationId
-  properties: [variantCaller, callStatus, somaticStatus, zygosity, variantAlleleFrequency, tumorReadCount, tumorVariantCount, normalReadCount, normalVariantCount, clinicalSignificance, pathogenicityScore, filterStatus, pipelineVersion, sourceDataset, sourceFile, assayId, sampleId, variantId, qualityScore]
+  properties: [variantCaller, callStatus, somaticStatus, zygosity, {variantAlleleFrequency: float}, tumorReadCount, tumorVariantCount, normalReadCount, normalVariantCount, clinicalSignificance, pathogenicityScore, filterStatus, pipelineVersion, sourceDataset, sourceFile, assayId, sampleId, variantId, qualityScore]
 
 ExpressionObservation:
   id: expressionObservationId
-  properties: [sampleId, assayId, geneId, observationType, expressionValue, expressionUnit, qualityScore, normalizationMethod, sourceDataset, sourceFile, pipelineVersion, configKey]
+  properties: [sampleId, assayId, geneId, observationType, {expressionValue: float}, expressionUnit, qualityScore, normalizationMethod, sourceDataset, sourceFile, pipelineVersion, configKey]
 
 ProteinObservation:
   id: proteinObservationId
-  properties: [sampleId, assayId, proteinId, observationType, expressionValue, expressionUnit, qualityScore, detectionStatus, quantificationMethod, normalizationMethod, sourceDataset, sourceFile, configKey]
+  properties: [sampleId, assayId, proteinId, observationType, {expressionValue: float}, expressionUnit, qualityScore, detectionStatus, quantificationMethod, normalizationMethod, sourceDataset, sourceFile, configKey]
 
 MetaboliteObservation:
   id: metaboliteObservationId
-  properties: [sampleId, assayId, metaboliteId, observationType, abundanceValue, abundanceUnit, qualityScore, detectionStatus, quantificationMethod, normalizationMethod, sourceDataset, sourceFile, configKey]
+  properties: [sampleId, assayId, metaboliteId, observationType, {abundanceValue: float}, abundanceUnit, qualityScore, detectionStatus, quantificationMethod, normalizationMethod, sourceDataset, sourceFile, configKey]
 
 # ─────────────────────── Protein / metabolite / pathway reference ───────────────────────
 
