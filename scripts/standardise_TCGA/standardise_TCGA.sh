@@ -40,14 +40,23 @@ module load Python/3.12.3-GCCcore-13.3.0
 
 # ---------------------------------------------------------------------------
 # VIRTUAL ENVIRONMENT
+# Fan-out jobs share one VENV_DIR on the mount, so serialise creation + install
+# behind a lock: without it, concurrent `pip install`s corrupt each other's
+# site-packages (e.g. "No such file or directory: .../pytz/__init__.py"). The
+# first job installs; the rest block, then find everything already satisfied.
 # ---------------------------------------------------------------------------
 echo "=== SETTING UP VIRTUAL ENVIRONMENT $(date -Is) ==="
-if [[ ! -f ${VENV_DIR}/bin/activate ]]; then
-    python3 -m venv --system-site-packages ${VENV_DIR}
-fi
-source ${VENV_DIR}/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+mkdir -p "$(dirname "${VENV_DIR}")"
+(
+    flock 9
+    if [[ ! -f ${VENV_DIR}/bin/activate ]]; then
+        python3 -m venv --system-site-packages ${VENV_DIR}
+    fi
+    source ${VENV_DIR}/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+) 9>"${VENV_DIR}.lock"
+source ${VENV_DIR}/bin/activate   # re-activate: the locked subshell's env didn't persist
 
 # ---------------------------------------------------------------------------
 # RUN STANDARDISE   (reads RAW_DIR/<dataset>, writes STD_DIR/<dataset>)
