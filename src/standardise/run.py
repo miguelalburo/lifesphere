@@ -90,9 +90,10 @@ def _write_node(node: Node, cfg: NodeMapping, srcs: list[Path], out_dir: Path,
                     node_id = strip_prefix(scrub(row.get(cfg.key), placeholders), cfg.strip_prefix)
                     if not node_id:
                         continue
-                    if cfg.dedup and node_id in seen:
-                        continue
-                    seen.add(node_id)
+                    if cfg.dedup:
+                        if node_id in seen:
+                            continue
+                        seen.add(node_id)  # only retained when deduping — see below
                     record = [node_id]
                     for prop in columns[1:]:
                         raw = resolved[prop]
@@ -146,9 +147,10 @@ def _write_edge(edge_type: str, cfg: EdgeMapping, pair: tuple[str, str], srcs: l
                     end_id = strip_prefix(scrub(row.get(cfg.end_key), placeholders), cfg.strip_end_prefix)
                     if not start_id or not end_id:
                         continue
-                    if cfg.dedup and (start_id, end_id) in seen:
-                        continue
-                    seen.add((start_id, end_id))
+                    if cfg.dedup:
+                        if (start_id, end_id) in seen:
+                            continue
+                        seen.add((start_id, end_id))  # only retained when deduping
                     record = [start_id, end_id, start_label, end_label]
                     for prop in properties:
                         raw = resolved[prop]

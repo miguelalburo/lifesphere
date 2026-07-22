@@ -14,6 +14,13 @@
 # NOTE: Gene, CpGSite, and Assay are dedup reference dimensions. Only the id
 # column is populated here; full annotation comes from reference sources.
 # Sample nodes are expected from the clinical pass; omics does not emit them.
+#
+# dedup: observation nodes/edges carry one unique row each (a measurement id, or
+# an observation<->sample/feature link), so they set dedup: false — deduping them
+# only grows an in-memory seen-set to the full row count (OOM at TCGA scale) with
+# nothing to collapse. Load MERGEs on id regardless, so it stays idempotent. Only
+# the bounded reference dimensions (Gene, CpGSite, Variant, Assay) and their
+# many-to-few edges keep dedup: true.
 
 profile: omics
 
@@ -21,7 +28,7 @@ nodes:
   ExpressionObservation:
     file: expression_observation.tsv
     key: expression_observation_id
-    dedup: true
+    dedup: false   # unique per measurement — see dedup note above
 
   Gene:
     file:
@@ -50,7 +57,7 @@ nodes:
   MethylationObservation:
     file: methylation_observation.tsv
     key: methylation_observation_id
-    dedup: true
+    dedup: false   # unique per measurement — see dedup note above
 
   CpGSite:
     file: methylation_observation.tsv
@@ -60,7 +67,7 @@ nodes:
   VariantObservation:
     file: variation_observation.tsv
     key: variant_observation_id
-    dedup: true
+    dedup: false   # unique per measurement — see dedup note above
 
   Variant:
     file: variation_observation.tsv
@@ -73,12 +80,14 @@ edges:
     pair: [Sample, ExpressionObservation]
     start_key: sample_id
     end_key: expression_observation_id
+    dedup: false   # one link per observation — see dedup note above
 
   MEASURES_GENE:
     file: expression_observation.tsv
     pair: [ExpressionObservation, Gene]
     start_key: expression_observation_id
     end_key: gene_id
+    dedup: false   # one link per observation — see dedup note above
 
   ASSAYED_BY:
     file:
@@ -95,24 +104,28 @@ edges:
     pair: [Sample, MethylationObservation]
     start_key: sample_id
     end_key: methylation_observation_id
+    dedup: false   # one link per observation — see dedup note above
 
   MEASURES_CPG:
     file: methylation_observation.tsv
     pair: [MethylationObservation, CpGSite]
     start_key: methylation_observation_id
     end_key: cpg_id
+    dedup: false   # one link per observation — see dedup note above
 
   HAS_VARIANT_OBSERVATION:
     file: variation_observation.tsv
     pair: [Sample, VariantObservation]
     start_key: sample_id
     end_key: variant_observation_id
+    dedup: false   # one link per observation — see dedup note above
 
   OBSERVED_VARIANT:
     file: variation_observation.tsv
     pair: [VariantObservation, Variant]
     start_key: variant_observation_id
     end_key: variant_id
+    dedup: false   # one link per observation — see dedup note above
 
   IS_WITHIN_GENE:
     file: variation_observation.tsv
