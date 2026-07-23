@@ -22,12 +22,18 @@
 # the bounded reference dimensions (Gene, CpGSite, Variant, Assay) and their
 # many-to-few edges keep dedup: true.
 
+# Created ids (the observation surrogate keys) are NOT read from the file's id
+# column — standardise mints them itself from the source columns, via the shared
+# registry in src/observation.py (DERIVED_KEYS), so the id is identical no matter
+# which path wrote the file. The `key:` entries below stay as documentation of
+# which column that id populates; changing them does not change how it is minted.
+
 profile: omics
 
 nodes:
   ExpressionObservation:
     file: expression_observation.tsv
-    key: expression_observation_id
+    key: expression_observation_id   # minted in standardise (DERIVED_KEYS), not read
     dedup: false   # unique per measurement — see dedup note above
 
   Gene:

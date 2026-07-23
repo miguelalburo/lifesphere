@@ -9,12 +9,19 @@ module both import:
   (:data:`EXPRESSION_OBS_COLUMNS`, :data:`METHYLATION_OBS_COLUMNS`,
   :data:`VARIATION_OBS_COLUMNS`);
 * the ``{sample}:{feature}`` surrogate-id minting (:func:`obs_id`);
-* unversioned-Ensembl stripping (:func:`strip_version`).
+* unversioned-Ensembl stripping (:func:`strip_version`);
+* the :data:`DERIVED_KEYS` registry — the single, profile-independent place that
+  says how each *created* node id is minted from its source columns, so the
+  standardise engine mints them itself rather than trusting whatever id string an
+  upstream path happened to write.
 
 Nothing here does I/O — it is pure data + string helpers.
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Callable
 
 # ─────────────────────── Observation column sets ───────────────────────
 # Order is significant: it is the TSV column order both paths must reproduce.
@@ -88,3 +95,46 @@ def strip_version(feature_id: str) -> str:
 def obs_id(sample_id: str, feature_id: str) -> str:
     """Return ``{sample_id}:{feature_id}`` as the observation surrogate key."""
     return f"{sample_id}:{feature_id}"
+
+
+# ─────────────────────── Derived-key registry ───────────────────────
+# Some node ids are *created* (minted by concatenating other columns), not copied
+# from a stable natural key. Those are the ones that historically diverged between
+# the GDC and traditional paths — each minted them inline, its own way.
+#
+# The fix is to mint created ids in exactly one place: standardise reads this
+# registry and builds the id itself, from the row's *required-present* raw columns,
+# via one shared function per label. The id therefore no longer depends on which
+# path produced the file, nor on the mapping profile (this lives in code, not YAML).
+#
+# Invariant: an entry lists the raw columns its id is built from (all must be
+# present and non-empty in a row) and the function that maps their values, in
+# order, to the id string. Per-label logic may differ; each label is defined once.
+#
+# Scope note: only the observation surrogate keys are registered for now — their
+# ``obs_id`` composition is already agreed and identical on both paths, so routing
+# it through here is a pure refactor. The other created keys (``Variant``,
+# ``Assay``) still differ in *format* between paths (colon-vs-dash, pipe-vs-
+# hardcoded); unifying those is a follow-up once the team fixes the id standard,
+# and is a one-line addition here when that scheme is decided.
+
+@dataclass(frozen=True)
+class KeyBuilder:
+    """How standardise mints one created node id from a source row.
+
+    ``sources`` are the raw (snake_case) columns the id is built from; the engine
+    requires every one present and non-empty before minting. ``build`` maps those
+    column values, in ``sources`` order, to the id string.
+    """
+    sources: tuple[str, ...]
+    build: Callable[..., str]
+
+    def mint(self, values: list[str]) -> str:
+        return self.build(*values)
+
+
+DERIVED_KEYS: dict[str, KeyBuilder] = {
+    "ExpressionObservation": KeyBuilder(("sample_id", "gene_id"), obs_id),
+    "MethylationObservation": KeyBuilder(("sample_id", "cpg_id"), obs_id),
+    "VariantObservation": KeyBuilder(("sample_id", "variant_id"), obs_id),
+}

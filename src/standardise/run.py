@@ -17,10 +17,22 @@ import sys
 from pathlib import Path
 
 from .. import DATA_INTERIM, DATA_RAW, DATA_STANDARDISED
+from ..observation import DERIVED_KEYS, KeyBuilder
 from ..schema import Node, Schema, load_schema
 from .aliases import ColumnResolver
 from .mapping import EdgeMapping, Mapping, NodeMapping, load_mapping, load_placeholders
 from .transform import scrub, strip_prefix
+
+
+def _mint(builder: KeyBuilder, row: dict, placeholders: frozenset[str]) -> str:
+    """Mint a created id from a row, or "" if any source column is missing/empty.
+
+    The single choke-point both node ids and edge endpoints route through, so a
+    created id is byte-identical wherever it appears — independent of the mapping
+    profile or which ingest path wrote the file.
+    """
+    values = [scrub(row.get(col), placeholders) for col in builder.sources]
+    return builder.mint(values) if all(values) else ""
 
 
 def _log(msg: str, enabled: bool) -> None:
@@ -58,6 +70,10 @@ def _write_node(node: Node, cfg: NodeMapping, srcs: list[Path], out_dir: Path,
     if node.subtype_from and node.subtype_from not in columns:
         columns.append(node.subtype_from)
 
+    # A created id (e.g. an observation surrogate key) is minted here from its
+    # source columns rather than read from cfg.key — see observation.DERIVED_KEYS.
+    builder = DERIVED_KEYS.get(node.label)
+
     out_path = out_dir / f"{node.label}.csv"
     seen: set[str] = set()
     count = 0
@@ -70,7 +86,12 @@ def _write_node(node: Node, cfg: NodeMapping, srcs: list[Path], out_dir: Path,
         with src.open(newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh, delimiter=delim)
             fields = reader.fieldnames or []
-            if cfg.key not in fields:
+            if builder is not None:
+                missing = [c for c in builder.sources if c not in fields]
+                if missing:
+                    _log(f"! skip node {node.label}: derived-id source column(s) {missing!r} not in {src.name}", log)
+                    continue
+            elif cfg.key not in fields:
                 _log(f"! skip node {node.label}: id column {cfg.key!r} not in {src.name}", log)
                 continue
             resolver = ColumnResolver(
@@ -87,7 +108,10 @@ def _write_node(node: Node, cfg: NodeMapping, srcs: list[Path], out_dir: Path,
                     writer.writerow(columns)
                     first_write = False
                 for row in reader:
-                    node_id = strip_prefix(scrub(row.get(cfg.key), placeholders), cfg.strip_prefix)
+                    if builder is not None:
+                        node_id = _mint(builder, row, placeholders)
+                    else:
+                        node_id = strip_prefix(scrub(row.get(cfg.key), placeholders), cfg.strip_prefix)
                     if not node_id:
                         continue
                     if cfg.dedup:
@@ -113,6 +137,12 @@ def _write_edge(edge_type: str, cfg: EdgeMapping, pair: tuple[str, str], srcs: l
     start_label, end_label = pair
     header = ["startId", "endId", "startLabel", "endLabel", *properties]
 
+    # An endpoint onto a created-id node is minted from the row (same builder as
+    # the node), not read from its key column — so the edge attaches to exactly
+    # the id the node CSV holds. Otherwise the endpoint comes from cfg.start/end_key.
+    start_builder = DERIVED_KEYS.get(start_label)
+    end_builder = DERIVED_KEYS.get(end_label)
+
     out_path = out_dir / f"{edge_type}.csv"
     seen: set[tuple[str, str]] = set()
     count = 0
@@ -125,7 +155,11 @@ def _write_edge(edge_type: str, cfg: EdgeMapping, pair: tuple[str, str], srcs: l
         with src.open(newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh, delimiter=delim)
             fields = reader.fieldnames or []
-            missing_keys = [k for k in (cfg.start_key, cfg.end_key) if k not in fields]
+            required = [
+                *(start_builder.sources if start_builder else (cfg.start_key,)),
+                *(end_builder.sources if end_builder else (cfg.end_key,)),
+            ]
+            missing_keys = [k for k in required if k not in fields]
             if missing_keys:
                 _log(f"! skip edge {edge_type}: column(s) {missing_keys!r} not in {src.name}", log)
                 continue
@@ -143,8 +177,10 @@ def _write_edge(edge_type: str, cfg: EdgeMapping, pair: tuple[str, str], srcs: l
                     writer.writerow(header)
                     first_write = False
                 for row in reader:
-                    start_id = strip_prefix(scrub(row.get(cfg.start_key), placeholders), cfg.strip_start_prefix)
-                    end_id = strip_prefix(scrub(row.get(cfg.end_key), placeholders), cfg.strip_end_prefix)
+                    start_id = (_mint(start_builder, row, placeholders) if start_builder
+                                else strip_prefix(scrub(row.get(cfg.start_key), placeholders), cfg.strip_start_prefix))
+                    end_id = (_mint(end_builder, row, placeholders) if end_builder
+                              else strip_prefix(scrub(row.get(cfg.end_key), placeholders), cfg.strip_end_prefix))
                     if not start_id or not end_id:
                         continue
                     if cfg.dedup:
