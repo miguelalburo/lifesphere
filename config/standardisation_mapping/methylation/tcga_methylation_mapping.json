@@ -1,0 +1,202 @@
+{
+    "module": "methylation_graph",
+    "inputs_profile": "TCGA_methylation_data",
+    "mappings": {
+        "CpGSite": {
+            "cpgId": {
+                "mode": "map",
+                "source": {
+                    "file": "rowData",
+                    "column": "cpg_id"
+                }
+            },
+            "chromosome": {
+                "mode": "map",
+                "source": {
+                    "file": "rowData",
+                    "column": "seqnames"
+                },
+                "transform": "strip_chr_prefix"
+            },
+            "startPosition": {
+                "mode": "map",
+                "source": {
+                    "file": "rowData",
+                    "column": "start"
+                },
+                "transform": "to_int"
+            },
+            "endPosition": {
+                "mode": "map",
+                "source": {
+                    "file": "rowData",
+                    "column": "end"
+                },
+                "transform": "to_int"
+            },
+            "strand": {
+                "mode": "map",
+                "source": {
+                    "file": "rowData",
+                    "column": "strand"
+                }
+            },
+            "geneSymbol": {
+                "mode": "map",
+                "source": {
+                    "file": "rowData",
+                    "column": "gene_HGNC"
+                }
+            },
+            "ensemblGeneId": {
+                "mode": "default",
+                "value": ""
+            },
+            "annotationSource": {
+                "mode": "default",
+                "value": "sesame"
+            },
+            "annotationVersion": {
+                "mode": "default",
+                "value": "Data Release 45.0"
+            },
+            "genomeBuild": {
+                "mode": "default",
+                "value": "GRCh38"
+            }
+        },
+        "MethylationObservation": {
+            "methylationObservationId": {
+                "mode": "compute",
+                "recipe": "concat",
+                "inputs": [
+                    "obs_",
+                    "sampleId",
+                    "_",
+                    "cpgId"
+                ]
+            },
+            "observationType": {
+                "mode": "default",
+                "value": "cpg_beta"
+            },
+            "sampleId": {
+                "mode": "compute",
+                "recipe": "from_matrix_headers"
+            },
+            "assayId": {
+                "mode": "compute",
+                "recipe": "concat",
+                "inputs": [
+                    "assay_HM450_",
+                    "sourceDataset"
+                ]
+            },
+            "cpgId": {
+                "mode": "compute",
+                "recipe": "from_matrix_index"
+            },
+            "betaValue": {
+                "mode": "compute",
+                "recipe": "from_matrix_values",
+                "transform": "clamp_0_1"
+            },
+            "methylationStatus": {
+                "mode": "compute",
+                "recipe": "derive_methylation_status",
+                "params": {
+                    "ruleMapping": "MethylationStatusRule",
+                    "hypoThresholdField": "hypoThreshold",
+                    "hyperThresholdField": "hyperThreshold",
+                    "intermediateLowerBoundField": "intermediateLowerBound",
+                    "intermediateUpperBoundField": "intermediateUpperBound",
+                    "hypoOperator": "<=",
+                    "intermediateLowerOperator": ">",
+                    "intermediateUpperOperator": "<",
+                    "hyperOperator": ">=",
+                    "hypoLabel": "Hypomethylated",
+                    "intermediateLabel": "Intermediate",
+                    "hyperLabel": "Hypermethylated"
+                }
+            },
+            "methylationStatusMethod": {
+                "mode": "default",
+                "value": "absolute_threshold_0.3_0.7"
+            },
+            "numCpGSites": {
+                "mode": "default",
+                "value": ""
+            },
+            "modificationType": {
+                "mode": "default",
+                "value": "5mC"
+            },
+            "qualityScore": {
+                "mode": "default",
+                "value": ""
+            },
+            "normalizationMethod": {
+                "mode": "default",
+                "value": ""
+            },
+            "sourceDataset": {
+                "mode": "compute",
+                "recipe": "cohort_name"
+            },
+            "sourceFile": {
+                "mode": "compute",
+                "recipe": "filename"
+            },
+            "pipelineVersion": {
+                "mode": "default",
+                "value": ""
+            },
+            "configKey": {
+                "mode": "default",
+                "value": "tcga_methylation_mapping"
+            }
+        },
+        "MethylationStatusRule": {
+            "methylationStatusRuleId": {
+                "mode": "default",
+                "value": "rule_beta_absolute_0_3_0_7_v1"
+            },
+            "ruleName": {
+                "mode": "default",
+                "value": "Absolute beta-value threshold rule (0.3/0.7)"
+            },
+            "ruleType": {
+                "mode": "default",
+                "value": "absolute_threshold"
+            },
+            "ruleDescription": {
+                "mode": "default",
+                "value": "Beta values less than or equal to 0.3 are classified as Hypomethylated, values greater than or equal to 0.7 are classified as Hypermethylated, and values between 0.3 and 0.7 are classified as Intermediate."
+            },
+            "betaValueScale": {
+                "mode": "default",
+                "value": "0_to_1"
+            },
+            "hypoThreshold": {
+                "mode": "default",
+                "value": "0.3"
+            },
+            "hyperThreshold": {
+                "mode": "default",
+                "value": "0.7"
+            },
+            "intermediateLowerBound": {
+                "mode": "default",
+                "value": "0.3"
+            },
+            "intermediateUpperBound": {
+                "mode": "default",
+                "value": "0.7"
+            },
+            "sourcePublicationId": {
+                "mode": "default",
+                "value": "10.1186/1868-7083-4-22"
+            }
+        }
+    }
+}
