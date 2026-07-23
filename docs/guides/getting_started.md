@@ -85,17 +85,6 @@ The three optional `*_DIR` variables are useful if you want to store large data 
 
 Do not commit `.env` to git — it contains credentials and is listed in `.gitignore`.
 
-## Step 6 — Install and start Neo4j
-
-Neo4j Desktop (Community edition) is the recommended local installation.
-
-1. Download Neo4j Desktop from [neo4j.com/download](https://neo4j.com/download/).
-2. Install and open it, then create a new **Project** and within it create a new **Local DBMS**.
-3. Set a password when prompted — this is the value for `NEO4J_PASSWORD` in your `.env`.
-4. Start the database by clicking **Start**.
-5. The bolt URI is `bolt://localhost:7687` by default — use this for `NEO4J_URI` in your `.env`.
-6. The default username is `neo4j`.
-
 ## Data directories
 
 After running the pipeline you will see these directories under the project root (or at the custom paths you set in `.env`):
