@@ -46,9 +46,17 @@ def _rel_type(path: Path) -> str:
 
 
 def assemble(datasets: list[str], out: Path, database: str,
-             id_type: str = "string") -> dict:
-    """Build every dataset under ``out/<dataset>`` and merge into one arg list."""
+             id_type: str = "string", schema: bool = False) -> dict:
+    """Build every dataset under ``out/<dataset>`` and merge into one arg list.
+
+    ``schema=True`` (neo4j-admin >= 2026.05) points ``--schema`` at the emitted
+    constraints file, so uniqueness constraints/indexes are built *during* the
+    offline import rather than by an online label scan after the load — folding
+    that cost into the BlueBEAR job. On < 2026.05 leave it off and apply the same
+    file on the Enterprise host (``load_enterprise.sh``).
+    """
     out.mkdir(parents=True, exist_ok=True)
+    constraints_file = out / "constraints.cypher"
 
     node_args: list[str] = []
     rel_args: list[str] = []
@@ -78,19 +86,21 @@ def assemble(datasets: list[str], out: Path, database: str,
         f"--array-delimiter={ARRAY_DELIMITER}",
         "--ignore-empty-strings=true",
     ]
+    if schema:
+        options.append(f"--schema={constraints_file}")
     # database name is positional and goes LAST (matches bulk.build_import).
     argv = [*options, *node_args, *rel_args, database]
 
     args_file = out / "import.args"
     args_file.write_text("\n".join(argv) + "\n", encoding="utf-8")
 
-    constraints_file = out / "constraints.cypher"
     constraints_file.write_text(
         "".join(f"{stmt};\n" for stmt in constraints), encoding="utf-8")
 
     return {
         "args_file": args_file,
         "constraints_file": constraints_file,
+        "schema": schema,
         "n_datasets": len(datasets),
         "n_node_files": n_node_files,
         "n_edge_files": n_edge_files,
@@ -110,13 +120,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--database", required=True,
                         help="target combined database name")
     parser.add_argument("--id-type", default="string")
+    parser.add_argument("--schema", action="store_true",
+                        help="emit --schema so indexes/constraints build during "
+                             "import (neo4j-admin >= 2026.05)")
     args = parser.parse_args(argv)
 
-    result = assemble(args.datasets, args.out, args.database, id_type=args.id_type)
+    result = assemble(args.datasets, args.out, args.database,
+                      id_type=args.id_type, schema=args.schema)
     print(
         f"# assembled {result['n_datasets']} datasets -> "
         f"{result['n_node_files']} node + {result['n_edge_files']} relationship files, "
-        f"{result['n_constraints']} constraints",
+        f"{result['n_constraints']} constraints"
+        f"{' (built during import via --schema)' if result['schema'] else ''}",
         file=sys.stderr,
     )
     print(result["args_file"])
