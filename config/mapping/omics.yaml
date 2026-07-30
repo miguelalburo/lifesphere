@@ -30,6 +30,20 @@
 
 profile: omics
 
+# Arbitrary lab column names -> canonical schema property (mirrors the pattern
+# documented in config/mapping/traditional.yaml). Added for the Variant coordinate
+# rename (schema migration follow-up, neo4j_updated_schema_new_v2.md §7.4):
+# position_start/position_end are the shared VARIATION_OBS_COLUMNS names written by
+# BOTH src/extract/omics/variation.py (GDC) and src/reshape/vcf.py (traditional VCF,
+# via `include: [omics]` in traditional.yaml) — see src/observation.py's contract
+# that both paths must emit byte-identical columns. The automatic camelCase resolver
+# used to match position_start -> positionStart, which was the old Variant property
+# name; now that config/schema/nodes.yaml renames it to startPosition/endPosition,
+# an explicit alias is required so both ingestion paths keep populating it.
+aliases:
+  position_start: startPosition
+  position_end: endPosition
+
 nodes:
   ExpressionObservation:
     file: expression_observation.tsv
