@@ -16,3 +16,11 @@ placeholders:
   - "not available"
   - "Not Available"
   - "'--"
+  # Bracket-wrapped tokens used by TCGA CDR-style bulk clinical/survival exports
+  # (config/mapping/tcga_bulk.yaml) -- added for the data/raw compatibility work,
+  # not present in any GDC-API extract output.
+  - "[Not Available]"
+  - "[Not Applicable]"
+  - "[Unknown]"
+  - "[Discrepancy]"
+  - "[Not Evaluated]"

@@ -45,6 +45,14 @@ class EdgeMapping:
     end_key: str | None = None
     strip_start_prefix: str | None = None
     strip_end_prefix: str | None = None
+    # truncate_start_segments / truncate_end_segments: added for the tcga_bulk
+    # profile (data/raw compatibility work) -- bridges a barcode-grain mismatch
+    # (e.g. a Sample id at aliquot grain vs a Subject id at patient grain) by
+    # keeping only the first N '-'-separated segments of the resolved start/end
+    # value. None (default) preserves the original untruncated behaviour for
+    # every existing profile.
+    truncate_start_segments: int | None = None
+    truncate_end_segments: int | None = None
     dedup: bool = True
     props: dict[str, str] = field(default_factory=dict)    # relProp -> raw_col
     aliases: dict[str, str] = field(default_factory=dict)  # raw_col -> relProp
@@ -142,6 +150,8 @@ def load_mapping(profile: str = "extract", config_dir: Path | None = None,
             end_key=spec.get("end_key"),
             strip_start_prefix=spec.get("strip_start_prefix"),
             strip_end_prefix=spec.get("strip_end_prefix"),
+            truncate_start_segments=spec.get("truncate_start_segments"),
+            truncate_end_segments=spec.get("truncate_end_segments"),
             dedup=spec.get("dedup", True),
             props=dict(spec.get("props") or {}),
             aliases=dict(spec.get("aliases") or {}),

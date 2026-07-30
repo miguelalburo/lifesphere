@@ -83,14 +83,19 @@ def melt_matrix(spec: ReshapeSpec, raw_dir: Path, interim_dir: Path, *, dataset:
         raise ValueError(f"unknown observation type {spec.observation!r} "
                          f"(expected one of {sorted(_OBS_PROFILES)})")
 
-    src = raw_dir / spec.input
+    # src = raw_dir / spec.input  # (original: literal input filename, no templating)
+    # A reshape spec's input: may carry a "{dataset}" placeholder (e.g. bulk
+    # downloads named per cohort, "TCGA-ACC_tpm_unstranded.tsv") -- substitute
+    # it with this dataset id before resolving (data/raw compatibility work).
+    input_name = spec.input.replace("{dataset}", dataset)
+    src = raw_dir / input_name
     out_path = interim_dir / (spec.output or f"{spec.observation}_observation.tsv")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not src.exists():
         # A traditional dataset may not carry every declared matrix. Skip loudly
         # and clear any stale interim output so a re-load never reads it.
-        _log(f"! skip matrix {spec.input}: source not found in raw", log)
+        _log(f"! skip matrix {input_name}: source not found in raw", log)
         if out_path.exists():
             out_path.unlink()
         return out_path
@@ -108,7 +113,7 @@ def melt_matrix(spec: ReshapeSpec, raw_dir: Path, interim_dir: Path, *, dataset:
 
         header = next(reader, None) or []
         if spec.feature_id_column not in header:
-            _log(f"! skip matrix {spec.input}: label column "
+            _log(f"! skip matrix {input_name}: label column "
                  f"{spec.feature_id_column!r} not in header", log)
             return out_path
         label_idx = header.index(spec.feature_id_column)
@@ -116,7 +121,7 @@ def melt_matrix(spec: ReshapeSpec, raw_dir: Path, interim_dir: Path, *, dataset:
         def emit(sample: str, feature: str, value: str) -> None:
             if not value.strip():
                 return
-            rec = stamp_row(fieldnames, spec.assay, dataset=dataset, source_file=spec.input)
+            rec = stamp_row(fieldnames, spec.assay, dataset=dataset, source_file=input_name)
             rec[profile.id_column] = obs_id(sample, feature)
             rec["sample_id"] = sample
             rec[profile.feature_column] = feature

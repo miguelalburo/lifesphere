@@ -1,0 +1,191 @@
+# Source -> schema binding for bulk-downloaded TCGA cohort data under
+# data/raw/TCGA-<CODE>/ (see 0729/data_raw_compatibility_analysis.md, Proposal 1).
+#
+# This data was NOT produced by src/extract (the GDC-API puller) -- it looks
+# like a mix of UCSC Xena / GDC bulk-portal / TCGA Pan-Cancer Atlas downloads,
+# with dataset-prefixed filenames (e.g. TCGA-ACC_biospecimen.csv) instead of
+# src/extract's fixed GDC-native names. `file:`/`input:` entries below use a
+# "{dataset}" placeholder, substituted with the actual dataset directory name
+# (e.g. "TCGA-ACC") by src/standardise/run.py::_resolve_source and
+# src/reshape/matrix.py::melt_matrix -- see the schema-migration comments there.
+#
+# Scope for this pass (agreed plan, "standard-shape files only"):
+#   *_biospecimen.csv, *_clinical.csv, *_survival.csv, *_tpm_unstranded.tsv.
+# Explicitly excluded this round:
+#   - TCGA_CDR_Survival_Master.csv / All_PanCancer_Subtypes.csv -- shared,
+#     unfiltered pan-cancer tables duplicated into every folder; the mapping
+#     engine has no per-dataset row filter, so binding these directly would
+#     cross-link every cancer type's patients into every dataset's graph.
+#   - *_unstranded_counts.tsv -- would collide with TPM on the same
+#     ExpressionObservation id (sample_id, gene_id only); TPM is loaded instead.
+#   - ACC/PRAD/SARC's dot-named clinical/survival/methylation/mutation files,
+#     and BRCA's proteomics/CNV/differential-expression/enrichment bundle --
+#     out of scope per the compatibility report (proteomics/metabolite
+#     ingestion has no code support at all yet; CNV and MAF-style mutation
+#     calls need separate handling; the enrichment files are outside the KG's
+#     documented scope).
+#
+# Known limitation carried into this profile (see summary report): Sample
+# (aliquot grain, from *_biospecimen.csv) and Subject (patient grain, from
+# *_clinical.csv) share no raw column directly -- PROVIDED_SAMPLE bridges this
+# via truncate_start_segments on Sample's own submitter_id barcode.
+#
+# Alias coverage confirmed across all ~30 eligible cohorts (0729/
+# tcga_bulk_alias_refinement_plan.md), not just the single cohort (CESC) this
+# profile was originally built against. Findings with NO schema home -- real,
+# recurring source columns with no matching schema property anywhere -- are
+# deliberately left unmapped rather than forced onto an unrelated property:
+#   - Diagnosis: ajcc_pathologic_t / _n / _m (T/N/M sub-stage, ~27-28/29
+#     cohorts) and ajcc_staging_system_edition (~28/29) -- Diagnosis has
+#     pathologicStage/tumorGrade but no separate TNM sub-component or staging-
+#     edition property.
+#   - Diagnosis: laterality (~28/29 cohorts, tumor sidedness at diagnosis) --
+#     a same-named property exists on Intervention's :Surgery subtype (a
+#     different context, surgical laterality), but Diagnosis itself has none.
+# Confirmed NOT aliasing gaps (real source-data absence, verified by comparing
+# raw headers, not assumed): Sample.collectionMethod/passageNumber and
+# Diagnosis.diagnosisMethod are unmatched in the same ~14 cohorts whose
+# biospecimen.csv/clinical.csv exports simply have fewer columns than the
+# richer cohorts (e.g. TCGA-CHOL's biospecimen.csv has 23 columns vs TCGA-
+# CESC's 32) -- there is no alternately-named column carrying the same data.
+# Diagnosis.ageOfOnsetDays only resolves in ~5/29 cohorts because age_at_onset
+# is a real, genuinely rare GDC field (hereditary/familial-onset tracking),
+# not a naming mismatch.
+#
+# Run with:
+#   python -m src.standardise TCGA-<CODE> --profile tcga_bulk --report --values
+# to see per-entry coverage before a real load.
+
+profile: tcga_bulk
+
+# Reuse the observation-grain bindings (ExpressionObservation, Gene, Assay,
+# HAS_EXPRESSION_OBSERVATION, MEASURES_GENE, ASSAYED_BY) -- same pattern as
+# config/mapping/traditional.yaml.
+include: [omics]
+
+reshape:
+  # ── Expression matrix: genes on rows, samples on columns (TPM) ──
+  - type: matrix
+    input: "{dataset}_tpm_unstranded.tsv"
+    output: expression_observation.tsv
+    observation: expression
+    orientation: genes_x_samples
+    feature_id_column: gene_id
+    feature_id_type: ensembl
+    unit: TPM
+    assay:
+      assay_id: tcga-bulk-rnaseq-star
+      platform: Illumina
+      library_strategy: RNA-Seq
+      reference_genome: GRCh38
+
+nodes:
+  # ── Sample (aliquot grain) ────────────────────────────────────────────────
+  # id = submitter_id (the full TCGA aliquot barcode, e.g. "TCGA-OR-A5LF-01A"),
+  # not biospecimen.csv's own "sample_id" column (a GDC UUID) -- every other
+  # bulk file (expression matrix headers, clinical/survival barcodes) uses the
+  # barcode, not the UUID, so the barcode is the join key across this profile.
+  Sample:
+    file: "{dataset}_biospecimen.csv"
+    key: submitter_id
+    dedup: true
+    aliases:
+      tissue_type: sampleClass
+      method_of_sample_procurement: collectionMethod
+      passage_count: passageNumber
+
+  # ── Subject (patient grain) ───────────────────────────────────────────────
+  # id = submitter_id (patient barcode, e.g. "TCGA-OR-A5LF" -- no sample
+  # suffix; a different column of the same name at a different grain than
+  # Sample's, since it comes from a different file).
+  Subject:
+    file: "{dataset}_clinical.csv"
+    key: submitter_id
+    dedup: true
+    aliases:
+      age_at_index: ageAtIndexDays
+
+  # ── Diagnosis ─────────────────────────────────────────────────────────────
+  # id = diagnosis_id. Mirrors config/mapping/extract.yaml's alias choices
+  # where the same GDC field names appear in this bulk export.
+  Diagnosis:
+    file: "{dataset}_clinical.csv"
+    key: diagnosis_id
+    dedup: true
+    props:
+      diseaseId: icd_10_code
+      tumorSubtype: morphology
+    aliases:
+      submitter_id: subjectId
+      age_at_diagnosis: ageAtDiagnosisDays
+      age_at_onset: ageOfOnsetDays
+      ajcc_pathologic_stage: pathologicStage
+      # Disease-specific staging systems, added after checking all ~30 eligible
+      # cohorts (0729/tcga_bulk_alias_refinement_plan.md): cohorts that don't use
+      # AJCC staging carry their disease-specific stage under a different column.
+      # Each only resolves when ajcc_pathologic_stage is absent from that
+      # cohort's own file (ColumnResolver's alias lookup is first-present-wins,
+      # so ajcc still takes priority whenever it exists).
+      figo_stage: pathologicStage  # gynecological cohorts (confirmed: TCGA-OV)
+      ann_arbor_clinical_stage: pathologicStage  # lymphoma (confirmed: TCGA-DLBC)
+      method_of_diagnosis: diagnosisMethod
+      primary_diagnosis: diseaseSubtype
+
+  # ── Disease (reference dimension from the clinical table) ─────────────────
+  # id = icd_10_code. Mirrors extract.yaml's Disease binding.
+  Disease:
+    file: "{dataset}_clinical.csv"
+    key: icd_10_code
+    dedup: true
+    aliases:
+      primary_diagnosis: diseaseName
+      icd_10_code: ontologyId
+
+  # ── Survival ──────────────────────────────────────────────────────────────
+  # id = bcr_patient_barcode (one row per patient in this source, already at
+  # Subject grain -- no truncation needed here, unlike Sample above).
+  # GAP: this file carries four survival endpoints as parallel columns
+  # (OS/OS.time, DSS/DSS.time, DFI/DFI.time, PFI/PFI.time) on one wide row;
+  # only OS (overall survival) is loaded this round -- there is no reshape
+  # capability today to melt a wide multi-endpoint row into separate Survival
+  # records, so survivalType is left unpopulated rather than hardcoded wrong.
+  Survival:
+    file: "{dataset}_survival.csv"
+    key: bcr_patient_barcode
+    dedup: true
+    aliases:
+      bcr_patient_barcode: subjectId
+      OS: eventOccurred
+      "OS.time": timeToEventDays
+      last_contact_days_to: lastFollowUpDays
+
+edges:
+  # Bridges Sample's aliquot-grain barcode down to Subject's patient-grain
+  # barcode by keeping only the first 3 '-'-separated segments
+  # (TCGA-XX-YYYY-01A -> TCGA-XX-YYYY). See truncate_barcode() in
+  # src/standardise/transform.py.
+  PROVIDED_SAMPLE:
+    file: "{dataset}_biospecimen.csv"
+    pair: [Subject, Sample]
+    start_key: submitter_id
+    end_key: submitter_id
+    truncate_start_segments: 3
+
+  HAS_DIAGNOSIS:
+    file: "{dataset}_clinical.csv"
+    pair: [Subject, Diagnosis]
+    start_key: submitter_id
+    end_key: diagnosis_id
+
+  OF_DISEASE:
+    file: "{dataset}_clinical.csv"
+    pair: [Diagnosis, Disease]
+    start_key: diagnosis_id
+    end_key: icd_10_code
+    dedup: true
+
+  HAS_SURVIVAL_RECORD:
+    file: "{dataset}_survival.csv"
+    pair: [Subject, Survival]
+    start_key: bcr_patient_barcode
+    end_key: bcr_patient_barcode

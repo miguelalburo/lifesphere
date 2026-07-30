@@ -21,7 +21,7 @@ from ..observation import DERIVED_KEYS, KeyBuilder
 from ..schema import Node, Schema, load_schema
 from .aliases import ColumnResolver
 from .mapping import EdgeMapping, Mapping, NodeMapping, load_mapping, load_placeholders
-from .transform import scrub, strip_prefix
+from .transform import scrub, strip_prefix, truncate_barcode
 
 
 def _mint(builder: KeyBuilder, row: dict, placeholders: frozenset[str]) -> str:
@@ -54,6 +54,12 @@ def _resolve_source(filename: str, interim_dir: Path, raw_dir: Path) -> Path:
     so a stale interim output never misleads a re-load. This is the one place
     the engine is reshape-aware — the pure row-wise binder is untouched.
     """
+    # A profile's file: entry may carry a "{dataset}" placeholder (e.g. bulk
+    # downloads named per cohort, "TCGA-ACC_biospecimen.csv") -- substitute it
+    # with this dataset's own directory name so one profile (tcga_bulk.yaml)
+    # works across every dataset. A literal filename with no placeholder is
+    # unaffected (added for the data/raw compatibility work).
+    filename = filename.replace("{dataset}", raw_dir.name)
     interim_path = interim_dir / filename
     return interim_path if interim_path.exists() else raw_dir / filename
 
@@ -177,10 +183,26 @@ def _write_edge(edge_type: str, cfg: EdgeMapping, pair: tuple[str, str], srcs: l
                     writer.writerow(header)
                     first_write = False
                 for row in reader:
+                    # start_id = (_mint(start_builder, row, placeholders) if start_builder
+                    #             else strip_prefix(scrub(row.get(cfg.start_key), placeholders), cfg.strip_start_prefix))
+                    # end_id = (_mint(end_builder, row, placeholders) if end_builder
+                    #           else strip_prefix(scrub(row.get(cfg.end_key), placeholders), cfg.strip_end_prefix))
+                    # Replaced above with optional barcode-truncation support
+                    # (tcga_bulk profile, data/raw compatibility work): a
+                    # non-minted start/end value may additionally be truncated
+                    # to its first N '-'-separated segments via
+                    # cfg.truncate_start_segments/truncate_end_segments, to
+                    # bridge a grain mismatch (e.g. aliquot barcode -> patient
+                    # barcode). A cfg without either field set behaves exactly
+                    # as before.
                     start_id = (_mint(start_builder, row, placeholders) if start_builder
                                 else strip_prefix(scrub(row.get(cfg.start_key), placeholders), cfg.strip_start_prefix))
+                    if not start_builder:
+                        start_id = truncate_barcode(start_id, cfg.truncate_start_segments)
                     end_id = (_mint(end_builder, row, placeholders) if end_builder
                               else strip_prefix(scrub(row.get(cfg.end_key), placeholders), cfg.strip_end_prefix))
+                    if not end_builder:
+                        end_id = truncate_barcode(end_id, cfg.truncate_end_segments)
                     if not start_id or not end_id:
                         continue
                     if cfg.dedup:

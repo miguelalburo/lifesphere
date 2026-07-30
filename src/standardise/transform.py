@@ -42,3 +42,18 @@ def strip_prefix(value: str, prefix: str | None) -> str:
     if prefix and value.startswith(prefix):
         return value[len(prefix):]
     return value
+
+
+def truncate_barcode(value: str, segments: int | None) -> str:
+    """Keep only the first ``segments`` ``-``-separated parts of a barcode.
+
+    Added for the tcga_bulk profile (data/raw compatibility work): a TCGA
+    aliquot/sample barcode (``TCGA-XX-YYYY-01A``) truncated to 3 segments
+    becomes the patient-grain barcode (``TCGA-XX-YYYY``), bridging a Sample
+    node's id to a Subject node's id when no raw file carries both grains on
+    the same row. ``segments`` of ``None`` or ``0`` is a no-op (default
+    behaviour for every profile that doesn't declare it).
+    """
+    if not segments or not value:
+        return value
+    return "-".join(value.split("-")[:segments])
