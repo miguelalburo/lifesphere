@@ -18,6 +18,13 @@
 # scalar tokens (int, long, float, double, boolean, ...); see schema.PROPERTY_TYPES.
 # The type only affects bulk-import headers; the online MERGE loader ignores it.
 # Annotate only reliably-numeric columns: a non-numeric cell fails a typed import.
+#
+# MIGRATION NOTE (Proposal A, neo4j_updated_schema_new_v2.md, minus the MONDO-centric
+# Disease rewrite — TCGA source data is ICD-10, not MONDO): renames/additions below are
+# marked inline. Old property names are commented out (not deleted) directly above their
+# replacement so the change history stays in-file. Schema-config only — config/mapping/*
+# and ingestion code are NOT updated in this pass; see the summary report for follow-ups
+# needed before renamed/added columns are actually populated from source data.
 
 # ─────────────────────── Study / Sample backbone ───────────────────────
 
@@ -31,7 +38,19 @@ Program:
 
 Study:
   id: studyId
-  properties: [studyAbbreviation, studyName, description, diseaseType, primarySite, studyDesign, enrollmentCount, studyPhase, sourceDataset, dataAccessLevel, cohortName]
+  properties:
+    - studyAbbreviation
+    - studyName
+    - description
+    # - diseaseType  # renamed -> diseaseCategory (schema migration: neo4j_updated_schema_new_v2.md §7.3)
+    - diseaseCategory
+    - primarySite
+    - studyDesign
+    - enrollmentCount
+    - studyPhase
+    - sourceDataset
+    - dataAccessLevel
+    - cohortName
 
 Subject:
   id: subjectId
@@ -43,11 +62,38 @@ Sample:
 
 Assay:
   id: assayId
-  properties: [assayType, platform, libraryStrategy, referenceGenome, geneAnnotationVersion, sourceDataset, sourceFile, assayDate, omicsInfo, chemistry, isSingleCellAssay]
+  properties:
+    - assayType
+    - platform
+    - libraryStrategy  # kept as an intentional LifeSphere extension, not in new_v2's Assay table
+    - referenceGenome
+    - geneAnnotationVersion
+    - sourceDataset
+    - sourceFile
+    - assayDate
+    - omicsInfo
+    # - chemistry  # renamed -> assayChemistry (schema migration: neo4j_updated_schema_new_v2.md §7.1)
+    - assayChemistry
+    - isSingleCellAssay
 
 LibraryPreparation:
   id: libraryPreparationId
-  properties: [libraryPreparationName, libraryStrategy, libraryProtocol, libraryKit, inputMaterial, selectionMethod, fragmentationMethod, amplificationMethod, barcodeStrategy, libraryLayout, readLength, chemistry, sourceDataset, sourceFile]
+  properties:
+    - libraryPreparationName
+    - libraryStrategy
+    - libraryProtocol
+    - libraryKit
+    - inputMaterial
+    - selectionMethod
+    - fragmentationMethod
+    - amplificationMethod
+    - barcodeStrategy
+    - libraryLayout
+    - readLength
+    # - chemistry  # renamed -> libraryChemistry (schema migration: neo4j_updated_schema_new_v2.md §7.8)
+    - libraryChemistry
+    - sourceDataset
+    - sourceFile
 
 Organism:
   id: taxonId
@@ -67,7 +113,16 @@ DevelopmentalStage:
 
 ExperimentalCondition:
   id: conditionId
-  properties: [conditionName, conditionType, conditionLabel, description, dose, doseUnit, duration, durationUnit]
+  properties:
+    - conditionName
+    - conditionType
+    - conditionLabel
+    - description
+    - dose
+    - doseUnit
+    - duration
+    - durationUnit
+    - sourceDataset  # added (schema migration: neo4j_updated_schema_new_v2.md §7.1)
 
 # ─────────────────────── Clinical layer ───────────────────────
 
@@ -89,7 +144,25 @@ Survival:
 
 PhenotypeObservation:
   id: phenotypeObservationId
-  properties: [subjectId, sampleId, diagnosisId, perturbationId, hpoId, phenotypeName, category, phenotypeType, value, status, unit, severityScore, severityScale, observationDay, observationDate, sourceDataset, sourceFile]
+  properties:
+    - subjectId
+    - sampleId
+    - diagnosisId
+    - perturbationId
+    - interventionId  # added — mirror for the RESULTED_IN (Intervention->PhenotypeObservation) edge (schema migration: neo4j_updated_schema_new_v2.md §7.3)
+    - hpoId
+    - phenotypeName
+    - category
+    - phenotypeType
+    - value
+    - status
+    - unit
+    - severityScore
+    - severityScale
+    - observationDay
+    - observationDate
+    - sourceDataset
+    - sourceFile
 
 # ─────────────────────── Evidence layer ───────────────────────
 
@@ -101,15 +174,53 @@ Evidence:
 
 Gene:
   id: geneId
-  properties: [symbol, name, organismTaxonId, ensemblGeneId, hgncId, entrezId, aliases, description, chromosome, startPosition, endPosition, strand]
+  properties:
+    - symbol
+    - name
+    - organismTaxonId
+    - ensemblGeneId
+    - hgncId
+    - entrezId
+    - aliases
+    - description
+    - chromosome
+    - startPosition
+    - endPosition
+    - strand
+    - referenceGenome  # added (schema migration: neo4j_updated_schema_new_v2.md §7.4)
+    - coordinateSystem  # added (schema migration: neo4j_updated_schema_new_v2.md §7.4)
 
 GenomicRegion:
   id: regionId
-  properties: [referenceGenome, chromosome, start, end, name, description]
+  properties:
+    - referenceGenome
+    - chromosome
+    # - start  # renamed -> startPosition, aligned with CpGSite/Gene naming (schema migration: neo4j_updated_schema_new_v2.md §7.4)
+    - startPosition
+    # - end  # renamed -> endPosition (schema migration: neo4j_updated_schema_new_v2.md §7.4)
+    - endPosition
+    # - name  # renamed -> regionName (schema migration: neo4j_updated_schema_new_v2.md §7.4)
+    - regionName
+    # - description  # renamed -> regionDescription (schema migration: neo4j_updated_schema_new_v2.md §7.4)
+    - regionDescription
+    - coordinateSystem  # added (schema migration: neo4j_updated_schema_new_v2.md §7.4)
 
 Variant:
   id: variantId
-  properties: [variantClass, referenceGenome, chromosome, positionStart, positionEnd, referenceAllele, alternateAllele, displayName, geneId, regionId]
+  properties:
+    - variantClass
+    - referenceGenome
+    - chromosome
+    # - positionStart  # renamed -> startPosition, aligned with GenomicRegion/CpGSite/Gene naming (schema migration: neo4j_updated_schema_new_v2.md §7.4)
+    - startPosition
+    # - positionEnd  # renamed -> endPosition (schema migration: neo4j_updated_schema_new_v2.md §7.4)
+    - endPosition
+    - referenceAllele
+    - alternateAllele
+    - displayName
+    - geneId
+    - regionId
+    - coordinateSystem  # added (schema migration: neo4j_updated_schema_new_v2.md §7.4)
 
 RegulatoryElement:
   id: elementId
@@ -119,7 +230,20 @@ RegulatoryElement:
 
 CpGSite:
   id: cpgId
-  properties: [chromosome, startPosition, endPosition, strand, geneSymbol, ensemblGeneId, annotationSource, annotationVersion, genomeBuild]
+  properties:
+    - chromosome
+    - startPosition
+    - endPosition
+    - strand
+    - geneSymbol  # kept as an intentional LifeSphere extension, not in new_v2's CpGSite table
+    - ensemblGeneId  # kept as an intentional LifeSphere extension, not in new_v2's CpGSite table
+    - annotationSource
+    - annotationVersion
+    - genomeBuild  # kept as an intentional LifeSphere extension, not in new_v2's CpGSite table
+    - sourceCpgId  # added (schema migration: neo4j_updated_schema_new_v2.md §7.5)
+    - platformCode  # added (schema migration: neo4j_updated_schema_new_v2.md §7.5)
+    - coordinateSystem  # added (schema migration: neo4j_updated_schema_new_v2.md §7.5)
+    - referenceGenome  # added (schema migration: neo4j_updated_schema_new_v2.md §7.5)
 
 MethylationObservation:
   id: methylationObservationId

@@ -10,6 +10,9 @@
 #   properties  relationship properties (camelCase). Structural links have [].
 #
 # Endpoint labels must all be defined in nodes.yaml (schema.py enforces this).
+#
+# MIGRATION NOTE (Proposal A, neo4j_updated_schema_new_v2.md): see MEASURES_GENE below —
+# old pair/property commented out, not deleted. Schema-config only, see summary report.
 
 # ─────────────────────── Study / Sample flow (§5.1) ───────────────────────
 
@@ -100,8 +103,17 @@ HAS_EXPRESSION_OBSERVATION:
   properties: []
 
 MEASURES_GENE:
-  pairs: [[ExpressionObservation, Gene], [MethylationObservation, Gene]]
-  properties: [functionalDomain]
+  pairs:
+    - [ExpressionObservation, Gene]
+    # - [MethylationObservation, Gene]  # removed: undocumented pair, not in new_v2 §5.4/§8.4
+    #   (MEASURES_GENE is ExpressionObservation-only there); confirmed unused — no mapping
+    #   config ever binds this pair (config/mapping/omics.yaml's MEASURES_GENE entry is
+    #   ExpressionObservation->Gene only) — schema migration: neo4j_updated_schema_new_v2.md
+  properties: []
+  # properties: [functionalDomain]  # removed: undocumented property; new_v2 explicitly
+  #   treats a value-bearing MEASURES_GENE as an anti-pattern (§2.2 example) and its own
+  #   catalogue (§8.4) declares no properties for this edge; confirmed unused — no mapping
+  #   config or ingestion code ever sets functionalDomain — schema migration: neo4j_updated_schema_new_v2.md
 
 HAS_VARIANT_OBSERVATION:
   pairs: [[Sample, VariantObservation]]
