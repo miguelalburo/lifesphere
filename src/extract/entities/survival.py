@@ -1,6 +1,6 @@
-"""Survival table: derives OS, PFI, DFI directly from the case dict.
+"""Survival table: derives OS, DSS, PFI, DFI directly from the case dict.
 
-Produces one row per outcome type (up to three) per case. The derivation reads
+Produces one row per outcome type (up to four) per case. The derivation reads
 true GDC column names via the case dict without the v1-era {entity}_ prefix
 (e.g. ``demographic.vital_status``, not ``demographic_vital_status``).
 """
@@ -21,6 +21,10 @@ def _to_int(value: object) -> int | None:
     except (TypeError, ValueError):
         return None
     return n if n >= 0 else None
+
+
+def _death_or_contact_time(dead: bool, dtd: int | None, contact: int | None) -> int | None:
+    return dtd if dead and dtd is not None else contact
 
 
 def iter_rows(case: dict) -> Iter:
@@ -59,10 +63,20 @@ def iter_rows(case: dict) -> Iter:
     base = {"case_id": cid, "case_submitter_id": case.get("submitter_id", "")}
 
     # OS
-    os_time = (dtd if dead and dtd is not None else contact)
+    os_time = _death_or_contact_time(dead, dtd, contact)
     if os_time is not None:
         yield {**base, "survival_id": f"{cid}:OS", "survival_type": "OS",
                "event": 1 if dead else 0, "time_days": os_time,
+               "last_follow_up_days": contact if contact is not None else ""}
+
+    # DSS — only an explicit "Not Cancer Related" cause censors; blank/unknown
+    # causes count as an event (GDC rarely populates cause_of_death for TCGA).
+    cause_of_death = (demographic.get("cause_of_death") or "").strip().lower()
+    dss_event = dead and cause_of_death != "not cancer related"
+    dss_time = _death_or_contact_time(dead, dtd, contact)
+    if dss_time is not None:
+        yield {**base, "survival_id": f"{cid}:DSS", "survival_type": "DSS",
+               "event": 1 if dss_event else 0, "time_days": dss_time,
                "last_follow_up_days": contact if contact is not None else ""}
 
     # PFI — event if progression, recurrence, or flagged
