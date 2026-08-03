@@ -33,6 +33,17 @@ EXPR_MATRIX = """
     ENSG00000012048.21\t10.50\t8.20
 """
 
+# Same shape, but BRCA1 reads 0 in both samples — undetected genes are
+# excluded from standardisation (see observation.ZERO_EXCLUDED_COLUMNS), and
+# this is the path (traditional matrix reshape) that never goes through
+# src.extract.omics.expression.reshape()'s own extraction-side filter, so it's
+# the one that actually exercises the standardise-level defense-in-depth.
+EXPR_MATRIX_WITH_ZERO = """
+    gene_id\tsampleA\tsampleB
+    ENSG00000141510.12\t5.25\t3.10
+    ENSG00000012048.21\t0\t0
+"""
+
 
 def _write(path: Path, content: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,4 +118,41 @@ class TestFusedExpression:
 class TestValidateZeroDangling:
     def test_zero_problems(self, dirs):
         result = validate(DATASET, standardised_root=dirs["std"])
+        assert result["problems"] == [], "\n".join(result["problems"])
+
+
+ZERO_DATASET = "TRAD_EXPR_ZERO"
+
+
+@pytest.fixture
+def zero_dirs(tmp_path: Path):
+    raw_root = tmp_path / "raw"
+    interim_root = tmp_path / "interim"
+    std_root = tmp_path / "standardised"
+    _write(raw_root / ZERO_DATASET / "sample_metadata.tsv", METADATA)
+    _write(raw_root / ZERO_DATASET / "expression_matrix.tsv", EXPR_MATRIX_WITH_ZERO)
+
+    standardise(ZERO_DATASET, "traditional", raw_root=raw_root, out_root=std_root,
+                interim_root=interim_root, log=False)
+    return {"raw": raw_root, "interim": interim_root, "std": std_root}
+
+
+class TestFusedExpressionExcludesZero:
+    def test_zero_gene_excluded_from_node(self, zero_dirs):
+        rows = _csv_rows(zero_dirs["std"] / ZERO_DATASET / "nodes" / "ExpressionObservation.csv")
+        assert len(rows) == 2  # 1 gene × 2 samples (BRCA1's all-zero rows dropped)
+
+    def test_zero_gene_excluded_from_gene_node(self, zero_dirs):
+        rows = _csv_rows(zero_dirs["std"] / ZERO_DATASET / "nodes" / "Gene.csv")
+        ids = {r["geneId"] for r in rows}
+        assert ids == {"ENSG00000141510"}
+
+    def test_zero_gene_excluded_from_edges(self, zero_dirs):
+        has_obs = _csv_rows(zero_dirs["std"] / ZERO_DATASET / "edges" / "HAS_EXPRESSION_OBSERVATION.csv")
+        measures = _csv_rows(zero_dirs["std"] / ZERO_DATASET / "edges" / "MEASURES_GENE.csv")
+        assert len(has_obs) == 2
+        assert len(measures) == 2
+
+    def test_no_dangling_references(self, zero_dirs):
+        result = validate(ZERO_DATASET, standardised_root=zero_dirs["std"])
         assert result["problems"] == [], "\n".join(result["problems"])

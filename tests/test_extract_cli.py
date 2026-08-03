@@ -103,8 +103,8 @@ class TestVariationWired:
         ):
             rc = main(["TCGA-CHOL", "--omics", "--out", str(tmp_path)])
         assert rc == 0
-        me.assert_called_once_with("TCGA-CHOL", tmp_path, is_program=False)
-        mm.assert_called_once_with("TCGA-CHOL", tmp_path, is_program=False)
+        me.assert_called_once_with("TCGA-CHOL", tmp_path, is_program=False, max_workers=8)
+        mm.assert_called_once_with("TCGA-CHOL", tmp_path, is_program=False, max_workers=8)
         mv.assert_called_once_with("TCGA-CHOL", tmp_path, is_program=False)
 
     def test_omics_composes_with_program(self, tmp_path):
@@ -115,8 +115,8 @@ class TestVariationWired:
         ):
             rc = main(["--program", "TCGA", "--omics", "--out", str(tmp_path)])
         assert rc == 0
-        me.assert_called_once_with("TCGA", tmp_path, is_program=True)
-        mm.assert_called_once_with("TCGA", tmp_path, is_program=True)
+        me.assert_called_once_with("TCGA", tmp_path, is_program=True, max_workers=8)
+        mm.assert_called_once_with("TCGA", tmp_path, is_program=True, max_workers=8)
         mv.assert_called_once_with("TCGA", tmp_path, is_program=True)
 
 
@@ -129,13 +129,13 @@ class TestMethylationWired:
     def test_methylation_calls_extract_methylation(self, tmp_path):
         with patch("src.extract.omics.methylation.extract_methylation") as m:
             main(["TCGA-CHOL", "--methylation", "--out", str(tmp_path)])
-        m.assert_called_once_with("TCGA-CHOL", tmp_path, is_program=False)
+        m.assert_called_once_with("TCGA-CHOL", tmp_path, is_program=False, max_workers=8)
 
     def test_methylation_with_program(self, tmp_path):
         with patch("src.extract.omics.methylation.extract_methylation") as m:
             rc = main(["--program", "TCGA", "--methylation", "--out", str(tmp_path)])
         assert rc == 0
-        m.assert_called_once_with("TCGA", tmp_path, is_program=True)
+        m.assert_called_once_with("TCGA", tmp_path, is_program=True, max_workers=8)
 
     def test_clinical_plus_methylation_both_run(self, tmp_path):
         with (
@@ -157,13 +157,13 @@ class TestExpressionWired:
     def test_expression_calls_extract_expression(self, tmp_path):
         with patch("src.extract.omics.expression.extract_expression") as m:
             main(["TCGA-CHOL", "--expression", "--out", str(tmp_path)])
-        m.assert_called_once_with("TCGA-CHOL", tmp_path, is_program=False)
+        m.assert_called_once_with("TCGA-CHOL", tmp_path, is_program=False, max_workers=8)
 
     def test_expression_with_program(self, tmp_path):
         with patch("src.extract.omics.expression.extract_expression") as m:
             rc = main(["--program", "TCGA", "--expression", "--out", str(tmp_path)])
         assert rc == 0
-        m.assert_called_once_with("TCGA", tmp_path, is_program=True)
+        m.assert_called_once_with("TCGA", tmp_path, is_program=True, max_workers=8)
 
     def test_clinical_plus_expression_both_run(self, tmp_path):
         with (
@@ -174,3 +174,8 @@ class TestExpressionWired:
         assert rc == 0
         mc.assert_called_once()
         me.assert_called_once()
+
+    def test_workers_flag_overrides_default(self, tmp_path):
+        with patch("src.extract.omics.expression.extract_expression") as m:
+            main(["TCGA-CHOL", "--expression", "--workers", "16", "--out", str(tmp_path)])
+        m.assert_called_once_with("TCGA-CHOL", tmp_path, is_program=False, max_workers=16)

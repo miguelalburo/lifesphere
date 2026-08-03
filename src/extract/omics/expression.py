@@ -20,8 +20,8 @@ from pathlib import Path
 from typing import Iterator
 
 from .. import gdc_api
-from .download import download_file
-from ...observation import EXPRESSION_OBS_COLUMNS, obs_id as _obs_id, strip_version as _strip_version
+from .download import download_all
+from ...observation import EXPRESSION_OBS_COLUMNS, is_zero, obs_id as _obs_id, strip_version as _strip_version
 
 _FILE_FIELDS = [
     "file_id",
@@ -123,8 +123,10 @@ def reshape(entries: list[dict], out_path: Path, *, dataset: str = "") -> int:
                 raw_gene_id = row.get("gene_id", "")
                 if not raw_gene_id:
                     continue
-                gene_id = _strip_version(raw_gene_id)
                 tpm = row.get("tpm_unstranded", "")
+                if is_zero(tpm):
+                    continue  # gene not detected — see observation.ZERO_EXCLUDED_COLUMNS
+                gene_id = _strip_version(raw_gene_id)
                 writer.writerow({
                     "expression_observation_id": _obs_id(sample_id, gene_id),
                     "sample_id": sample_id,
@@ -223,7 +225,9 @@ def write_file_metadata(files: list[dict], metadata_path: Path) -> None:
             })
 
 
-def extract_expression(selector: str, out_dir: Path, *, is_program: bool = False) -> None:
+def extract_expression(
+    selector: str, out_dir: Path, *, is_program: bool = False, max_workers: int = 8,
+) -> None:
     """Full expression extraction pipeline for one GDC project or program."""
     expr_dir = out_dir / "expression"
     expr_dir.mkdir(parents=True, exist_ok=True)
@@ -245,18 +249,16 @@ def extract_expression(selector: str, out_dir: Path, *, is_program: bool = False
     write_manifest(files, expr_dir / "manifest.tsv")
     write_file_metadata(files, expr_dir / "file_metadata.tsv")
 
-    print(f"Downloading expression files to {expr_dir}...", file=sys.stderr, flush=True)
+    print(
+        f"Downloading expression files to {expr_dir} ({max_workers} workers)...",
+        file=sys.stderr, flush=True,
+    )
+    downloaded = download_all(files, expr_dir, max_workers=max_workers)
     entries: list[dict] = []
-    for i, f in enumerate(files, 1):
+    for f in files:
         file_id = f.get("file_id", "")
-        file_name = f.get("file_name", file_id)
-        print(f"  [{i}/{len(files)}] {file_name}", file=sys.stderr, flush=True)
-        local_path = download_file(
-            file_id, file_name, expr_dir,
-            md5=f.get("md5sum"), size=f.get("file_size"),
-        )
         entries.append({
-            "path": local_path,
+            "path": downloaded[file_id],
             "sample_id": aliquot_id(f),
             "assay_id": assay_id(f),
             "source_file": file_id,

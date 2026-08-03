@@ -113,6 +113,52 @@ def test_resume_refetches_corrupted_file(tmp_path, monkeypatch):
     assert op.calls["n"] == 1  # the bad file did NOT satisfy the resume check
 
 
+def test_download_all_fetches_every_file_concurrently(tmp_path, monkeypatch):
+    bodies = {f"fid{i}": f"body-{i}\n".encode() * 10 for i in range(6)}
+
+    def _open(req, timeout=None):
+        # Recover which file this request is for from the /data/{file_id} URL.
+        file_id = req.full_url.rsplit("/", 1)[-1]
+        return _FakeResp(bodies[file_id])
+
+    monkeypatch.setattr(download.urllib.request, "urlopen", _open)
+
+    files = [
+        {
+            "file_id": fid, "file_name": f"{fid}.txt",
+            "md5sum": hashlib.md5(body).hexdigest(), "file_size": len(body),
+        }
+        for fid, body in bodies.items()
+    ]
+    results = download.download_all(files, tmp_path, max_workers=3)
+
+    assert set(results) == set(bodies)
+    for fid, body in bodies.items():
+        assert results[fid].read_bytes() == body
+
+
+def test_download_all_propagates_failure_after_others_finish(tmp_path, monkeypatch):
+    def _open(req, timeout=None):
+        file_id = req.full_url.rsplit("/", 1)[-1]
+        if file_id == "bad":
+            raise http.client.RemoteDisconnected("boom")
+        return _FakeResp(BODY)
+
+    monkeypatch.setattr(download.urllib.request, "urlopen", _open)
+
+    files = [
+        {"file_id": "good1", "file_name": "g1.txt", "md5sum": MD5, "file_size": SIZE},
+        {"file_id": "bad", "file_name": "b.txt"},
+        {"file_id": "good2", "file_name": "g2.txt", "md5sum": MD5, "file_size": SIZE},
+    ]
+    with pytest.raises(http.client.RemoteDisconnected):
+        download.download_all(files, tmp_path, max_workers=3, retries=1)
+
+    # The failing file must not have poisoned its siblings' downloads.
+    assert (tmp_path / "good1" / "g1.txt").read_bytes() == BODY
+    assert (tmp_path / "good2" / "g2.txt").read_bytes() == BODY
+
+
 def _write_manifest(base: Path, rows):
     base.mkdir(parents=True, exist_ok=True)
     lines = ["id\tfilename\tmd5\tsize\tstate"]

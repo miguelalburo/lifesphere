@@ -44,6 +44,10 @@ def main(argv: list[str] | None = None) -> int:
         "--out", type=Path, default=None,
         help="output directory (default: data/raw/<project_id or program>/)",
     )
+    parser.add_argument(
+        "--workers", type=int, default=8,
+        help="concurrent file downloads for --expression/--methylation (default: 8)",
+    )
 
     args = parser.parse_args(argv)
 
@@ -66,10 +70,10 @@ def main(argv: list[str] | None = None) -> int:
         for layer in omics_requested:
             if layer == "expression":
                 from .omics.expression import extract_expression
-                extract_expression(selector, out_dir, is_program=is_program)
+                extract_expression(selector, out_dir, is_program=is_program, max_workers=args.workers)
             elif layer == "methylation":
                 from .omics.methylation import extract_methylation
-                extract_methylation(selector, out_dir, is_program=is_program)
+                extract_methylation(selector, out_dir, is_program=is_program, max_workers=args.workers)
             elif layer == "variation":
                 from .omics.variation import extract_variation
                 extract_variation(selector, out_dir, is_program=is_program)

@@ -168,3 +168,17 @@ class TestReshape:
         assert n == 0
         _, rows = _read_obs(out)
         assert rows == []
+
+    def test_zero_tpm_row_excluded(self, tmp_path):
+        content = dedent("""\
+            gene_id\tgene_name\tgene_type\tunstranded\tstranded_first\tstranded_second\ttpm_unstranded\tfpkm_unstranded\tfpkm_uq_unstranded
+            ENSG00000141510.12\tTP53\tprotein_coding\t1000\t500\t500\t5.25\t2.10\t2.60
+            ENSG00000012048.21\tBRCA1\tprotein_coding\t0\t0\t0\t0.00\t0.00\t0.00
+        """)
+        counts_path = _write_counts(tmp_path, "counts.tsv", content)
+        out = tmp_path / "obs.tsv"
+        n = reshape([{"path": counts_path, "sample_id": "s1", "assay_id": "A1"}], out)
+        assert n == 1
+        _, rows = _read_obs(out)
+        gene_ids = {r["gene_id"] for r in rows}
+        assert gene_ids == {"ENSG00000141510"}

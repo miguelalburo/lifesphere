@@ -39,11 +39,16 @@ Flags can be combined freely. For example, to fetch clinical data and expression
 python -m src.extract TCGA-CHOL --clinical --expression
 ```
 
-## Optional flag
+## Optional flags
 
 | Flag | Effect |
 |---|---|
 | `--out PATH` | Write raw TSVs to a custom directory instead of the default `data/raw/<dataset>/` |
+| `--workers N` | Concurrent file downloads for `--expression`/`--methylation` (default: 8). Downloads are the bottleneck for these layers — each file is fetched and integrity-checked independently, so raising this shortens wall-clock time roughly linearly up to what the GDC API and your network can sustain. `--variation` is unaffected (not yet parallelised). |
+
+## Zero-value expression rows are dropped
+
+A gene with `expression_value == 0` (TPM) means "not detected in this sample" — with ~60k genes scored per sample, most rows are this, and at program scale they dominate the graph with uninformative observation nodes. These rows are excluded both where they're produced (`extract_expression`'s reshape step) and again in `standardise` (so the traditional matrix-reshape ingest path, which never runs the GDC extractor, is covered too — see `src/observation.py::ZERO_EXCLUDED_COLUMNS`). Methylation beta values are **not** filtered this way: `beta_value == 0` is a real, meaningful "fully unmethylated" reading, not noise.
 
 ## Output
 

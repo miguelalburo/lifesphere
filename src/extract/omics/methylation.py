@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .. import gdc_api
-from .download import download_file
+from .download import download_all
 from ...observation import METHYLATION_OBS_COLUMNS, obs_id as _obs_id
 
 _FILE_FIELDS = [
@@ -244,7 +244,9 @@ def write_file_metadata(files: list[dict], metadata_path: Path) -> None:
             })
 
 
-def extract_methylation(selector: str, out_dir: Path, *, is_program: bool = False) -> None:
+def extract_methylation(
+    selector: str, out_dir: Path, *, is_program: bool = False, max_workers: int = 8,
+) -> None:
     """Full methylation extraction pipeline for one GDC project or program."""
     meth_dir = out_dir / "methylation"
     meth_dir.mkdir(parents=True, exist_ok=True)
@@ -266,18 +268,16 @@ def extract_methylation(selector: str, out_dir: Path, *, is_program: bool = Fals
     write_manifest(files, meth_dir / "manifest.tsv")
     write_file_metadata(files, meth_dir / "file_metadata.tsv")
 
-    print(f"Downloading methylation files to {meth_dir}...", file=sys.stderr, flush=True)
+    print(
+        f"Downloading methylation files to {meth_dir} ({max_workers} workers)...",
+        file=sys.stderr, flush=True,
+    )
+    downloaded = download_all(files, meth_dir, max_workers=max_workers)
     entries: list[dict] = []
-    for i, f in enumerate(files, 1):
+    for f in files:
         file_id = f.get("file_id", "")
-        file_name = f.get("file_name", file_id)
-        print(f"  [{i}/{len(files)}] {file_name}", file=sys.stderr, flush=True)
-        local_path = download_file(
-            file_id, file_name, meth_dir,
-            md5=f.get("md5sum"), size=f.get("file_size"),
-        )
         entries.append({
-            "path": local_path,
+            "path": downloaded[file_id],
             "sample_id": aliquot_id(f),
             "assay_id": assay_id(f),
             "source_file": file_id,

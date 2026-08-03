@@ -28,9 +28,11 @@ import hashlib
 import http.client
 import socket
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 _DATA_URL = "https://api.gdc.cancer.gov/data"
@@ -155,6 +157,56 @@ def download_file(
 
     assert last_exc is not None
     raise last_exc
+
+
+def download_all(
+    files: list[dict],
+    out_dir: Path,
+    *,
+    max_workers: int = 8,
+    retries: int = 5,
+    timeout: int = 300,
+    base_delay: float = 1.0,
+) -> dict[str, Path]:
+    """Download many GDC ``/files`` hits concurrently. Returns ``{file_id: path}``.
+
+    A thin bounded-concurrency fan-out over :func:`download_file`, which is
+    already safe to call from multiple threads at once — each file gets its
+    own ``out_dir/{file_id}/`` subdirectory and atomic ``.part``-then-rename
+    write, so workers never touch each other's files. Progress is printed as
+    files complete (arrival order, not submission order) behind a lock so
+    lines from different threads don't interleave mid-line.
+
+    If any download exhausts its retries, that exception propagates once every
+    submitted download has finished (successful or not) — a bounded-workers
+    equivalent of the old fail-fast sequential loop, not a fire-and-forget one.
+    """
+    results: dict[str, Path] = {}
+    total = len(files)
+    done = 0
+    print_lock = threading.Lock()
+
+    def _one(f: dict) -> tuple[str, Path]:
+        file_id = f.get("file_id", "")
+        file_name = f.get("file_name", file_id)
+        path = download_file(
+            file_id, file_name, out_dir,
+            md5=f.get("md5sum"), size=f.get("file_size"),
+            retries=retries, timeout=timeout, base_delay=base_delay,
+        )
+        return file_id, path
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(_one, f): f for f in files}
+        for future in as_completed(futures):
+            file_id, path = future.result()
+            results[file_id] = path
+            with print_lock:
+                done += 1
+                name = futures[future].get("file_name", file_id)
+                print(f"  [{done}/{total}] {name}", file=sys.stderr, flush=True)
+
+    return results
 
 
 def _warn(file_name: str, attempt: int, retries: int, detail: str) -> None:

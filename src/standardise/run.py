@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from .. import DATA_INTERIM, DATA_RAW, DATA_STANDARDISED
-from ..observation import DERIVED_KEYS, KeyBuilder
+from ..observation import DERIVED_KEYS, KeyBuilder, ZERO_EXCLUDED_COLUMNS, is_zero
 from ..schema import Node, Schema, load_schema
 from .aliases import ColumnResolver
 from .mapping import EdgeMapping, Mapping, NodeMapping, load_mapping, load_placeholders
@@ -94,6 +94,7 @@ def _write_node(node: Node, cfg: NodeMapping, srcs: list[Path], out_dir: Path,
             elif cfg.key not in fields:
                 _log(f"! skip node {node.label}: id column {cfg.key!r} not in {src.name}", log)
                 continue
+            zero_col = next((c for c in ZERO_EXCLUDED_COLUMNS if c in fields), None)
             resolver = ColumnResolver(
                 fields, cfg.props, cfg.aliases, mapping.aliases,
                 (*mapping.strip_header_prefix, *cfg.strip_header_prefix),
@@ -108,6 +109,8 @@ def _write_node(node: Node, cfg: NodeMapping, srcs: list[Path], out_dir: Path,
                     writer.writerow(columns)
                     first_write = False
                 for row in reader:
+                    if zero_col and is_zero(row.get(zero_col)):
+                        continue  # see observation.ZERO_EXCLUDED_COLUMNS
                     if builder is not None:
                         node_id = _mint(builder, row, placeholders)
                     else:
@@ -163,6 +166,7 @@ def _write_edge(edge_type: str, cfg: EdgeMapping, pair: tuple[str, str], srcs: l
             if missing_keys:
                 _log(f"! skip edge {edge_type}: column(s) {missing_keys!r} not in {src.name}", log)
                 continue
+            zero_col = next((c for c in ZERO_EXCLUDED_COLUMNS if c in fields), None)
             resolver = ColumnResolver(
                 fields, cfg.props, cfg.aliases, mapping.aliases,
                 (*mapping.strip_header_prefix, *cfg.strip_header_prefix),
@@ -177,6 +181,8 @@ def _write_edge(edge_type: str, cfg: EdgeMapping, pair: tuple[str, str], srcs: l
                     writer.writerow(header)
                     first_write = False
                 for row in reader:
+                    if zero_col and is_zero(row.get(zero_col)):
+                        continue  # see observation.ZERO_EXCLUDED_COLUMNS
                     start_id = (_mint(start_builder, row, placeholders) if start_builder
                                 else strip_prefix(scrub(row.get(cfg.start_key), placeholders), cfg.strip_start_prefix))
                     end_id = (_mint(end_builder, row, placeholders) if end_builder

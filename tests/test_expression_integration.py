@@ -154,6 +154,46 @@ class TestOmicsStandardise:
         assert all(r.get("expressionUnit") == "TPM" for r in rows)
 
 
+class TestStandardiseExcludesZeroExpression:
+    """Defense-in-depth: standardise() itself drops expression_value == 0 rows,
+    not just the GDC reshape() step — this is what protects the traditional
+    matrix-reshape path, which writes the same observation TSV shape but never
+    goes through src.extract.omics.expression.reshape().
+    """
+
+    @pytest.fixture
+    def zero_row_dirs(self, tmp_path: Path):
+        raw_root = tmp_path / "raw"
+        std_root = tmp_path / "standardised"
+        dataset = "OMICS_ZERO"
+        obs = raw_root / dataset / "expression_observation.tsv"
+        _write(obs, f"""\
+            expression_observation_id\tsample_id\tgene_id\texpression_value\texpression_unit\tassay_id\tsource_dataset\tsource_file\tpipeline_version
+            {SAMPLE_ID}:ENSG1\t{SAMPLE_ID}\tENSG1\t5.25\tTPM\t{ASSAY_ID}\t{dataset}\tf1\tSTAR - Counts
+            {SAMPLE_ID}:ENSG2\t{SAMPLE_ID}\tENSG2\t0\tTPM\t{ASSAY_ID}\t{dataset}\tf1\tSTAR - Counts
+        """)
+        standardise(dataset, "omics", raw_root=raw_root, out_root=std_root, log=False)
+        sample_csv = std_root / dataset / "nodes" / "Sample.csv"
+        _write(sample_csv, f"sampleId\n{SAMPLE_ID}\n")
+        return {"std": std_root, "dataset": dataset}
+
+    def test_zero_observation_excluded_from_node(self, zero_row_dirs):
+        rows = _csv_rows(zero_row_dirs["std"] / zero_row_dirs["dataset"] / "nodes" / "ExpressionObservation.csv")
+        gene_ids = {r["geneId"] for r in rows}
+        assert gene_ids == {"ENSG1"}
+
+    def test_zero_observation_excluded_from_edges(self, zero_row_dirs):
+        has_obs = _csv_rows(zero_row_dirs["std"] / zero_row_dirs["dataset"] / "edges" / "HAS_EXPRESSION_OBSERVATION.csv")
+        measures = _csv_rows(zero_row_dirs["std"] / zero_row_dirs["dataset"] / "edges" / "MEASURES_GENE.csv")
+        assert len(has_obs) == 1
+        assert len(measures) == 1
+        assert measures[0]["endId"] == "ENSG1"
+
+    def test_no_dangling_references(self, zero_row_dirs):
+        result = validate(zero_row_dirs["dataset"], standardised_root=zero_row_dirs["std"])
+        assert result["problems"] == [], "\n".join(result["problems"])
+
+
 class TestValidateZeroDangling:
     def test_zero_problems(self, pipeline_dirs):
         result = validate(DATASET, standardised_root=pipeline_dirs["std"])

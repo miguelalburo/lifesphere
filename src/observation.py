@@ -97,6 +97,39 @@ def obs_id(sample_id: str, feature_id: str) -> str:
     return f"{sample_id}:{feature_id}"
 
 
+def is_zero(value: str | None) -> bool:
+    """Return True if *value* parses as a float equal to exactly 0.
+
+    Empty/missing/non-numeric values return False (they are "absent", not
+    "zero", and stay subject to the usual missing-data handling).
+    """
+    if not value:
+        return False
+    try:
+        return float(value) == 0.0
+    except ValueError:
+        return False
+
+
+# A zero reading in these raw (snake_case) source columns is disregarded
+# everywhere the row would otherwise contribute — a whole source row is
+# dropped, not just the value blanked. Both ingest paths (the GDC extractor's
+# own reshape() and the traditional matrix reshape feeding standardise) fan
+# out from the same observation TSV into a node and multiple edges, so this
+# must be enforced at the row level and applied identically to every node/edge
+# reader of that file — dropping the observation node alone while still
+# writing its edges would leave dangling references.
+#
+# expression_value == 0 means "gene not detected in this sample" — with
+# ~60k genes x every sample, most rows are this and uninformative at graph
+# scale, so they're excluded. beta_value == 0 is a real, meaningful "fully
+# unmethylated" reading (methylation beta values are genuinely bimodal at 0/1)
+# rather than a missing/uninformative one, so it is deliberately NOT included
+# here — see CLAUDE.md / the schema docs for the domain rationale if this ever
+# needs revisiting.
+ZERO_EXCLUDED_COLUMNS: frozenset[str] = frozenset({"expression_value"})
+
+
 # ─────────────────────── Derived-key registry ───────────────────────
 # Some node ids are *created* (minted by concatenating other columns), not copied
 # from a stable natural key. Those are the ones that historically diverged between
