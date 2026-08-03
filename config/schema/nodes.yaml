@@ -71,13 +71,14 @@ ExperimentalCondition:
 
 # ─────────────────────── Clinical layer ───────────────────────
 
+# Diagnosis and Disease were merged into a single Disease node at the per-diagnosis
+# grain (one node per GDC diagnosis_id). The former Disease reference dimension
+# (one node per ICD-10 code) and the OF_DISEASE self-edge were removed; its
+# reference fields (diseaseName, ontologyId, sourceVocabulary, diseaseType) now
+# live directly on Disease. The ICD-10 code survives as diagnosisCode / ontologyId.
 Disease:
   id: diseaseId
-  properties: [diseaseType, diseaseName, ontologyId, sourceVocabulary, sourceDataset]
-
-Diagnosis:
-  id: diagnosisId
-  properties: [subjectId, diseaseId, diagnosisRole, diagnosisCode, diagnosisCodeSystem, diagnosisMethod, ageAtDiagnosisDays, diseaseSubtype, pathologicStage, tumorGrade, tumorSubtype, ageOfOnsetDays, severityScore, severityScale, infectiousAgentId, infectiousAgentName, isNormal, sourceDataset]
+  properties: [subjectId, diseaseType, diseaseName, ontologyId, sourceVocabulary, diagnosisRole, diagnosisCode, diagnosisCodeSystem, diagnosisMethod, ageAtDiagnosisDays, diseaseSubtype, pathologicStage, tumorGrade, tumorSubtype, ageOfOnsetDays, severityScore, severityScale, infectiousAgentId, infectiousAgentName, isNormal, sourceDataset]
 
 PathologyDetail:
   id: pathologyDetailId

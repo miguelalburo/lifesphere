@@ -9,7 +9,7 @@ This document serves as the definitive implementation guide for the LifeSphere N
 
 ### 1.2 Current Scope and Goals
 
-At the current LifeSphere stage, the knowledge graph is a provenance-aware data representation and retrieval layer. The active schema includes the Program layer, Evidence layer, Diagnosis / PathologyDetail / Survival clinical layer, Sample-level Intervention layer, Perturbation layer, RegulatoryElement layer, and the Protein and Pathway reference layer.  It stores structured metadata, observations, source-provided annotations, external matrix/file pointers, ontology mappings, and reproducibility information. It does not currently perform statistical testing, differential analysis, marker discovery, enrichment, deconvolution, trajectory inference, pseudotime analysis, or downstream modelling.
+At the current LifeSphere stage, the knowledge graph is a provenance-aware data representation and retrieval layer. The active schema includes the Program layer, Evidence layer, Disease / PathologyDetail / Survival clinical layer, Sample-level Intervention layer, Perturbation layer, RegulatoryElement layer, and the Protein and Pathway reference layer.  It stores structured metadata, observations, source-provided annotations, external matrix/file pointers, ontology mappings, and reproducibility information. It does not currently perform statistical testing, differential analysis, marker discovery, enrichment, deconvolution, trajectory inference, pseudotime analysis, or downstream modelling.
 
 ### Key Goals
 
@@ -101,16 +101,15 @@ Here, `agentRole` and `sequence` describe how a chemical agent participates in a
   temporalOrder: 1,
   isPrimaryDiagnosis: true,
   confidenceScore: 1.0
-}]->(:Diagnosis {
-  diagnosisId: "diag_TCGA-BH-A0B3_001",
+}]->(:Disease {
+  diseaseId: "diag_TCGA-BH-A0B3_001",
   diagnosisMethod: "Histopathology",
   tumorSubtype: "Luminal A",
   sourceDataset: "TCGA-BRCA"
 })
-(:Diagnosis)-[:OF_DISEASE]->(:Disease)
 ```
 
-Here, `temporalOrder`, `isPrimaryDiagnosis`, and `confidenceScore` qualify the subject-to-diagnosis link. In contrast, `diagnosisMethod`, `tumorSubtype`, and `sourceDataset` describe the diagnosis record itself and therefore belong on the `Diagnosis` node.
+Here, `temporalOrder`, `isPrimaryDiagnosis`, and `confidenceScore` qualify the subject-to-disease link. In contrast, `diagnosisMethod`, `tumorSubtype`, and `sourceDataset` describe the diagnosis record itself and therefore belong on the `Disease` node.
 
 ### When not to use relationship properties
 
@@ -469,10 +468,9 @@ Relationship paths in this section use standard Cypher path-pattern syntax. See 
 ### 3.2 Clinical Context Path
 
 ```cypher
-(:Subject)-[:HAS_DIAGNOSIS]->(:Diagnosis)
-(:Diagnosis)-[:OF_DISEASE]->(:Disease)
-(:Diagnosis)-[:HAS_PATHOLOGY]->(:PathologyDetail)
-(:Diagnosis)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)
+(:Subject)-[:HAS_DIAGNOSIS]->(:Disease)
+(:Disease)-[:HAS_PATHOLOGY]->(:PathologyDetail)
+(:Disease)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)
 (:Subject)-[:HAS_SURVIVAL_RECORD]->(:Survival)
 ```
 
@@ -619,10 +617,9 @@ flowchart LR
   Assay -->|USED_LIBRARY| LibraryPreparation[LibraryPreparation]
 
   %% Clinical context
-  Subject -->|HAS_DIAGNOSIS| Diagnosis[Diagnosis]
-  Diagnosis -->|OF_DISEASE| Disease[Disease]
-  Diagnosis -->|HAS_PATHOLOGY| PathologyDetail[PathologyDetail]
-  Diagnosis -->|HAS_PHENOTYPE_OBSERVATION| PhenotypeObservation[PhenotypeObservation]
+  Subject -->|HAS_DIAGNOSIS| Disease[Disease]
+  Disease -->|HAS_PATHOLOGY| PathologyDetail[PathologyDetail]
+  Disease -->|HAS_PHENOTYPE_OBSERVATION| PhenotypeObservation[PhenotypeObservation]
   Subject -->|HAS_SURVIVAL_RECORD| Survival[Survival]
 
   %% Regulatory elements and genomic regions
@@ -705,8 +702,7 @@ For the complete schema, use the relationship catalogue in Section 5 and the pro
 | `Publication`            | Paper, preprint, report, dataset manuscript, or methodological reference used for literature provenance, evidence support, or schema-grounding.                                                                                                                                                                                                                                | `publicationId`            |
 | `Program`                | High-level funding, consortium, organisational, or national/international biomedical initiative that contains or supports one or more studies. | `programId` |
 | `Evidence` | A specific evidence record, excerpt, curated assertion, or extracted document segment that supports a biological, clinical, genomic, regulatory, protein-level, or disease-related association. | `evidenceId` |
-| `Diagnosis`              | Subject-specific diagnosis record. | `diagnosisId` |
-| `PathologyDetail`        | Specific pathology, histology, or tissue-level pathology record linked to a diagnosis. | `pathologyDetailId` |
+| `PathologyDetail`        | Specific pathology, histology, or tissue-level pathology record linked to a disease record. | `pathologyDetailId` |
 | `Survival`               | Subject-specific survival or time-to-event record. | `survivalId` |
 | `Procedure`              | Reusable clinical, surgical, diagnostic, or experimental procedure concept. | `procedureId` |
 | `Perturbation`           | Functional genomics or experimental perturbation event. | `perturbationId` |
@@ -726,7 +722,7 @@ For the complete schema, use the relationship catalogue in Section 5 and the pro
 | `Organ`                  | Anatomical organ or organ-level structure associated with a tissue or sample.                                                                                                                                                                                                                                                                                                  | `organId`                  |
 | `DevelopmentalStage`     | Developmental, life-stage, or age-stage context associated with a subject or sample.                                                                                                                                                                                                                                                                                           | `stageId`                  |
 | `ExperimentalCondition` | Designed or observed experimental condition, treatment context, exposure context, time point, stimulation state, culture condition, environmental condition, or group assignment associated with a sample. | `conditionId` |
-| `Disease`                | Disease diagnosis, tumour type, disease subtype, or pathology context, preferably ontology-backed.                                                                                                                                                                                                                                                                             | `diseaseId`                |
+| `Disease`                | Subject-specific diagnosis record together with its disease/tumour type, subtype, and ontology-backed disease concept. Merges the former `Diagnosis` node and the `Disease` reference dimension into one node at the per-diagnosis grain (keyed by the source diagnosis id). | `diseaseId`                |
 | `Gene`                   | Stable gene reference entity, preferably keyed by Ensembl, HGNC, MGI, or organism-appropriate identifiers.                                                                                                                                                                                                                                                                     | `geneId`                   |
 | `Variant`                | Stable genomic alteration entity such as SNV, indel, CNV, structural variant, or fusion.                                                                                                                                                                                                                                                                                       | `variantId`                |
 | `CpGSite`                | CpG locus, methylation probe, or methylation feature used in DNA methylation assays.                                                                                                                                                                                                                                                                                           | `cpgId`                    |
@@ -769,10 +765,9 @@ The relationship catalogue follows the same Cypher path-pattern syntax introduce
 | Relationship Pattern | Relationship Type | source_node | target_node | Purpose |
 |---|---|---|---|---|
 | `(:Sample)-[:HAS_CONDITION]->(:ExperimentalCondition)` | `HAS_CONDITION` | `Sample` | `ExperimentalCondition` | Links a sample to its experimental condition, group assignment, culture condition, time point, stimulation state, exposure context, or other source-defined sample-level condition. |
-| `(:Subject)-[:HAS_DIAGNOSIS]->(:Diagnosis)` | `HAS_DIAGNOSIS` | `Subject` | `Diagnosis` | Links subject to clinical diagnosis. |
-| `(:Diagnosis)-[:OF_DISEASE]->(:Disease)` | `OF_DISEASE` | `Diagnosis` | `Disease` | Maps diagnosis to stable disease concept. |
-| `(:Diagnosis)-[:HAS_PATHOLOGY]->(:PathologyDetail)` | `HAS_PATHOLOGY` | `Diagnosis` | `PathologyDetail` | Links diagnosis to pathology/histology records. |
-| `(:Diagnosis)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)` | `HAS_PHENOTYPE_OBSERVATION` | `Diagnosis` | `PhenotypeObservation` | Links a diagnosis to phenotype, clinical feature, biomarker, adverse event, treatment-response, or outcome observations associated with that diagnosis. |
+| `(:Subject)-[:HAS_DIAGNOSIS]->(:Disease)` | `HAS_DIAGNOSIS` | `Subject` | `Disease` | Links subject to clinical diagnosis / disease record. |
+| `(:Disease)-[:HAS_PATHOLOGY]->(:PathologyDetail)` | `HAS_PATHOLOGY` | `Disease` | `PathologyDetail` | Links disease record to pathology/histology records. |
+| `(:Disease)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)` | `HAS_PHENOTYPE_OBSERVATION` | `Disease` | `PhenotypeObservation` | Links a disease record to phenotype, clinical feature, biomarker, adverse event, treatment-response, or outcome observations associated with that diagnosis. |
 | `(:Subject)-[:HAS_SURVIVAL_RECORD]->(:Survival)` | `HAS_SURVIVAL_RECORD` | `Subject` | `Survival` | Links subject to time-to-event endpoints. |
 
 ### 5.3 Assay-related Relationships
@@ -883,7 +878,7 @@ The relationship catalogue follows the same Cypher path-pattern syntax introduce
 
 #### PhenotypeObservation modelling note
 
-`PhenotypeObservation` stores phenotype, clinical feature, biomarker, adverse-event, treatment-response, validation, response, or outcome observations. In the active schema, diagnosis-associated phenotype observations are linked through `(:Diagnosis)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`, perturbation-associated phenotype observations are linked through `(:Perturbation)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`, and intervention outcomes are linked through `(:Intervention)-[:RESULTED_IN]->(:PhenotypeObservation)`. Subject, sample, diagnosis, and perturbation identifiers may also be retained as mirror properties where useful for auditability. Ontology identifiers such as HPO IDs may be retained as properties, for example `hpoId`, but the active schema does not use a separate `PhenotypeTerm` node.
+`PhenotypeObservation` stores phenotype, clinical feature, biomarker, adverse-event, treatment-response, validation, response, or outcome observations. In the active schema, diagnosis-associated phenotype observations are linked through `(:Disease)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`, perturbation-associated phenotype observations are linked through `(:Perturbation)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`, and intervention outcomes are linked through `(:Intervention)-[:RESULTED_IN]->(:PhenotypeObservation)`. Subject, sample, diagnosis, and perturbation identifiers may also be retained as mirror properties where useful for auditability. Ontology identifiers such as HPO IDs may be retained as properties, for example `hpoId`, but the active schema does not use a separate `PhenotypeTerm` node.
 
 
 ### 6.2 Transcriptomic-Specific Design
@@ -1340,14 +1335,35 @@ Evidence is an active node. Publication provides Evidence records through `PROVI
 
 #### `Disease`
 
+The merged `Disease` node carries the former `Diagnosis` per-event fields and the
+former `Disease` reference fields on one node at the per-diagnosis grain. Its
+primary key `diseaseId` is the source diagnosis id (one node per diagnosis event);
+the disease concept is captured by `diseaseName`, `diagnosisCode`, and `ontologyId`.
+
 | Property | is_key | Data Type | Description | Example | Source / Origin |
 | -------- | ------ | --------- | ----------- | ------- | --------------- |
-| `diseaseId` | Yes | String | Primary key; standardized disease ID. Prefer ontology-backed IDs where available. | `MONDO:0007254` | YAML/configuration or ontology mapping |
+| `diseaseId` | Yes | String | Primary key; the subject-specific diagnosis id (one node per diagnosis event/entry). | `diag_TCGA-BH-A0B3_001` | Derived / clinical metadata |
+| `subjectId` | No | String | Mirror ID of the diagnosed subject; graph traversal should use `(:Subject)-[:HAS_DIAGNOSIS]->(:Disease)`. | `TCGA-BH-A0B3` | Metadata |
 | `diseaseType` | No | String | Broad disease type, diagnosis, or ontology disease category. | `Breast Cancer` | Metadata / YAML configuration / ontology mapping |
 | `diseaseName` | No | String | Human-readable formal name of the disease concept. | `Breast Invasive Carcinoma` | YAML/configuration / ontology mapping |
 | `ontologyId` | No | String | Specific identifier from a controlled medical vocabulary. | `MONDO:0007254` | MONDO / EFO / NCIt / Disease Ontology mapping |
 | `sourceVocabulary` | No | String | Name of the ontology or controlled vocabulary used for the mapping. | `MONDO` | YAML/configuration / ontology mapping |
-| `sourceDataset` | No | String | Originating database or cohort from which this disease tag was derived. | `TCGA-BRCA` | Metadata |
+| `diagnosisRole` | No | String | Role of the diagnosis, such as primary, secondary, comorbidity, recurrence, suspected, or differential diagnosis. | `primary` | Clinical metadata / YAML config |
+| `diagnosisCode` | No | String | Source-provided diagnosis code. | `C50.9` | Clinical metadata / ontology mapping |
+| `diagnosisCodeSystem` | No | String | Coding system used for the diagnosis code. | `ICD-10` | Clinical metadata / ontology mapping |
+| `diagnosisMethod` | No | String | Method or evidence used to confirm the diagnosis. | `Histopathology` | Clinical metadata |
+| `ageAtDiagnosisDays` | No | Integer | Age of the subject at diagnosis, expressed in days. | `22330` | Clinical metadata |
+| `diseaseSubtype` | No | String | Generic disease subtype, clinical subtype, molecular subtype, or disease subgroup. | `relapsing-remitting`, `type 1`, `Luminal A` | Clinical metadata / derived annotation |
+| `pathologicStage` | No | String | Cancer-specific pathological stage, if available. | `Stage II` | Clinical metadata |
+| `tumorGrade` | No | String | Cancer-specific histological tumour grade, if available. | `Grade 2` | Clinical metadata |
+| `tumorSubtype` | No | String | Cancer-specific tumour subtype or molecular/pathological subtype, if available. Optional and should not be required for non-cancer studies. | `Luminal A` | Cancer clinical metadata / derived annotation |
+| `ageOfOnsetDays` | No | Integer | Age of the subject at first disease onset or symptom onset, expressed in days. Useful when onset occurs before formal diagnosis. | `18000` | Clinical metadata |
+| `severityScore` | No | Float / Integer | Numeric disease severity score, if provided by the source. Should be interpreted together with severityScale. | `3` | Clinical metadata / derived annotation |
+| `severityScale` | No | String | Name or type of severity scale used to interpret severityScore. | `mild_moderate_severe`, `GOLD`, `NYHA`, `custom_1_10` | Clinical metadata / YAML config |
+| `infectiousAgentId` | No | String | NCBI Taxonomy ID of the pathogen or infectious agent associated with the diagnosis, where applicable. | `NCBI:txid2697049` | Clinical metadata / ontology mapping |
+| `infectiousAgentName` | No | String | Human-readable name of the pathogen or infectious agent associated with the diagnosis. | `SARS-CoV-2` | Clinical metadata / ontology mapping |
+| `isNormal` | No | Boolean | Indicates whether the diagnosis result was normal. `true` means the diagnosis came out normal or no disease/pathological finding was identified. `false` means an abnormal, pathological, or disease-related diagnosis was recorded. | `true` | Clinical metadata / diagnostic report / pathology metadata |
+| `sourceDataset` | No | String | Dataset or cohort from which the diagnosis record was derived. | `TCGA-BRCA` | Metadata |
 
 
 #### `PhenotypeObservation`
@@ -1357,7 +1373,7 @@ Evidence is an active node. Publication provides Evidence records through `PROVI
 | `phenotypeObservationId` | Yes | String | Primary key for a diagnosis-, perturbation-, or intervention-linked phenotype observation. Subject and sample identifiers may be retained as mirror properties where applicable. | `pheno_obs_TCGA-BH-A0B3_ae_001` | Derived |
 | `subjectId` | No | String | Mirror ID of the subject linked to this phenotype observation, where applicable. | `TCGA-BH-A0B3` | Clinical metadata |
 | `sampleId` | No | String | Mirror ID of the sample linked to this phenotype observation, where applicable. | `TCGA-BH-A0B3-01A` | Sample / clinical metadata |
-| `diagnosisId` | No | String | Mirror ID of the diagnosis linked to this phenotype observation, where applicable. Graph traversal should use `(:Diagnosis)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`. | `diag_TCGA-BH-A0B3_001` | Clinical metadata |
+| `diagnosisId` | No | String | Mirror ID of the disease/diagnosis record linked to this phenotype observation, where applicable. Graph traversal should use `(:Disease)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`. | `diag_TCGA-BH-A0B3_001` | Clinical metadata |
 | `perturbationId` | No | String | Mirror ID of the perturbation linked to this phenotype observation, where applicable. Graph traversal should use `(:Perturbation)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`. | `pert_CRISPR_TP53_sg1_001` | Experimental metadata |
 | `hpoId` | No | String | Human Phenotype Ontology identifier, if the phenotype maps to HPO. Optional because not all observations are HPO-mapped. | `HP:0002014` | HPO mapping / YAML config |
 | `phenotypeName` | No | String | Human-readable phenotype, manifestation, adverse event, biomarker, or observed outcome name. | `Nausea`, `Partial response`, `Elevated CRP` | Clinical metadata / ontology mapping |
@@ -1397,37 +1413,11 @@ Evidence is an active node. Publication provides Evidence records through `PROVI
 
 ### 7.3 Clinical Node Properties
 
-#### `Diagnosis`
-| Property | is_key | Data Type | Description | Example | Source / Origin |
-|---|---|---|---|---|---|
-| `diagnosisId` | Yes | String | Primary key for a subject-specific diagnosis record; identifies one diagnosis event/entry, not the stable disease concept. | `diag_TCGA-BH-A0B3_001` | Derived / clinical metadata |
-| `subjectId` | No | String | Mirror ID of the diagnosed subject; graph traversal should use (:Subject)-[:HAS_DIAGNOSIS]->(:Diagnosis). | `TCGA-BH-A0B3` | Metadata |
-| `diseaseId` | No | String | Mirror ID of the linked Disease; graph traversal should use (:Diagnosis)-[:OF_DISEASE]->(:Disease). | `MONDO:0007254` | Ontology mapping |
-| `diagnosisRole` | No | String | Role of the diagnosis, such as primary, secondary, comorbidity, recurrence, suspected, or differential diagnosis. | `primary` | Clinical metadata / YAML config |
-| `diagnosisCode` | No | String | Source-provided diagnosis code. | `C50.9` | Clinical metadata / ontology mapping |
-| `diagnosisCodeSystem` | No | String | Coding system used for the diagnosis code. | `ICD-10` | Clinical metadata / ontology mapping |
-| `diagnosisMethod` | No | String | Method or evidence used to confirm the diagnosis. | `Histopathology` | Clinical metadata |
-| `ageAtDiagnosisDays` | No | Integer | Age of the subject at diagnosis, expressed in days. | `22330` | Clinical metadata |
-| `diseaseSubtype` | No | String | Generic disease subtype, clinical subtype, molecular subtype, or disease subgroup. | `relapsing-remitting`, `type 1`, `Luminal A` | Clinical metadata / derived annotation |
-| `pathologicStage` | No | String | Cancer-specific pathological stage, if available. | `Stage II` | Clinical metadata |
-| `tumorGrade` | No | String | Cancer-specific histological tumour grade, if available. | `Grade 2` | Clinical metadata |
-| `tumorSubtype` | No | String | Cancer-specific tumour subtype or molecular/pathological subtype, if available. Optional and should not be required for non-cancer studies. | `Luminal A` | Cancer clinical metadata / derived annotation |
-| `ageOfOnsetDays` | No | Integer | Age of the subject at first disease onset or symptom onset, expressed in days. Useful when onset occurs before formal diagnosis. | `18000` | Clinical metadata |
-| `severityScore` | No | Float / Integer | Numeric disease severity score, if provided by the source. Should be interpreted together with severityScale. | `3` | Clinical metadata / derived annotation |
-| `severityScale` | No | String | Name or type of severity scale used to interpret severityScore. | `mild_moderate_severe`, `GOLD`, `NYHA`, `custom_1_10` | Clinical metadata / YAML config |
-| `infectiousAgentId` | No | String | NCBI Taxonomy ID of the pathogen or infectious agent associated with the diagnosis, where applicable. | `NCBI:txid2697049` | Clinical metadata / ontology mapping |
-| `infectiousAgentName` | No | String | Human-readable name of the pathogen or infectious agent associated with the diagnosis. | `SARS-CoV-2` | Clinical metadata / ontology mapping |
-| `isNormal` | No | Boolean | Indicates whether the diagnosis result was normal. `true` means the diagnosis came out normal or no disease/pathological finding was identified. `false` means an abnormal, pathological, or disease-related diagnosis was recorded. | `true` | Clinical metadata / diagnostic report / pathology metadata |
-| `sourceDataset` | No | String | Dataset or cohort from which the diagnosis record was derived. | `TCGA-BRCA` | Metadata |
-
-
-
-
 #### `PathologyDetail`
 | Property | is_key | Data Type | Description | Example | Source / Origin |
 |---|---|---|---|---|---|
 | `pathologyDetailId` | Yes | String | Primary key for a specific pathology, histology, or tissue-level pathology record linked to a diagnosis. | `path_TCGA-BH-A0B3_001` | Derived / pathology metadata |
-| `diagnosisId` | No | String | Mirror ID of the parent diagnosis; graph traversal should use (:Diagnosis)-[:HAS_PATHOLOGY]->(:PathologyDetail). | `diag_TCGA-BH-A0B3_001` | Derived / clinical metadata |
+| `diagnosisId` | No | String | Mirror ID of the parent disease/diagnosis record; graph traversal should use (:Disease)-[:HAS_PATHOLOGY]->(:PathologyDetail). | `diag_TCGA-BH-A0B3_001` | Derived / clinical metadata |
 | `sampleId` | No | String | Optional mirror ID if the pathology record is linked to a specific biospecimen. | `TCGA-BH-A0B3-01A` | Biospecimen / pathology metadata |
 | `tissueCondition` | No | String | General pathological condition of the tissue. | `inflamed` | Pathology metadata |
 | `cellularityPercent` | No | Float | Estimated cellularity percentage of the assessed tissue/sample. | `75.0` | Pathology report / derived metadata |
@@ -2067,11 +2057,8 @@ MERGE (i)-[:USES_AGENT {
 | `HAS_CONDITION` | `conditionRole` | No | String | Role of the condition for the sample, such as test, control, untreated, baseline, stimulated, perturbed, exposed, timepoint, or reference group. | `control` |
 | `HAS_PHENOTYPE_OBSERVATION` | `daysToEvent` | No | Integer | Days from the relevant source-defined baseline, such as diagnosis baseline, perturbation start, or experimental baseline, to the phenotype or outcome event. | `365` |
 | `HAS_DIAGNOSIS` | `temporalOrder` | No | Integer | Order of this diagnosis in the subject’s clinical timeline when multiple diagnoses are present. | `1` |
-| `HAS_DIAGNOSIS` | `isPrimaryDiagnosis` | No | Boolean | Indicates whether this diagnosis is the primary diagnosis for the subject. Use only if the source provides this as a Boolean flag; otherwise prefer `Diagnosis.diagnosisRole`. | `true` |
+| `HAS_DIAGNOSIS` | `isPrimaryDiagnosis` | No | Boolean | Indicates whether this diagnosis is the primary diagnosis for the subject. Use only if the source provides this as a Boolean flag; otherwise prefer `Disease.diagnosisRole`. | `true` |
 | `HAS_DIAGNOSIS` | `confidenceScore` | No | Float | Confidence in linking the subject to this diagnosis record, if provided by a source, mapping rule, or curator. Should not be guessed. | `1.0` |
-| `OF_DISEASE` | `mappingMethod` | No | String | Method used to map the diagnosis record to the stable disease concept. | `exact_code_match` |
-| `OF_DISEASE` | `ontologyMappingStatus` | No | String | Status of the ontology mapping between `Diagnosis` and `Disease`. | `exact_match` |
-| `OF_DISEASE` | `confidenceScore` | No | Float | Confidence in the diagnosis-to-disease ontology mapping, only if produced by a documented rule, source score, or curation. | `1.0` |
 | `HAS_PATHOLOGY` | `pathologyRole` | No | String | Role of the pathology record in relation to the diagnosis. | `diagnostic_basis` |
 | `HAS_PATHOLOGY` | `evidenceType` | No | String | Type of pathological evidence supporting or describing the diagnosis. | `histology` |
 | `HAS_PATHOLOGY` | `specimenBasis` | No | String | Type of specimen or material on which the pathology assessment was based. | `biopsy` |
@@ -2297,7 +2284,7 @@ Recommended uniqueness constraints for newly active node types include:
 |---|---|
 | `Program` | `programId` |
 | `Evidence` | `evidenceId` |
-| `Diagnosis` | `diagnosisId` |
+| `Disease` | `diseaseId` |
 | `PathologyDetail` | `pathologyDetailId` |
 | `Survival` | `survivalId` |
 | `Perturbation` | `perturbationId` |
@@ -2534,16 +2521,15 @@ LIMIT 50;
 ### Example: retrieve diagnosis, pathology, and outcome phenotype details
 
 ```cypher
-MATCH (sub:Subject)-[:HAS_DIAGNOSIS]->(diag:Diagnosis)-[:OF_DISEASE]->(d:Disease)
-OPTIONAL MATCH (diag)-[:HAS_PATHOLOGY]->(path:PathologyDetail)
-OPTIONAL MATCH (diag)-[phenoRel:HAS_PHENOTYPE_OBSERVATION]->(pheno:PhenotypeObservation)
+MATCH (sub:Subject)-[:HAS_DIAGNOSIS]->(d:Disease)
+OPTIONAL MATCH (d)-[:HAS_PATHOLOGY]->(path:PathologyDetail)
+OPTIONAL MATCH (d)-[phenoRel:HAS_PHENOTYPE_OBSERVATION]->(pheno:PhenotypeObservation)
 RETURN sub.subjectId,
-       diag.diagnosisId,
-       diag.diagnosisRole,
-       diag.diseaseSubtype,
-       diag.pathologicStage,
-       diag.tumorGrade,
        d.diseaseId,
+       d.diagnosisRole,
+       d.diseaseSubtype,
+       d.pathologicStage,
+       d.tumorGrade,
        d.diseaseName,
        path.pathologyDetailId,
        path.morphologyDescription,

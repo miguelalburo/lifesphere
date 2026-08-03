@@ -39,7 +39,7 @@ _SEEDS: dict[str, str] = {
     # backbone
     "Program": "backbone", "Study": "backbone", "Subject": "backbone",
     # clinical
-    "Diagnosis": "clinical", "PathologyDetail": "clinical",
+    "Disease": "clinical", "PathologyDetail": "clinical",
     "Survival": "clinical", "PhenotypeObservation": "clinical",
     # biospecimen
     "Sample": "biospecimen", "Assay": "biospecimen", "LibraryPreparation": "biospecimen",
@@ -57,7 +57,7 @@ _SEEDS: dict[str, str] = {
     "Intervention": "intervention", "ChemicalEntity": "intervention",
     "Procedure": "intervention", "Perturbation": "intervention",
     # reference / provenance
-    "Disease": "reference", "Evidence": "reference",
+    "Evidence": "reference",
     "MethylationStatusRule": "reference", "Publication": "reference",
     "Organism": "reference",
 }

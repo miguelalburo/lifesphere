@@ -56,19 +56,15 @@ HAS_CONDITION:
   properties: [conditionRole]
 
 HAS_DIAGNOSIS:
-  pairs: [[Subject, Diagnosis]]
+  pairs: [[Subject, Disease]]
   properties: [temporalOrder, isPrimaryDiagnosis, confidenceScore]
 
-OF_DISEASE:
-  pairs: [[Diagnosis, Disease]]
-  properties: [mappingMethod, ontologyMappingStatus, confidenceScore]
-
 HAS_PATHOLOGY:
-  pairs: [[Diagnosis, PathologyDetail]]
+  pairs: [[Disease, PathologyDetail]]
   properties: [pathologyRole, evidenceType, specimenBasis]
 
 HAS_PHENOTYPE_OBSERVATION:
-  pairs: [[Diagnosis, PhenotypeObservation], [Perturbation, PhenotypeObservation]]
+  pairs: [[Disease, PhenotypeObservation], [Perturbation, PhenotypeObservation]]
   properties: [daysToEvent]
 
 HAS_SURVIVAL_RECORD:

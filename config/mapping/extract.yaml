@@ -79,23 +79,27 @@ nodes:
       gdc_sample_submitter_id: externalSampleId
       tissue_type: sampleClass
 
-  # ── Diagnosis ─────────────────────────────────────────────────────────────
-  # id = diagnosis_id. age_at_diagnosis is already in days.
-  # icd_10_code feeds both diseaseId (FK to Disease) and diagnosisCode.
-  # morphology (ICD-O-3 code, e.g. "8160/3") maps to tumorSubtype.
-  Diagnosis:
+  # ── Disease (merged Diagnosis + Disease) ──────────────────────────────────
+  # id = diagnosis_id (per-diagnosis grain). Diagnosis and the former Disease
+  # reference dimension were collapsed into one Disease node. age_at_diagnosis is
+  # already in days. icd_10_code feeds both diagnosisCode and ontologyId;
+  # primary_diagnosis feeds both diseaseName and diseaseSubtype; morphology
+  # (ICD-O-3 code, e.g. "8160/3") maps to tumorSubtype.
+  # GAP: diseaseType / sourceVocabulary / sourceDataset have no GDC source column.
+  Disease:
     file: diagnosis.tsv
     key: diagnosis_id
     dedup: true
     props:
-      diseaseId: icd_10_code
       diagnosisCode: icd_10_code
+      ontologyId: icd_10_code
+      diseaseName: primary_diagnosis
+      diseaseSubtype: primary_diagnosis
       tumorSubtype: morphology
     aliases:
       age_at_diagnosis: ageAtDiagnosisDays
       ajcc_pathologic_stage: pathologicStage
       method_of_diagnosis: diagnosisMethod
-      primary_diagnosis: diseaseSubtype
 
   # ── PathologyDetail ───────────────────────────────────────────────────────
   # id = pathology_detail_id. diagnosis_id auto-resolves via camel.
@@ -150,18 +154,6 @@ nodes:
       treatment_anatomic_sites: anatomicalSite
       # route_of_administration → routeOfAdministration auto-resolves via camel
 
-  # ── Disease (reference dimension from diagnosis table) ────────────────────
-  # id = icd_10_code (ICD-10 code, e.g. "C24.0"). Dedup produces one Disease
-  # node per unique ICD-10 code. primary_diagnosis = human-readable diseaseName.
-  # GAP: diseaseType / sourceVocabulary / sourceDataset have no GDC source column.
-  Disease:
-    file: diagnosis.tsv
-    key: icd_10_code
-    dedup: true
-    aliases:
-      primary_diagnosis: diseaseName
-      icd_10_code: ontologyId
-
 edges:
   # program_name is carried on study.tsv for this join.
   HAS_STUDY:
@@ -186,30 +178,21 @@ edges:
 
   HAS_DIAGNOSIS:
     file: diagnosis.tsv
-    pair: [Subject, Diagnosis]
+    pair: [Subject, Disease]
     start_key: case_id
     end_key: diagnosis_id
     props:
       isPrimaryDiagnosis: diagnosis_is_primary_disease
 
-  # Connects each Diagnosis to its canonical Disease reference node.
-  # Both keys come from the same diagnosis.tsv row.
-  OF_DISEASE:
-    file: diagnosis.tsv
-    pair: [Diagnosis, Disease]
-    start_key: diagnosis_id
-    end_key: icd_10_code
-    dedup: true
-
   HAS_PATHOLOGY:
     file: pathology_detail.tsv
-    pair: [Diagnosis, PathologyDetail]
+    pair: [Disease, PathologyDetail]
     start_key: diagnosis_id
     end_key: pathology_detail_id
 
   HAS_PHENOTYPE_OBSERVATION:
     file: exposure.tsv
-    pair: [Diagnosis, PhenotypeObservation]
+    pair: [Disease, PhenotypeObservation]
     start_key: diagnosis_id
     end_key: exposure_id
 
