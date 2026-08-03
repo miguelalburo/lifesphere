@@ -1,3 +1,5 @@
+_Last updated: 2026-08-03_
+
 ## 1. Overview, Scope, and Schema Authority
 ### 1.1 Overview
 
