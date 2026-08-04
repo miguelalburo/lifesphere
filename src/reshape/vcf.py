@@ -27,7 +27,7 @@ import csv
 import re
 from pathlib import Path
 
-from ..observation import VARIATION_OBS_COLUMNS, obs_id, strip_version
+from ..observation import VARIATION_OBS_COLUMNS, mint_id, obs_id, strip_version
 from ._common import log as _log, log_skipped_samples, observation_fieldnames, stamp_row
 from .spec import ReshapeSpec
 
@@ -38,8 +38,13 @@ _GENE_EDGE_COLUMNS = ["variant_id", "gene_id"]
 
 
 def _variant_id(chrom: str, pos: str, ref: str, alt: str) -> str:
-    """Traditional variant key: ``CHROM-POS-REF-ALT`` (dash form)."""
-    return f"{chrom}-{pos}-{ref}-{alt}"
+    """Traditional variant key: ``CHROM-POS-REF-ALT`` (dash form).
+
+    Dash, not the repo-wide ``:`` (docs/unique_ids.md), is deliberate: it keeps
+    this id-space from ever colliding with GDC's colon-keyed one (see module
+    docstring) while still going through the one shared minting primitive.
+    """
+    return mint_id(chrom, pos, ref, alt, sep="-")
 
 
 def _csq_gene_index(meta_lines: list[str]) -> int | None:

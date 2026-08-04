@@ -21,7 +21,13 @@ from typing import Iterator
 
 from .. import gdc_api
 from .download import download_all
-from ...observation import EXPRESSION_OBS_COLUMNS, is_zero, obs_id as _obs_id, strip_version as _strip_version
+from ...observation import (
+    EXPRESSION_OBS_COLUMNS,
+    gdc_assay_id as _gdc_assay_id,
+    is_zero,
+    obs_id as _obs_id,
+    strip_version as _strip_version,
+)
 
 _FILE_FIELDS = [
     "file_id",
@@ -70,11 +76,8 @@ def aliquot_id(file_meta: dict) -> str:
 
 
 def assay_id(file_meta: dict) -> str:
-    """Return a deterministic assay id as 'platform|strategy|workflow'."""
-    platform = file_meta.get("platform") or "unknown"
-    strategy = file_meta.get("experimental_strategy") or "unknown"
-    workflow = (file_meta.get("analysis") or {}).get("workflow_type") or "unknown"
-    return f"{platform}|{strategy}|{workflow}"
+    """Return a deterministic assay id as 'platform:strategy:workflow'."""
+    return _gdc_assay_id(file_meta)
 
 
 def _parse_star_counts(path: Path) -> Iterator[dict]:

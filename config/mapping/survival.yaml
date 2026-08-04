@@ -11,6 +11,12 @@
 #
 # DOCUMENTED GAPS (no source column): timeOrigin, eventType, censoringReason,
 # derivationMethod, lastFollowUpDays
+#
+# survivalId is a created id (case_id + survival_type, see docs/unique_ids.md)
+# and is NOT read from the file's survival_id column — standardise mints it
+# itself via the shared registry (src/observation.py DERIVED_KEYS), so it is
+# identical regardless of what the file's own column holds. `key:`/`end_key:`
+# below stay as documentation of which column that id populates.
 
 profile: survival
 

@@ -21,6 +21,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from ..observation import mint_id
+
 STUDY_SLUGS = [
     "acc_tcga_pan_can_atlas_2018", "blca_tcga_pan_can_atlas_2018",
     "brca_tcga_pan_can_atlas_2018", "cesc_tcga_pan_can_atlas_2018",
@@ -112,7 +114,10 @@ def reshape(patient_rows: list[dict], crosswalk: dict[str, str]) -> tuple[list[d
             out_rows.append({
                 "case_id": case_id,
                 "case_submitter_id": barcode,
-                "survival_id": f"{case_id}:{survival_type}",
+                # standardise re-derives survivalId itself (observation.DERIVED_KEYS
+                # registers Survival), so this column is written for readability of
+                # the raw TSV only — changing it here does not change how it's minted.
+                "survival_id": mint_id(case_id, survival_type),
                 "survival_type": survival_type,
                 "event": event,
                 "time_days": time_days,

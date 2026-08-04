@@ -25,7 +25,13 @@ from typing import Iterator
 
 from .. import gdc_api
 from .download import download_file
-from ...observation import VARIATION_OBS_COLUMNS, obs_id as _obs_id, strip_version as _strip_version
+from ...observation import (
+    VARIATION_OBS_COLUMNS,
+    gdc_assay_id as _gdc_assay_id,
+    mint_id as _mint_id,
+    obs_id as _obs_id,
+    strip_version as _strip_version,
+)
 
 _FILE_FIELDS = [
     "file_id",
@@ -55,7 +61,7 @@ _OBS_COLUMNS = VARIATION_OBS_COLUMNS
 
 def _variant_id(chrom: str, pos: str, ref: str, alt: str) -> str:
     """Return 'chrom:pos:ref:alt' as the canonical GDC variant key (GRCh38)."""
-    return f"{chrom}:{pos}:{ref}:{alt}"
+    return _mint_id(chrom, pos, ref, alt)
 
 
 def _compute_vaf(t_depth: str, t_alt_count: str) -> str:
@@ -75,11 +81,8 @@ def pipeline_version(file_meta: dict) -> str:
 
 
 def assay_id(file_meta: dict) -> str:
-    """Return a deterministic assay id as 'platform|strategy|workflow'."""
-    platform = file_meta.get("platform") or "unknown"
-    strategy = file_meta.get("experimental_strategy") or "unknown"
-    workflow = (file_meta.get("analysis") or {}).get("workflow_type") or "unknown"
-    return f"{platform}|{strategy}|{workflow}"
+    """Return a deterministic assay id as 'platform:strategy:workflow'."""
+    return _gdc_assay_id(file_meta)
 
 
 def aliquot_map(files: list[dict]) -> dict[str, str]:

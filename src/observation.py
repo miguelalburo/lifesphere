@@ -8,7 +8,9 @@ module both import:
 * the observation column set per observation type
   (:data:`EXPRESSION_OBS_COLUMNS`, :data:`METHYLATION_OBS_COLUMNS`,
   :data:`VARIATION_OBS_COLUMNS`);
-* the ``{sample}:{feature}`` surrogate-id minting (:func:`obs_id`);
+* the concatenation-based id-minting standard (:func:`mint_id`,
+  :data:`ID_SEPARATOR`) and the ``{sample}:{feature}`` surrogate-id it builds
+  (:func:`obs_id`) — see ``docs/unique_ids.md`` for the full standard;
 * unversioned-Ensembl stripping (:func:`strip_version`);
 * the :data:`DERIVED_KEYS` registry — the single, profile-independent place that
   says how each *created* node id is minted from its source columns, so the
@@ -92,9 +94,46 @@ def strip_version(feature_id: str) -> str:
     return feature_id.split(".")[0]
 
 
+# The repo-wide minting standard (docs/unique_ids.md): every *created* id is a
+# plain concatenation of its required-present source values, in a fixed order,
+# joined by ``:`` — never a hash or a generated uuid. ``:`` is the default
+# separator every minted id uses; the one documented exception (the
+# traditional-path Variant id — see src/reshape/vcf.py) passes its own ``sep``
+# to keep its id-space from colliding with the GDC-path one.
+ID_SEPARATOR = ":"
+
+
+def mint_id(*parts: str, sep: str = ID_SEPARATOR) -> str:
+    """Concatenate *parts*, in order, with *sep* — the one minting primitive.
+
+    Every created node/edge-endpoint id in the pipeline is built by calling
+    this (directly or via :func:`obs_id`), so "how do we mint an id" has
+    exactly one answer. Callers are responsible for only passing
+    required-present values — this function does no presence checking itself
+    (the standardise engine's ``_mint`` does that for :data:`DERIVED_KEYS`
+    builders; extract-time callers check inline).
+    """
+    return sep.join(parts)
+
+
 def obs_id(sample_id: str, feature_id: str) -> str:
     """Return ``{sample_id}:{feature_id}`` as the observation surrogate key."""
-    return f"{sample_id}:{feature_id}"
+    return mint_id(sample_id, feature_id)
+
+
+def gdc_assay_id(file_meta: dict) -> str:
+    """Return 'platform:strategy:workflow' from a GDC ``/files`` response entry.
+
+    Shared by the expression and variation extractors, whose queried files
+    genuinely vary on ``analysis.workflow_type`` (e.g. different variant
+    callers). Methylation queries a fixed ``data_type`` and composes its own
+    assay id from a literal third segment instead — see
+    ``extract/omics/methylation.py``.
+    """
+    platform = file_meta.get("platform") or "unknown"
+    strategy = file_meta.get("experimental_strategy") or "unknown"
+    workflow = (file_meta.get("analysis") or {}).get("workflow_type") or "unknown"
+    return mint_id(platform, strategy, workflow)
 
 
 def is_zero(value: str | None) -> bool:
@@ -144,12 +183,21 @@ ZERO_EXCLUDED_COLUMNS: frozenset[str] = frozenset({"expression_value"})
 # present and non-empty in a row) and the function that maps their values, in
 # order, to the id string. Per-label logic may differ; each label is defined once.
 #
-# Scope note: only the observation surrogate keys are registered for now — their
-# ``obs_id`` composition is already agreed and identical on both paths, so routing
-# it through here is a pure refactor. The other created keys (``Variant``,
-# ``Assay``) still differ in *format* between paths (colon-vs-dash, pipe-vs-
-# hardcoded); unifying those is a follow-up once the team fixes the id standard,
-# and is a one-line addition here when that scheme is decided.
+# Scope note — see docs/unique_ids.md for the full standard and the reasoning
+# below in detail. A label is registered here only when standardise can actually
+# re-derive its id from columns already present on the observation row:
+#   * the three observation surrogate keys, and ``Survival`` (``case_id`` +
+#     ``survival_type`` are both carried on every survival.tsv row);
+#   * NOT ``Assay`` — its source fields (platform/strategy/workflow) live only in
+#     GDC file-metadata, never copied onto the observation row, so standardise has
+#     nothing to re-derive it from; it stays an extract-time-minted, verbatim-
+#     trusted column (still built via :func:`mint_id`, so its *format* follows the
+#     standard even though its *minting site* doesn't move);
+#   * NOT ``Variant`` — the GDC and traditional paths deliberately mint two
+#     non-colliding id-spaces for it (colon vs dash; see src/reshape/vcf.py,
+#     and docs/unique_ids.md for the reasoning). Registering it here is
+#     profile-independent and would silently collapse that standing decision,
+#     so it stays extract-time-minted on both paths until the team revisits it.
 
 @dataclass(frozen=True)
 class KeyBuilder:
@@ -170,4 +218,5 @@ DERIVED_KEYS: dict[str, KeyBuilder] = {
     "ExpressionObservation": KeyBuilder(("sample_id", "gene_id"), obs_id),
     "MethylationObservation": KeyBuilder(("sample_id", "cpg_id"), obs_id),
     "VariantObservation": KeyBuilder(("sample_id", "variant_id"), obs_id),
+    "Survival": KeyBuilder(("case_id", "survival_type"), mint_id),
 }

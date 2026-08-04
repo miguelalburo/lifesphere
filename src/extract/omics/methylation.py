@@ -21,7 +21,7 @@ from typing import Iterator
 
 from .. import gdc_api
 from .download import download_all
-from ...observation import METHYLATION_OBS_COLUMNS, obs_id as _obs_id
+from ...observation import METHYLATION_OBS_COLUMNS, mint_id as _mint_id, obs_id as _obs_id
 
 _FILE_FIELDS = [
     "file_id",
@@ -64,10 +64,16 @@ def aliquot_id(file_meta: dict) -> str:
 
 
 def assay_id(file_meta: dict) -> str:
-    """Return a deterministic assay id as 'platform|strategy|Methylation Beta Value'."""
+    """Return a deterministic assay id as 'platform:strategy:Methylation Beta Value'.
+
+    The third segment is the fixed GDC ``data_type`` this extractor queries for
+    (see ``_METHYLATION_FILTERS``), not ``analysis.workflow_type`` — unlike
+    expression/variation, methylation files don't carry a stable, meaningful
+    per-file workflow value, so the constant data_type is used instead.
+    """
     platform = file_meta.get("platform") or "unknown"
     strategy = file_meta.get("experimental_strategy") or "unknown"
-    return f"{platform}|{strategy}|Methylation Beta Value"
+    return _mint_id(platform, strategy, "Methylation Beta Value")
 
 
 def pipeline_version(file_meta: dict) -> str:
