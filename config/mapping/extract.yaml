@@ -22,7 +22,6 @@
 #   PathologyDetail: cellularityPercent, inflammationScore, necrosisPercent,
 #             tissueCondition, morphologyDescription, pathologyMethod, anatomicalSite
 #             — not populated in TCGA pathology_detail records
-#   Survival: timeOrigin, eventType, censoringReason, derivationMethod
 #   Disease:  diseaseType, sourceVocabulary, sourceDataset
 
 profile: extract
@@ -110,17 +109,6 @@ nodes:
     key: pathology_detail_id
     dedup: true
 
-  # ── Survival ──────────────────────────────────────────────────────────────
-  # id = survival_id (e.g. <case_id>:OS). survival_type and last_follow_up_days
-  # auto-resolve via camel; event / time_days need explicit aliases.
-  Survival:
-    file: survival.tsv
-    key: survival_id
-    dedup: true
-    aliases:
-      event: eventOccurred
-      time_days: timeToEventDays
-
   # ── PhenotypeObservation (GDC exposure) ───────────────────────────────────
   # id = exposure_id. subjectId via global case_id alias; diagnosisId auto-
   # resolves via camel. TCGA-CHOL has no exposure records; file is empty.
@@ -195,12 +183,6 @@ edges:
     pair: [Disease, PhenotypeObservation]
     start_key: diagnosis_id
     end_key: exposure_id
-
-  HAS_SURVIVAL_RECORD:
-    file: survival.tsv
-    pair: [Subject, Survival]
-    start_key: case_id
-    end_key: survival_id
 
   UNDERWENT_INTERVENTION:
     file: treatment.tsv

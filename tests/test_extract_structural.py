@@ -4,7 +4,7 @@ Program, Study, Survival derivation.
 
 from __future__ import annotations
 
-from src.extract.entities import program, sample, study, survival, treatment
+from src.extract.entities import program, sample, study, treatment
 
 # ---------------------------------------------------------------------------
 # Shared synthetic payload
@@ -194,96 +194,3 @@ class TestStudy:
         assert list(study.iter_rows(EMPTY_CASE)) == []
 
 
-# ---------------------------------------------------------------------------
-# Survival — OS/DSS/PFI/DFI derivation
-# ---------------------------------------------------------------------------
-
-class TestSurvival:
-    def test_four_outcome_rows_per_case(self):
-        rows = list(survival.iter_rows(CASE))
-        types = {r["survival_type"] for r in rows}
-        assert types == {"OS", "DSS", "PFI", "DFI"}
-
-    def test_os_event_and_time(self):
-        rows = {r["survival_type"]: r for r in survival.iter_rows(CASE)}
-        os = rows["OS"]
-        assert os["event"] == 1      # dead
-        assert os["time_days"] == 500  # days_to_death
-        assert os["survival_id"] == "case-001:OS"
-
-    def test_dss_event_when_cancer_related(self):
-        rows = {r["survival_type"]: r for r in survival.iter_rows(CASE)}
-        dss = rows["DSS"]
-        assert dss["event"] == 1
-        assert dss["time_days"] == 500
-        assert dss["survival_id"] == "case-001:DSS"
-
-    def test_dss_censored_when_not_cancer_related(self):
-        case = {**CASE, "demographic": {**CASE["demographic"],
-                                         "cause_of_death": "Not Cancer Related"}}
-        rows = {r["survival_type"]: r for r in survival.iter_rows(case)}
-        dss = rows["DSS"]
-        assert dss["event"] == 0
-        assert dss["time_days"] == 500
-
-    def test_dss_event_when_cause_unknown_or_blank(self):
-        for cause in ("Unknown", "Not Reported", "", None):
-            demographic = dict(CASE["demographic"])
-            if cause is None:
-                demographic.pop("cause_of_death", None)
-            else:
-                demographic["cause_of_death"] = cause
-            case = {**CASE, "demographic": demographic}
-            rows = {r["survival_type"]: r for r in survival.iter_rows(case)}
-            assert rows["DSS"]["event"] == 1, f"cause_of_death={cause!r}"
-            assert rows["DSS"]["time_days"] == 500
-
-    def test_dss_censored_at_contact_when_alive(self):
-        case = {
-            **EMPTY_CASE,
-            "demographic": {"vital_status": "Alive"},
-            "follow_ups": [{"days_to_follow_up": "300"}],
-        }
-        rows = {r["survival_type"]: r for r in survival.iter_rows(case)}
-        assert rows["DSS"]["event"] == 0
-        assert rows["DSS"]["time_days"] == 300
-
-    def test_pfi_censored_when_no_progression(self):
-        rows = {r["survival_type"]: r for r in survival.iter_rows(CASE)}
-        pfi = rows["PFI"]
-        assert pfi["event"] == 0
-        assert pfi["time_days"] == 480  # last contact
-
-    def test_dfi_censored_when_no_recurrence(self):
-        rows = {r["survival_type"]: r for r in survival.iter_rows(CASE)}
-        dfi = rows["DFI"]
-        assert dfi["event"] == 0
-        assert dfi["time_days"] == 480
-
-    def test_join_keys_present(self):
-        for row in survival.iter_rows(CASE):
-            assert row["case_id"] == "case-001"
-            assert row["case_submitter_id"] == "TCGA-AA-1234"
-
-    def test_deterministic_survival_id(self):
-        row_ids = {r["survival_id"] for r in survival.iter_rows(CASE)}
-        assert row_ids == {"case-001:OS", "case-001:DSS", "case-001:PFI", "case-001:DFI"}
-
-    def test_no_survival_rows_when_no_contact_or_death(self):
-        # no demographic and no follow_ups → no time reference → no rows
-        case = {"case_id": "c3", "submitter_id": "S3"}
-        rows = list(survival.iter_rows(case))
-        assert rows == []
-
-    def test_survival_event_when_progression(self):
-        case = {
-            **EMPTY_CASE,
-            "demographic": {"vital_status": "Alive"},
-            "follow_ups": [{"days_to_follow_up": "300",
-                            "days_to_progression": "200",
-                            "days_to_recurrence": None,
-                            "progression_or_recurrence": "Yes"}],
-        }
-        rows = {r["survival_type"]: r for r in survival.iter_rows(case)}
-        assert rows["PFI"]["event"] == 1
-        assert rows["PFI"]["time_days"] == 200

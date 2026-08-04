@@ -10,7 +10,6 @@ from . import (
     sample,
     study,
     subject,
-    survival,
     treatment,
 )
 
@@ -25,7 +24,6 @@ EMITTERS = [
     treatment,
     program,
     study,
-    survival,
 ]
 
 EXPAND = [

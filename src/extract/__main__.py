@@ -6,6 +6,9 @@ Layer flags (at least one required):
   --methylation DNA-methylation download + reshape
   --variation   somatic-variation MAF download + reshape
   --omics       shorthand for --expression --methylation --variation
+  --survival    TCGA-CDR survival calls (cBioPortal mirror); always pulls the
+                full TCGA pan-cancer study list, ignoring project_id/--program;
+                requires <out>/subject.tsv (run --clinical first)
 """
 
 from __future__ import annotations
@@ -41,6 +44,12 @@ def main(argv: list[str] | None = None) -> int:
         help="all molecular layers (--expression --methylation --variation)",
     )
     parser.add_argument(
+        "--survival", action="store_true",
+        help="TCGA-CDR survival calls (cBioPortal mirror); always pulls the full "
+             "TCGA pan-cancer study list regardless of project_id/--program; "
+             "requires <out>/subject.tsv (run --clinical first)",
+    )
+    parser.add_argument(
         "--out", type=Path, default=None,
         help="output directory (default: data/raw/<project_id or program>/)",
     )
@@ -54,10 +63,10 @@ def main(argv: list[str] | None = None) -> int:
     # --omics expands to all three molecular layers
     omics_requested = [l for l in _OMICS_LAYERS if getattr(args, l) or args.omics]
 
-    if not args.clinical and not omics_requested:
+    if not args.clinical and not omics_requested and not args.survival:
         parser.error(
             "at least one layer flag is required: --clinical, --expression, "
-            "--methylation, --variation, or --omics"
+            "--methylation, --variation, --omics, or --survival"
         )
 
     selector = args.program or args.project_id
@@ -83,6 +92,10 @@ def main(argv: list[str] | None = None) -> int:
             extract_program(args.program, out_dir)
         else:
             extract(args.project_id, out_dir)
+
+    if args.survival:
+        from .survival import extract_survival
+        extract_survival(out_dir)
     return 0
 
 

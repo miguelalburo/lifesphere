@@ -1431,18 +1431,24 @@ the disease concept is captured by `diseaseName`, `diagnosisCode`, and `ontology
 
 
 #### `Survival`
+
+Sourced from the TCGA-CDR (Liu et al. 2018, *Cell*), via the cBioPortal PanCanAtlas
+datahub mirror — see `config/mapping/survival.yaml` and `src/extract/survival.py`
+(`python -m src.extract --survival`).
+Not a GDC derivation.
+
 | Property | is_key | Data Type | Description | Example | Source / Origin |
 |---|---|---|---|---|---|
-| `survivalId` | Yes | String | Primary key for a subject-specific survival or time-to-event record. | `surv_TCGA-BH-A0B3_OS` | Derived / clinical metadata |
-| `subjectId` | No | String | Mirror ID of the subject linked to this survival record; graph traversal should use (:Subject)-[:HAS_SURVIVAL_RECORD]->(:Survival). | `TCGA-BH-A0B3` | Clinical metadata |
-| `survivalType` | No | String | Type of survival or time-to-event endpoint represented. | `OS`, `DSS`, `PFI`, `DFI` | Clinical metadata / endpoint definition |
-| `timeOrigin` | No | String | Baseline point from which timeToEventDays is calculated. This is essential because survival time may be measured from diagnosis, enrolment, treatment start, surgery, or sample collection. | `diagnosis_date` | Clinical metadata / YAML config / endpoint definition |
-| `timeToEventDays` | No | Integer | Time from the defined baseline/index point to the event or censoring point, expressed in days. | `1250` | Clinical metadata / derived calculation |
-| `eventType` | No | String | Specific event counted for this endpoint. | `death`, `progression`, `recurrence`, `relapse` | Clinical metadata / endpoint definition |
-| `eventOccurred` | No | Boolean | Indicates whether the endpoint event occurred. true means event occurred; false means censored/no event observed by last follow-up. | `true` | Clinical metadata / endpoint definition |
-| `lastFollowUpDays` | No | Integer | Time from timeOrigin to last known follow-up, especially useful when the event did not occur. | `1250` | Clinical follow-up metadata |
-| `censoringReason` | No | String | Reason the record was censored, if known. | `last_follow_up_alive` | Clinical metadata |
-| `derivationMethod` | No | String | Rule or method used to derive the survival endpoint. | `days_to_death_else_last_follow_up` | YAML config / processing rule |
+| `survivalId` | Yes | String | Primary key for a subject-specific survival or time-to-event record. | `b3164f7b-c826-4e08-9ee6-8ff96d29b913:OS` | TCGA-CDR (via cBioPortal mirror) |
+| `subjectId` | No | String | Mirror ID of the subject linked to this survival record; graph traversal should use (:Subject)-[:HAS_SURVIVAL_RECORD]->(:Survival). | `b3164f7b-c826-4e08-9ee6-8ff96d29b913` | TCGA-CDR (via cBioPortal mirror) |
+| `survivalType` | No | String | Type of survival or time-to-event endpoint represented. | `OS`, `DSS`, `PFI`, `DFI` | TCGA-CDR (via cBioPortal mirror) |
+| `timeOrigin` | No | String | Baseline point from which timeToEventDays is calculated. This is essential because survival time may be measured from diagnosis, enrolment, treatment start, surgery, or sample collection. | `diagnosis_date` | Not populated — no source column |
+| `timeToEventDays` | No | Integer | Time from the defined baseline/index point to the event or censoring point, expressed in days. | `1250` | TCGA-CDR (via cBioPortal mirror); converted from months |
+| `eventType` | No | String | Specific event counted for this endpoint. | `death`, `progression`, `recurrence`, `relapse` | Not populated — no source column |
+| `eventOccurred` | No | Boolean | Indicates whether the endpoint event occurred. true means event occurred; false means censored/no event observed by last follow-up. | `true` | TCGA-CDR (via cBioPortal mirror) |
+| `lastFollowUpDays` | No | Integer | Time from timeOrigin to last known follow-up, especially useful when the event did not occur. | `1250` | Not populated — no source column |
+| `censoringReason` | No | String | Reason the record was censored, if known. | `last_follow_up_alive` | Not populated — no source column |
+| `derivationMethod` | No | String | Rule or method used to derive the survival endpoint. | `days_to_death_else_last_follow_up` | Not populated — no source column |
 
 
 

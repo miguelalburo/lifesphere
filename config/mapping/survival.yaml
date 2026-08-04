@@ -1,0 +1,34 @@
+# Source -> schema binding for TCGA-CDR survival (Liu et al. 2018, Cell), via
+# the cBioPortal PanCanAtlas datahub mirror (python -m src.extract --survival,
+# src/extract/survival.py).
+#
+# Replaces the old GDC-derived heuristic that used to live in extract.yaml.
+# File shape: case_id, case_submitter_id, survival_id, survival_type, event,
+# time_days — see src/extract/survival.py for how survival.tsv is built.
+#
+# Run:
+#   python -m src.standardise <dataset> --profile survival --report --values
+#
+# DOCUMENTED GAPS (no source column): timeOrigin, eventType, censoringReason,
+# derivationMethod, lastFollowUpDays
+
+profile: survival
+
+aliases:
+  case_id: subjectId
+
+nodes:
+  Survival:
+    file: survival.tsv
+    key: survival_id
+    dedup: true
+    aliases:
+      event: eventOccurred
+      time_days: timeToEventDays
+
+edges:
+  HAS_SURVIVAL_RECORD:
+    file: survival.tsv
+    pair: [Subject, Survival]
+    start_key: case_id
+    end_key: survival_id
