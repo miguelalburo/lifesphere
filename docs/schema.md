@@ -1,4 +1,4 @@
-_Last updated: 2026-08-03_
+_Last updated: 2026-08-04_
 
 ## 1. Overview, Scope, and Schema Authority
 ### 1.1 Overview
@@ -11,11 +11,11 @@ This document serves as the definitive implementation guide for the LifeSphere N
 
 ### 1.2 Current Scope and Goals
 
-At the current LifeSphere stage, the knowledge graph is a provenance-aware data representation and retrieval layer. The active schema includes the Program layer, Evidence layer, Disease / PathologyDetail / Survival clinical layer, Sample-level Intervention layer, Perturbation layer, RegulatoryElement layer, and the Protein and Pathway reference layer.  It stores structured metadata, observations, source-provided annotations, external matrix/file pointers, ontology mappings, and reproducibility information. It does not currently perform statistical testing, differential analysis, marker discovery, enrichment, deconvolution, trajectory inference, pseudotime analysis, or downstream modelling.
+At the current LifeSphere stage, the knowledge graph is a provenance-aware data representation and retrieval layer. The active schema includes the Program layer, Evidence layer, Diagnosis / Condition / PathologyDetail / Survival clinical layer, Sample-level Intervention layer, Perturbation layer, RegulatoryElement layer, and the Protein and Pathway reference layer.  It stores structured metadata, observations, source-provided annotations, external matrix/file pointers, ontology mappings, and reproducibility information. It does not currently perform statistical testing, differential analysis, marker discovery, enrichment, deconvolution, trajectory inference, pseudotime analysis, or downstream modelling.
 
 ### Key Goals
 
-- **Represent biomedical entities clearly:** LifeSphere separates stable biological entities such as `Gene`, `Variant`, `CpGSite`, `CellType`, and `Disease` from sample-specific observations such as `ExpressionObservation`, `VariantObservation`, `MethylationObservation`, and `PhenotypeObservation`.
+- **Represent biomedical entities clearly:** LifeSphere separates stable biological entities such as `Gene`, `Variant`, `CpGSite`, `CellType`, and `Condition` from sample-specific observations such as `ExpressionObservation`, `VariantObservation`, `MethylationObservation`, and `PhenotypeObservation`.
 
 - **Preserve provenance and reproducibility:** Source metadata, source files, source fields, source values, configuration keys, processing versions, and external file pointers are retained wherever possible.
 
@@ -46,8 +46,6 @@ These conventions align with Neo4j/Cypher [naming rules and recommendations](htt
 
 > **Implementation warning:** Do not mix legacy `snake_case` properties such as `source_dataset` with updated `camelCase` properties such as `sourceDataset`, unless a legacy compatibility layer explicitly requires it.
 
-**Property types.** In `config/schema/nodes.yaml` / `edges.yaml` a property is a bare name (imported as `string`) or a single-key mapping `{name: type}` declaring a non-string scalar type — e.g. `{betaValue: float}`. Allowed types are the `neo4j-admin database import` scalar tokens (`int`, `long`, `float`, `double`, `boolean`, …; the full set is `schema.PROPERTY_TYPES`, validated at load time). The type is consumed **only** by the offline bulk-import path (`src/load/bulk.py`, `python -m src.load <dataset> --bulk`), which rewrites the standardised CSVs into admin-import headers for the initial build of a fresh, empty database; the online `MERGE` loader ignores it. Annotate only reliably-numeric columns — a non-numeric cell aborts a typed import. Currently the omics measurement values (`expressionValue`, `betaValue`, `abundanceValue`, `variantAlleleFrequency`) carry `float`.
-
 ### 2.2 Relationship Property Modelling Philosophy
 
 LifeSphere uses relationship properties only when the property describes the **association between two nodes**, rather than the intrinsic identity of either node. This distinction is important because the graph separates stable biomedical entities, sample-specific observations, provenance records, and biological assertions.
@@ -68,7 +66,7 @@ Do not use a relationship property when the value is an intrinsic property of a 
 
 | Store the information as       | Use when                                                                                                                   | Example                                                                                                        |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Node property                  | The value belongs to the entity itself and remains true regardless of its relationships.                                   | `Gene.symbol`, `Disease.ontologyId`, `Sample.sampleClass`                                                      |
+| Node property                  | The value belongs to the entity itself and remains true regardless of its relationships.                                   | `Gene.symbol`, `Condition.conditionId`, `Sample.sampleClass`                                                      |
 | Relationship property          | The value qualifies the connection between two nodes.                                                                      | `REGULATES_GENE.evidenceLevel`, `USES_AGENT.agentRole`, `HAS_DIAGNOSIS.temporalOrder`                             |
 | Observation node               | The value is a measurement, molecular call, clinical observation, or sample-specific evidence.                             | `MethylationObservation.betaValue`, `VariantObservation.variantAlleleFrequency`, `PhenotypeObservation.status` |
 | Intermediate node              | The relationship has its own identity, timing, version, multiple values, or detailed provenance.                           | `Intervention`, `MethylationStatusRule`                                                       |
@@ -103,15 +101,19 @@ Here, `agentRole` and `sequence` describe how a chemical agent participates in a
   temporalOrder: 1,
   isPrimaryDiagnosis: true,
   confidenceScore: 1.0
-}]->(:Disease {
-  diseaseId: "diag_TCGA-BH-A0B3_001",
+}]->(:Diagnosis {
+  diagnosisId: "diag_TCGA-BH-A0B3_001",
+  conditionId: "MONDO:0007254",
   diagnosisMethod: "Histopathology",
-  tumorSubtype: "Luminal A",
+  conditionSubtype: "Luminal A",
+  conditionGrade: "Grade 2",
   sourceDataset: "TCGA-BRCA"
 })
+(:Diagnosis)-[:OF_CONDITION]->(:Condition)
 ```
 
-Here, `temporalOrder`, `isPrimaryDiagnosis`, and `confidenceScore` qualify the subject-to-disease link. In contrast, `diagnosisMethod`, `tumorSubtype`, and `sourceDataset` describe the diagnosis record itself and therefore belong on the `Disease` node.
+Here, `temporalOrder`, `isPrimaryDiagnosis`, and `confidenceScore` qualify the subject-to-diagnosis link. In contrast, `diagnosisMethod`, `conditionSubtype`, `conditionGrade`, and `sourceDataset` describe the diagnosis record itself and therefore belong on the `Diagnosis` node.
+
 
 ### When not to use relationship properties
 
@@ -298,7 +300,7 @@ The following labels may be added in future implementations if the ingestion pip
 | Base label                                                                                      | Possible future additional label(s)                                                                     | Meaning                                                                            | Status            |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------- |
 | `ExpressionObservation`, `MethylationObservation`, `VariantObservation`, `PhenotypeObservation` | Optional future broad label such as `MolecularObservation` or `Observation`                             | Shared observation-level traversal across molecular or clinical observation nodes. | Future / optional |
-| `Gene`, `Protein`,`Variant`, `CpGSite`, `RegulatoryElement`, `GenomicRegion`, `CellType`, `Disease`                            | Optional future broad label such as `BiologicalEntity` or `ReferenceEntity`                             | Shared traversal across stable biomedical reference entities.                      | Future / optional |
+| `Gene`, `Protein`,`Variant`, `CpGSite`, `RegulatoryElement`, `GenomicRegion`, `CellType`, `Condition`                            | Optional future broad label such as `BiologicalEntity` or `ReferenceEntity`                             | Shared traversal across stable biomedical reference entities.                      | Future / optional |
 
 Future broad labels such as `Observation`, `MolecularObservation`, `BiologicalEntity`, or `ReferenceEntity` should not be added casually. They should only be introduced if there is a clear query, indexing, or agentic retrieval benefit.
 
@@ -462,7 +464,7 @@ Relationship paths in this section use standard Cypher path-pattern syntax. See 
 (:Sample)-[:SAMPLED_FROM_TISSUE]->(:Tissue)
 (:Tissue)-[:PART_OF_ORGAN]->(:Organ)
 (:Sample)-[:COLLECTED_AT_STAGE]->(:DevelopmentalStage)
-(:Sample)-[:HAS_CONDITION]->(:ExperimentalCondition)
+(:Sample)-[:HAS_EXPERIMENTAL_CONDITION]->(:ExperimentalCondition)
 (:Sample)-[:ASSAYED_BY]->(:Assay)
 (:Assay)-[:USED_LIBRARY]->(:LibraryPreparation)
 ```
@@ -470,9 +472,10 @@ Relationship paths in this section use standard Cypher path-pattern syntax. See 
 ### 3.2 Clinical Context Path
 
 ```cypher
-(:Subject)-[:HAS_DIAGNOSIS]->(:Disease)
-(:Disease)-[:HAS_PATHOLOGY]->(:PathologyDetail)
-(:Disease)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)
+(:Subject)-[:HAS_DIAGNOSIS]->(:Diagnosis)
+(:Diagnosis)-[:OF_CONDITION]->(:Condition)
+(:Diagnosis)-[:HAS_PATHOLOGY]->(:PathologyDetail)
+(:Diagnosis)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)
 (:Subject)-[:HAS_SURVIVAL_RECORD]->(:Survival)
 ```
 
@@ -576,7 +579,7 @@ Single-cell assay, processing, cell-set, and feature-axis relationships are repr
 (:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:CpGSite)
 (:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:RegulatoryElement)
 (:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:Variant)
-(:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:Disease)
+(:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:Condition)
 (:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:GenomicRegion)
 (:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:MethylationStatusRule)
 ```
@@ -614,14 +617,15 @@ flowchart LR
   Sample -->|SAMPLED_FROM_TISSUE| Tissue[Tissue]
   Tissue -->|PART_OF_ORGAN| Organ[Organ]
   Sample -->|COLLECTED_AT_STAGE| DevelopmentalStage[DevelopmentalStage]
-  Sample -->|HAS_CONDITION| ExperimentalCondition[ExperimentalCondition]
+  Sample -->|HAS_EXPERIMENTAL_CONDITION| ExperimentalCondition[ExperimentalCondition]
   Sample -->|ASSAYED_BY| Assay[Assay]
   Assay -->|USED_LIBRARY| LibraryPreparation[LibraryPreparation]
 
   %% Clinical context
-  Subject -->|HAS_DIAGNOSIS| Disease[Disease]
-  Disease -->|HAS_PATHOLOGY| PathologyDetail[PathologyDetail]
-  Disease -->|HAS_PHENOTYPE_OBSERVATION| PhenotypeObservation[PhenotypeObservation]
+  Subject -->|HAS_DIAGNOSIS| Diagnosis[Diagnosis]
+  Diagnosis -->|OF_CONDITION| Condition[Condition]
+  Diagnosis -->|HAS_PATHOLOGY| PathologyDetail[PathologyDetail]
+  Diagnosis -->|HAS_PHENOTYPE_OBSERVATION| PhenotypeObservation[PhenotypeObservation]
   Subject -->|HAS_SURVIVAL_RECORD| Survival[Survival]
 
   %% Regulatory elements and genomic regions
@@ -647,7 +651,7 @@ flowchart LR
   Evidence -->|SUPPORTS_ASSOCIATION_WITH| CpGSite
   Evidence -->|SUPPORTS_ASSOCIATION_WITH| RegulatoryElement
   Evidence -->|SUPPORTS_ASSOCIATION_WITH| Variant
-  Evidence -->|SUPPORTS_ASSOCIATION_WITH| Disease
+  Evidence -->|SUPPORTS_ASSOCIATION_WITH| Condition
   Evidence -->|SUPPORTS_ASSOCIATION_WITH| GenomicRegion
   Evidence -->|SUPPORTS_ASSOCIATION_WITH| MethylationStatusRule[MethylationStatusRule]
 
@@ -692,7 +696,8 @@ flowchart LR
   MethylationObservation -->|CLASSIFIED_USING| MethylationStatusRule
 ```
 
-Note: Single-cell and single-nucleus assays are represented as regular `Assay` nodes using assay properties such as `assayType`, `libraryStrategy`, `platform`, and `isSingleCellAssay`. The active schema does not use an additional `SingleCellAssay` label.
+Note: Single-cell and single-nucleus assays are represented as regular `Assay` nodes using assay properties such as `assayType`, `platform`, `assayChemistry` and `isSingleCellAssay`, with library strategy and library chemistry represented on the linked
+`LibraryPreparation` node. The active schema does not use an additional `SingleCellAssay` label.
 
 For the complete schema, use the relationship catalogue in Section 5 and the property catalogues in Sections 7 and 8. Future-only RAG/document chunking components are intentionally excluded from this active overview.
 
@@ -703,8 +708,9 @@ For the complete schema, use the relationship catalogue in Section 5 and the pro
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------- |
 | `Publication`            | Paper, preprint, report, dataset manuscript, or methodological reference used for literature provenance, evidence support, or schema-grounding.                                                                                                                                                                                                                                | `publicationId`            |
 | `Program`                | High-level funding, consortium, organisational, or national/international biomedical initiative that contains or supports one or more studies. | `programId` |
-| `Evidence` | A specific evidence record, excerpt, curated assertion, or extracted document segment that supports a biological, clinical, genomic, regulatory, protein-level, or disease-related association. | `evidenceId` |
-| `PathologyDetail`        | Specific pathology, histology, or tissue-level pathology record linked to a disease record. | `pathologyDetailId` |
+| `Evidence` | A specific evidence record, excerpt, curated assertion, or extracted document segment that supports a biological, clinical, genomic, regulatory, protein-level, or condition-related association. | `evidenceId` |
+| `Diagnosis`              | Subject-specific diagnosis record linking a subject to a stable `Condition` concept and retaining diagnosis-specific clinical details. | `diagnosisId` |
+| `PathologyDetail`        | Specific pathology, histology, or tissue-level pathology record linked to a diagnosis. | `pathologyDetailId` |
 | `Survival`               | Subject-specific survival or time-to-event record. | `survivalId` |
 | `Procedure`              | Reusable clinical, surgical, diagnostic, or experimental procedure concept. | `procedureId` |
 | `Perturbation`           | Functional genomics or experimental perturbation event. | `perturbationId` |
@@ -723,8 +729,8 @@ For the complete schema, use the relationship catalogue in Section 5 and the pro
 | `Tissue`                 | Tissue or anatomical material from which a sample was derived, preferably mapped to an ontology such as UBERON.                                                                                                                                                                                                                                                                | `tissueId`                 |
 | `Organ`                  | Anatomical organ or organ-level structure associated with a tissue or sample.                                                                                                                                                                                                                                                                                                  | `organId`                  |
 | `DevelopmentalStage`     | Developmental, life-stage, or age-stage context associated with a subject or sample.                                                                                                                                                                                                                                                                                           | `stageId`                  |
-| `ExperimentalCondition` | Designed or observed experimental condition, treatment context, exposure context, time point, stimulation state, culture condition, environmental condition, or group assignment associated with a sample. | `conditionId` |
-| `Disease`                | Subject-specific diagnosis record together with its disease/tumour type, subtype, and ontology-backed disease concept. Merges the former `Diagnosis` node and the `Disease` reference dimension into one node at the per-diagnosis grain (keyed by the source diagnosis id). | `diseaseId`                |
+| `ExperimentalCondition` | Designed or observed experimental condition, treatment context, exposure context, time point, stimulation state, culture condition, environmental condition, or group assignment associated with a sample. | `experimentalConditionId` |
+| `Condition`                | Stable clinical condition concept canonically identified by an ICD-10 code. The node may retain a mapped MONDO identifier and other ontology cross-references. Subject-specific diagnosis method, subtype, stage, grade, severity and onset information remain on `Diagnosis`.                                                                                                                                                                                                                                                                             | `conditionId`                |
 | `Gene`                   | Stable gene reference entity, preferably keyed by Ensembl, HGNC, MGI, or organism-appropriate identifiers.                                                                                                                                                                                                                                                                     | `geneId`                   |
 | `Variant`                | Stable genomic alteration entity such as SNV, indel, CNV, structural variant, or fusion.                                                                                                                                                                                                                                                                                       | `variantId`                |
 | `CpGSite`                | CpG locus, methylation probe, or methylation feature used in DNA methylation assays.                                                                                                                                                                                                                                                                                           | `cpgId`                    |
@@ -732,7 +738,7 @@ For the complete schema, use the relationship catalogue in Section 5 and the pro
 | `PhenotypeObservation`   | Diagnosis-, perturbation- or intervention-linked phenotype, clinical feature, biomarker, adverse-event, treatment-response, or outcome observation with value, status, time, and provenance. Subject and sample identifiers may be retained as mirror properties where applicable.                                                                                                                                                                                                                                                                        | `phenotypeObservationId`   |
 | `VariantObservation`     | Sample-specific evidence that a variant was observed, including caller, status, and provenance.                                                                                                                                                                                                                                                                                | `variantObservationId`     |
 | `ExpressionObservation`  | Sample-specific or source-provided expression measurement linked to a stable gene entity.                                                                                                                                                                                                                                                                                      | `expressionObservationId`  |
-| `MethylationObservation` | Sample-, feature-, gene-, or region-specific methylation measurement or source-provided methylation result.                                                                                                                                                                                                                                                                    | `methylationObservationId` |
+| `MethylationObservation` | Sample-specific CpG-site or regional methylation measurement, or a source-provided methylation result. | `methylationObservationId` |
 | `ProteinObservation`     | Sample-specific or source-provided protein abundance, protein expression, or protein-level measurement linked to a stable `Protein` entity.                                                                                                                                                                                                                                    | `proteinObservationId`     |
 | `MetaboliteObservation`  | Sample-specific or source-provided metabolite abundance, concentration, intensity, or detection record linked to a stable `Metabolite` entity. | `metaboliteObservationId` |
 | `MethylationStatusRule`  | Configurable rule defining how methylation status is assigned from beta values, threshold bounds, and optional publication-supported methodological context.                                                                                                                                                                                                                                                   | `methylationStatusRuleId`  |
@@ -766,10 +772,11 @@ The relationship catalogue follows the same Cypher path-pattern syntax introduce
 
 | Relationship Pattern | Relationship Type | source_node | target_node | Purpose |
 |---|---|---|---|---|
-| `(:Sample)-[:HAS_CONDITION]->(:ExperimentalCondition)` | `HAS_CONDITION` | `Sample` | `ExperimentalCondition` | Links a sample to its experimental condition, group assignment, culture condition, time point, stimulation state, exposure context, or other source-defined sample-level condition. |
-| `(:Subject)-[:HAS_DIAGNOSIS]->(:Disease)` | `HAS_DIAGNOSIS` | `Subject` | `Disease` | Links subject to clinical diagnosis / disease record. |
-| `(:Disease)-[:HAS_PATHOLOGY]->(:PathologyDetail)` | `HAS_PATHOLOGY` | `Disease` | `PathologyDetail` | Links disease record to pathology/histology records. |
-| `(:Disease)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)` | `HAS_PHENOTYPE_OBSERVATION` | `Disease` | `PhenotypeObservation` | Links a disease record to phenotype, clinical feature, biomarker, adverse event, treatment-response, or outcome observations associated with that diagnosis. |
+| `(:Sample)-[:HAS_EXPERIMENTAL_CONDITION]->(:ExperimentalCondition)` | `HAS_CONDITION` | `Sample` | `ExperimentalCondition` | Links a sample to its experimental group assignment, culture condition, time point, stimulation state, exposure context, or other source-defined experimental condition. |
+| `(:Subject)-[:HAS_DIAGNOSIS]->(:Diagnosis)` | `HAS_DIAGNOSIS` | `Subject` | `Diagnosis` | Links subject to clinical diagnosis. |
+| `(:Diagnosis)-[:OF_CONDITION]->(:Condition)` | `OF_CONDITION` | `Diagnosis` | `Condition` | Maps a subject-specific diagnosis record to a stable ontology-backed biomedical condition concept. |
+| `(:Diagnosis)-[:HAS_PATHOLOGY]->(:PathologyDetail)` | `HAS_PATHOLOGY` | `Diagnosis` | `PathologyDetail` | Links diagnosis to pathology/histology records. |
+| `(:Diagnosis)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)` | `HAS_PHENOTYPE_OBSERVATION` | `Diagnosis` | `PhenotypeObservation` | Links a diagnosis to phenotype, clinical feature, biomarker, adverse event, treatment-response, or outcome observations associated with that diagnosis. |
 | `(:Subject)-[:HAS_SURVIVAL_RECORD]->(:Survival)` | `HAS_SURVIVAL_RECORD` | `Subject` | `Survival` | Links subject to time-to-event endpoints. |
 
 ### 5.3 Assay-related Relationships
@@ -830,7 +837,7 @@ The relationship catalogue follows the same Cypher path-pattern syntax introduce
 | `(:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:CpGSite)` | `SUPPORTS_ASSOCIATION_WITH` | `Evidence` | `CpGSite` | Evidence grounding to CpGSite. |
 | `(:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:RegulatoryElement)` | `SUPPORTS_ASSOCIATION_WITH` | `Evidence` | `RegulatoryElement` | Evidence grounding to RegulatoryElement. |
 | `(:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:Variant)` | `SUPPORTS_ASSOCIATION_WITH` | `Evidence` | `Variant` | Evidence grounding to Variant. |
-| `(:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:Disease)` | `SUPPORTS_ASSOCIATION_WITH` | `Evidence` | `Disease` | Evidence grounding to Disease. |
+| `(:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:Condition)` | `SUPPORTS_ASSOCIATION_WITH` | `Evidence` | `Condition` | Evidence grounding to Condition. |
 | `(:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:GenomicRegion)` | `SUPPORTS_ASSOCIATION_WITH` | `Evidence` | `GenomicRegion` | Evidence grounding to GenomicRegion. |
 | `(:Evidence)-[:SUPPORTS_ASSOCIATION_WITH]->(:MethylationStatusRule)` | `SUPPORTS_ASSOCIATION_WITH` | `Evidence`  | `MethylationStatusRule` | Evidence grounding to a methylation classification rule or threshold logic. |
 
@@ -873,14 +880,20 @@ The relationship catalogue follows the same Cypher path-pattern syntax introduce
 
 #### ExperimentalCondition modelling note
 
-`ExperimentalCondition` represents source-defined sample-level context such as group assignment, time point, culture condition, environmental condition, stimulation state, exposure context, or control/test status. It is linked from `Sample` using `(:Sample)-[:HAS_CONDITION]->(:ExperimentalCondition)`.
+`ExperimentalCondition` represents source-defined sample-level context such as group assignment, time point, culture condition, environmental condition, stimulation state, exposure context, or control/test status. It is linked from `Sample` using `(:Sample)-[:HAS_EXPERIMENTAL_CONDITION]->(:ExperimentalCondition)`.
 
 `ExperimentalCondition` should not replace `Intervention` or `Perturbation`. Use `Intervention` for structured treatment, exposure, surgery, radiation, immunotherapy, or therapy events with timing, dose, route, agent, or outcome details. Use `Perturbation` for functional genomics or experimental perturbation events such as CRISPR, shRNA, siRNA, overexpression, activation, repression, or chemical perturbation. Use `ExperimentalCondition` for source-defined sample grouping and contextual metadata that do not need to be modelled as a full intervention or perturbation event.
+
+`ExperimentalCondition` should not replace the clinical `Condition` node. `Condition` represents the ontology-backed target of a Diagnosis, whereas `ExperimentalCondition` represents sample-level experimental context.
+
 
 
 #### PhenotypeObservation modelling note
 
-`PhenotypeObservation` stores phenotype, clinical feature, biomarker, adverse-event, treatment-response, validation, response, or outcome observations. In the active schema, diagnosis-associated phenotype observations are linked through `(:Disease)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`, perturbation-associated phenotype observations are linked through `(:Perturbation)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`, and intervention outcomes are linked through `(:Intervention)-[:RESULTED_IN]->(:PhenotypeObservation)`. Subject, sample, diagnosis, and perturbation identifiers may also be retained as mirror properties where useful for auditability. Ontology identifiers such as HPO IDs may be retained as properties, for example `hpoId`, but the active schema does not use a separate `PhenotypeTerm` node.
+`PhenotypeObservation` stores phenotype, clinical feature, biomarker, adverse-event, treatment-response, validation, response, or outcome observations. In the active schema, diagnosis-associated phenotype observations are linked through `(:Diagnosis)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`, perturbation-associated phenotype observations are linked through `(:Perturbation)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`, and intervention outcomes are linked through `(:Intervention)-[:RESULTED_IN]->(:PhenotypeObservation)`. Subject, sample, diagnosis, perturbation, and intervention identifiers may also be retained as mirror properties where useful for auditability. Ontology identifiers such as HPO IDs may be retained as properties, for example `hpoId`, but the active schema does not use a separate `PhenotypeTerm` node.
+
+
+`Condition` represents a stable ontology-backed clinical or biomedical condition linked to Diagnosis through `OF_CONDITION`. `ExperimentalCondition` represents sample-level experimental context and is not interchangeable with `Condition`.
 
 
 ### 6.2 Transcriptomic-Specific Design
@@ -1139,7 +1152,7 @@ RegulatoryElement represents promoters, enhancers, silencers, insulators, CTCF b
 
 ### 6.12 Evidence Design
 
-Evidence is an active node. Publication provides Evidence records through `PROVIDES_EVIDENCE_FOR`, and Evidence records support associations with Gene, Protein, CpGSite, RegulatoryElement, Variant, Disease, GenomicRegion, or MethylationStatusRule through `SUPPORTS_ASSOCIATION_WITH`. Do not use active `EVIDENCES` relationships for this layer.
+Evidence is an active node. Publication provides Evidence records through `PROVIDES_EVIDENCE_FOR`, and Evidence records support associations with `Gene`, `Protein`, `CpGSite`, `RegulatoryElement`, `Variant`, `Condition`, `GenomicRegion`, or `MethylationStatusRule` through `SUPPORTS_ASSOCIATION_WITH`. Do not use active `EVIDENCES` relationships for this layer.
 
 ## 7. Node Property Catalogue
 
@@ -1185,7 +1198,7 @@ Evidence is an active node. Publication provides Evidence records through `PROVI
 | `studyAbbreviation` | No | String | Short study abbreviation. | `TCGA-BRCA` | Source |
 | `studyName` | No | String | Full title or name of the study. | `Breast Invasive Carcinoma` | Source |
 | `description` | No | String | Long-form description. | `...` | Source |
-| `diseaseType` | No | String | Broad disease category. | `Breast Cancer` | Source |
+| `conditionCategory` | No | String | Broad biomedical condition category represented by the study. | `Breast Cancer` | Source |
 | `primarySite` | No | String | Primary anatomical site of the study. | `Breast` | Source |
 | `studyDesign` | No | String | Observational, clinical trial, etc. | `Observational` | Source |
 | `enrollmentCount` | No | Integer | Number of enrolled subjects. | `1098` | Source |
@@ -1246,14 +1259,13 @@ Evidence is an active node. Publication provides Evidence records through `PROVI
 | `assayId` | Yes | String | Primary Key; unique identifier for the experimental run. | `assay_HM450_run1` | Derived / Metadata |
 | `assayType` | No | String | The broad category of the experiment performed. | `DNA Methylation Array` | YAML/config |
 | `platform` | No | String | The specific hardware or microarray platform used. | `Illumina HumanMethylation450` | Metadata / Config |
-| `libraryStrategy` | No | String | The technique used to prepare the biological library. | `Bisulfite-Converted DNA` | Metadata / Config |
 | `referenceGenome` | No | String | The coordinate framework the assay data is mapped to. | `GRCh37` | Metadata / Config |
 | `geneAnnotationVersion` | No | String | The version of the gene annotation used during processing. | `GENCODE v36` | YAML/config |
 | `sourceDataset` | No | String | The database or overarching project this assay belongs to. | `TCGA-BRCA` | Metadata |
 | `sourceFile` | No | String | The original manifest or matrix file detailing this assay. | `jhu-usc.edu_BRCA.txt` | Metadata |
 | `assayDate` | No | String | The date the physical experiment or sequencing was run. | `14/05/2012` | Metadata |
 | `omicsInfo` | No | String | Primary omics modality. | `Transcriptomics` | Metadata |
-| `chemistry` | No | String | Assay chemistry, kit, or chemistry version used for library preparation or molecular profiling. | `10x 3' v3` | Metadata |
+| `assayChemistry` | No | String | Chemistry intrinsic to the assay or profiling platform. Do not use this for library-preparation chemistry represented by the linked LibraryPreparation node. | `Infinium HD Assay chemistry` | Assay/platform metadata |
 | `isSingleCellAssay` | No | Boolean | Indicates whether the assay is specifically a single-cell or single-nucleus assay. `true` means the assay represents a single-cell/single-nucleus assay. `false` means the assay is not a single-cell assay. | `true` | Assay metadata / repository metadata / YAML config |
 
 
@@ -1274,7 +1286,7 @@ Evidence is an active node. Publication provides Evidence records through `PROVI
 | `barcodeStrategy` | No | String | Barcoding, indexing, or multiplexing strategy used for the library. This may refer to sample indexes, molecular barcodes, UMIs, cellular barcodes, or no barcoding. | `dual_index`, `single_index`, `UMI`, `cell_barcode`, `none` | Assay metadata / protocol metadata |
 | `libraryLayout` | No | String | Sequencing read layout, where relevant. | `single_end`, `paired_end` | Sequencing metadata |
 | `readLength` | No | Integer | Sequencing read length, where relevant and source-provided. | `150` | Sequencing metadata |
-| `chemistry` | No | String | Chemistry or chemistry version used for library preparation or profiling. | `v3`, `v4`, `bisulfite_conversion`, `TMT_16plex` | Assay metadata / protocol metadata |
+| `libraryChemistry` | No | String | Chemistry or chemistry version used to prepare the assay input or molecular library. | `v3`, `v4`, `bisulfite_conversion`, `TMT_16plex` | library/protocol metadata |
 | `sourceDataset` | No | String | Dataset, cohort, or repository from which the library preparation metadata was derived. | `TCGA-BRCA`, `CPTAC-BRCA`, `CELLxGENE` | Metadata |
 | `sourceFile` | No | String | Source file containing the library preparation metadata. | `assay_metadata.tsv`, `library_metadata.csv` | Source metadata |
 
@@ -1322,50 +1334,35 @@ Evidence is an active node. Publication provides Evidence records through `PROVI
 
 | Property | is_key | Data Type | Description | Example | Source / Origin |
 | -------- | ------ | --------- | ----------- | ------- | --------------- |
-| `conditionId` | Yes | String | Primary key for the experimental condition, sample group, treatment context, exposure context, time point, stimulation state, culture condition, or source-defined sample-level condition. | `cond_hypoxia_48h` | Derived / source metadata |
-| `conditionName` | No | String | Human-readable name or description of the condition. | `Hypoxia 48h`, `Untreated control`, `IFN-gamma stimulated` | Metadata / source annotation |
-| `conditionType` | No | String | Broad category of condition. | `environmental`, `treatment_context`, `time_point`, `stimulation`, `control`, `culture_condition` | YAML config / metadata |
-| `conditionLabel` | No | String | Source-provided or normalised experimental group label describing the condition assignment. Useful for labels such as control, treated, hypoxia exposure, or case/control group membership. | `control`, `treated`, `hypoxia_48h`, `case_group_A` | Experimental metadata / source metadata / YAML config |
+| `experimentalConditionId` | Yes | String | Primary key for the experimental condition, sample group, treatment context, exposure context, time point, stimulation state, culture condition, or source-defined sample-level condition. | `cond_hypoxia_48h` | Derived / source metadata |
+| `experimentConditionName` | No | String | Human-readable name or description of the condition. | `Hypoxia 48h`, `Untreated control`, `IFN-gamma stimulated` | Metadata / source annotation |
+| `experimentalConditionType` | No | String | Broad category of condition. | `environmental`, `treatment_context`, `time_point`, `stimulation`, `control`, `culture_condition` | YAML config / metadata |
+| `experimentalConditionLabel` | No | String | Source-provided or normalised experimental group label describing the condition assignment. Useful for labels such as control, treated, hypoxia exposure, or case/control group membership. | `control`, `treated`, `hypoxia_48h`, `case_group_A` | Experimental metadata / source metadata / YAML config |
 | `description` | No | String | Free-text explanation of the experimental condition, group parameters, treatment context, exposure details, or other condition-specific notes. | `Cells exposed to 1% oxygen for 48 hours before RNA-seq profiling.` | Experimental metadata / protocol metadata / source notes |
 | `dose` | No | Float | Numeric dose, concentration, or exposure amount if the condition includes a source-provided dose. | `1.0` | Metadata |
 | `doseUnit` | No | String | Unit for the dose or exposure amount. | `% O2`, `ng/mL`, `uM` | Metadata / YAML config |
 | `duration` | No | Float | Duration of the condition, exposure, stimulation, or time point, where applicable. | `48` | Metadata |
 | `durationUnit` | No | String | Unit for duration. | `hours`, `days`, `minutes` | Metadata / YAML config |
+| `sourceDataset` | No | String | Dataset, cohort, study, or repository from which the experimental-condition record was derivedn. | `TCGA-BRCA`, `GSE123456`, `CELLxGENE` | Source metadata |
 
 
 
 
-#### `Disease`
 
-The merged `Disease` node carries the former `Diagnosis` per-event fields and the
-former `Disease` reference fields on one node at the per-diagnosis grain. Its
-primary key `diseaseId` is the source diagnosis id (one node per diagnosis event);
-the disease concept is captured by `diseaseName`, `diagnosisCode`, and `ontologyId`.
+#### `Condition`
 
 | Property | is_key | Data Type | Description | Example | Source / Origin |
 | -------- | ------ | --------- | ----------- | ------- | --------------- |
-| `diseaseId` | Yes | String | Primary key; the subject-specific diagnosis id (one node per diagnosis event/entry). | `diag_TCGA-BH-A0B3_001` | Derived / clinical metadata |
-| `subjectId` | No | String | Mirror ID of the diagnosed subject; graph traversal should use `(:Subject)-[:HAS_DIAGNOSIS]->(:Disease)`. | `TCGA-BH-A0B3` | Metadata |
-| `diseaseType` | No | String | Broad disease type, diagnosis, or ontology disease category. | `Breast Cancer` | Metadata / YAML configuration / ontology mapping |
-| `diseaseName` | No | String | Human-readable formal name of the disease concept. | `Breast Invasive Carcinoma` | YAML/configuration / ontology mapping |
-| `ontologyId` | No | String | Specific identifier from a controlled medical vocabulary. | `MONDO:0007254` | MONDO / EFO / NCIt / Disease Ontology mapping |
-| `sourceVocabulary` | No | String | Name of the ontology or controlled vocabulary used for the mapping. | `MONDO` | YAML/configuration / ontology mapping |
-| `diagnosisRole` | No | String | Role of the diagnosis, such as primary, secondary, comorbidity, recurrence, suspected, or differential diagnosis. | `primary` | Clinical metadata / YAML config |
-| `diagnosisCode` | No | String | Source-provided diagnosis code. | `C50.9` | Clinical metadata / ontology mapping |
-| `diagnosisCodeSystem` | No | String | Coding system used for the diagnosis code. | `ICD-10` | Clinical metadata / ontology mapping |
-| `diagnosisMethod` | No | String | Method or evidence used to confirm the diagnosis. | `Histopathology` | Clinical metadata |
-| `ageAtDiagnosisDays` | No | Integer | Age of the subject at diagnosis, expressed in days. | `22330` | Clinical metadata |
-| `diseaseSubtype` | No | String | Generic disease subtype, clinical subtype, molecular subtype, or disease subgroup. | `relapsing-remitting`, `type 1`, `Luminal A` | Clinical metadata / derived annotation |
-| `pathologicStage` | No | String | Cancer-specific pathological stage, if available. | `Stage II` | Clinical metadata |
-| `tumorGrade` | No | String | Cancer-specific histological tumour grade, if available. | `Grade 2` | Clinical metadata |
-| `tumorSubtype` | No | String | Cancer-specific tumour subtype or molecular/pathological subtype, if available. Optional and should not be required for non-cancer studies. | `Luminal A` | Cancer clinical metadata / derived annotation |
-| `ageOfOnsetDays` | No | Integer | Age of the subject at first disease onset or symptom onset, expressed in days. Useful when onset occurs before formal diagnosis. | `18000` | Clinical metadata |
-| `severityScore` | No | Float / Integer | Numeric disease severity score, if provided by the source. Should be interpreted together with severityScale. | `3` | Clinical metadata / derived annotation |
-| `severityScale` | No | String | Name or type of severity scale used to interpret severityScore. | `mild_moderate_severe`, `GOLD`, `NYHA`, `custom_1_10` | Clinical metadata / YAML config |
-| `infectiousAgentId` | No | String | NCBI Taxonomy ID of the pathogen or infectious agent associated with the diagnosis, where applicable. | `NCBI:txid2697049` | Clinical metadata / ontology mapping |
-| `infectiousAgentName` | No | String | Human-readable name of the pathogen or infectious agent associated with the diagnosis. | `SARS-CoV-2` | Clinical metadata / ontology mapping |
-| `isNormal` | No | Boolean | Indicates whether the diagnosis result was normal. `true` means the diagnosis came out normal or no disease/pathological finding was identified. `false` means an abnormal, pathological, or disease-related diagnosis was recorded. | `true` | Clinical metadata / diagnostic report / pathology metadata |
-| `sourceDataset` | No | String | Dataset or cohort from which the diagnosis record was derived. | `TCGA-BRCA` | Metadata |
+| `conditionId` | Yes | String | Primary key for the stable clinical condition concept. This value must contain the canonical ICD-10-CM code used to identify the Condition node. Prefer a namespace-qualified format such as ICD10:C50.9 to make the coding system explicit and avoid ambiguity. | `ICD10:C50.919` | ICD-10-CM mapping / clinical metadata / configuration files |
+| `conditionName` | No | String | Preferred human-readable name associated with the ICD-10 condition represented by conditionId. | `Malignant neoplasm of breast, unspecified` | ICD-10 terminology / configuration files |
+| `conditionType` | No | String | Broad normalised category used for filtering and retrieval. This is a LifeSphere classification and is not the primary identifier. | `Cancer` | ICD-10 hierarchy / metadata / configuration |
+| `mondoId` | No | String | MONDO identifier mapped to the ICD-10-keyed Condition concept, where a valid mapping is available. This is a cross-reference and not the primary key. | `MONDO:0007254` | MONDO cross-reference / ontology mapping / configuration files |
+| `synonyms` | No | List<String> | Alternative names, abbreviations, historical labels, or accepted synonyms associated with the condition concept. | `["breast carcinoma", "malignant neoplasm of breast"]` | ICD-10 terminology / MONDO / configuration files |
+| `definition` | No | String | Ontology-provided definition or concise description of the condition concept, where available. | `A malignant neoplasm involving breast tissue.` | ICD-10 / MONDO ontology / config files |
+| `ontologyVersion` | No | List<String> | Version or release of the ontology or terminology resources used to create or update the Condition node and its mappings. | `["MONDO 2026-06-03"; "ICD-10 2026"]` | Ontology release metadata / ingestion configuration |
+| `externalOntologyIds` | No | List<String> | Additional ontology or terminology identifiers mapped to the Condition concept, excluding the primary `conditionId` and the dedicated `mondoId`. Useful for retaining EFO, NCIt, DOID, Orphanet, or other ontology cross-references. | `["NCIT:C4872", "EFO:0000305"]` | Ontology cross-reference / configuration files |
+| `sourceVocabulary` | No | String | Primary coding system used for the `Condition` node identifier. For the proposed model, this should be `ICD-10`. | `ICD-10` | YAML configuration / ontology mapping |
+
 
 
 #### `PhenotypeObservation`
@@ -1375,7 +1372,8 @@ the disease concept is captured by `diseaseName`, `diagnosisCode`, and `ontology
 | `phenotypeObservationId` | Yes | String | Primary key for a diagnosis-, perturbation-, or intervention-linked phenotype observation. Subject and sample identifiers may be retained as mirror properties where applicable. | `pheno_obs_TCGA-BH-A0B3_ae_001` | Derived |
 | `subjectId` | No | String | Mirror ID of the subject linked to this phenotype observation, where applicable. | `TCGA-BH-A0B3` | Clinical metadata |
 | `sampleId` | No | String | Mirror ID of the sample linked to this phenotype observation, where applicable. | `TCGA-BH-A0B3-01A` | Sample / clinical metadata |
-| `diagnosisId` | No | String | Mirror ID of the disease/diagnosis record linked to this phenotype observation, where applicable. Graph traversal should use `(:Disease)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`. | `diag_TCGA-BH-A0B3_001` | Clinical metadata |
+| `diagnosisId` | No | String | Mirror ID of the diagnosis linked to this phenotype observation, where applicable. Graph traversal should use `(:Diagnosis)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`. | `diag_TCGA-BH-A0B3_001` | Clinical metadata |
+| `interventionId` | No | String | Mirror ID of the intervention linked to this phenotype observation, where applicable. Graph traversal should use `(:Intervention)-[:RESULTED_IN]->(:PhenotypeObservation)`. | `interv_TCGA-BH-A0B3-01A_drug_001` | Intervention/clinical metadata |
 | `perturbationId` | No | String | Mirror ID of the perturbation linked to this phenotype observation, where applicable. Graph traversal should use `(:Perturbation)-[:HAS_PHENOTYPE_OBSERVATION]->(:PhenotypeObservation)`. | `pert_CRISPR_TP53_sg1_001` | Experimental metadata |
 | `hpoId` | No | String | Human Phenotype Ontology identifier, if the phenotype maps to HPO. Optional because not all observations are HPO-mapped. | `HP:0002014` | HPO mapping / YAML config |
 | `phenotypeName` | No | String | Human-readable phenotype, manifestation, adverse event, biomarker, or observed outcome name. | `Nausea`, `Partial response`, `Elevated CRP` | Clinical metadata / ontology mapping |
@@ -1391,6 +1389,8 @@ the disease concept is captured by `diseaseName`, `diagnosisCode`, and `ontology
 | `sourceDataset` | No | String | Dataset or cohort from which the observation was derived. | `TCGA-BRCA` | Metadata |
 | `sourceFile` | No | String | Source clinical, phenotype, or follow-up file. | `clinical_adverse_events.csv` | Metadata |
 
+
+
 ### 7.2 Evidence and Literature Provenance Node Properties
 
 #### `Evidence`
@@ -1402,7 +1402,7 @@ the disease concept is captured by `diseaseName`, `diagnosisCode`, and `ontology
 | `claimText` | No | String | Normalised short statement of what the evidence claims or supports. | `TP53 mutation is associated with poor survival in breast cancer.` | NLP extraction / manual curation |
 | `evidenceType` | No | String | Type of evidence. | `experimental_validation`, `computational_inference`, `clinical_trial`, `literature_assertion`, `curated_database` | NLP extraction / curation / source metadata |
 | `evidenceLevel` | No | String | Strength or reliability category of the evidence. | `experimentally_validated`, `literature_supported`, `database_curated`, `predicted` | Curation / YAML config |
-| `evidenceScope` | No | String | What kind of association this evidence supports. | `gene_disease_association`, `variant_gene_impact`, `regulatory_element_gene_regulation`, `cpg_gene_mapping` | NLP extraction / YAML config |
+| `evidenceScope` | No | String | What kind of association this evidence supports. | `gene_condition_association`, `gene_disease_association`, `variant_condition_association`, `variant_gene_impact`, `regulatory_element_gene_regulation`, `cpg_gene_mapping` | NLP extraction / YAML config |
 | `associationType` | No | String | Normalised biological relationship or association type described by the evidence. | `affects`, `regulates`, `associated_with`, `maps_to`, `predisposes_to` | NLP extraction / curation |
 | `confidenceScore` | No | Float | Confidence in the evidence extraction or assertion. Use only when produced by a documented extraction rule, source score, similarity method, or curator; do not guess. | `0.92` | NLP pipeline / curation / source database |
 | `extractionMethod` | No | String | Method used to extract or create the evidence record. | `manual_curation`, `rule_based_NER`, `LLM_extraction`, `database_import` | Pipeline metadata |
@@ -1415,11 +1415,34 @@ the disease concept is captured by `diseaseName`, `diagnosisCode`, and `ontology
 
 ### 7.3 Clinical Node Properties
 
+#### `Diagnosis`
+| Property | is_key | Data Type | Description | Example | Source / Origin |
+|---|---|---|---|---|---|
+| `diagnosisId` | Yes | String | Primary key for a subject-specific diagnosis record; identifies one diagnosis event/entry, not the stable disease concept. | `diag_TCGA-BH-A0B3_001` | Derived / clinical metadata |
+| `subjectId` | No | String | Mirror ID of the diagnosed subject; graph traversal should use `(:Subject)-[:HAS_DIAGNOSIS]->(:Diagnosis)`. | `TCGA-BH-A0B3` | Metadata |
+| `conditionId` | No | String | Mirror ID of the linked `Condition` node. This value must match the canonical ICD-10-CM identifier stored in `Condition.conditionId`. Graph traversal should use `(:Diagnosis)-[:OF_CONDITION]->(:Condition)`. | `ICD10:C50.919` | Ontology mapping |
+| `diagnosisRole` | No | String | Role of the diagnosis, such as primary, secondary, comorbidity, recurrence, suspected, or differential diagnosis. | `primary` | Clinical metadata / YAML config |
+| `diagnosisMethod` | No | String | Method or evidence used to confirm the diagnosis. | `Histopathology` | Clinical metadata |
+| `ageAtDiagnosisDays` | No | Integer | Age of the subject at diagnosis, expressed in days. | `22330` | Clinical metadata |
+| `conditionSubtype` | No | String | Subject-specific clinical, molecular, pathological, or other subtype of the diagnosed condition. For cancer diagnoses, this property may store the tumour subtype. | `relapsing-remitting`, `type 1`, `Luminal A` | Clinical metadata / derived annotation |
+| `pathologicStage` | No | String | Cancer-specific pathological stage, if available. | `Stage II` | Clinical metadata |
+| `conditionGrade` | No | String | Subject-specific grade of the diagnosed condition. For cancer diagnoses, this property may store the histological tumour grade. | `Grade 2` | Clinical metadata |
+| `ageOfOnsetDays` | No | Integer | Age of the subject at first disease onset or symptom onset, expressed in days. Useful when onset occurs before formal diagnosis. | `18000` | Clinical metadata |
+| `severityScore` | No | Float / Integer | Numeric disease severity score, if provided by the source. Should be interpreted together with severityScale. | `3` | Clinical metadata / derived annotation |
+| `severityScale` | No | String | Name or type of severity scale used to interpret severityScore. | `mild_moderate_severe`, `GOLD`, `NYHA`, `custom_1_10` | Clinical metadata / YAML config |
+| `infectiousAgentId` | No | String | NCBI Taxonomy ID of the pathogen or infectious agent associated with the diagnosis, where applicable. | `NCBI:txid2697049` | Clinical metadata / ontology mapping |
+| `infectiousAgentName` | No | String | Human-readable name of the pathogen or infectious agent associated with the diagnosis. | `SARS-CoV-2` | Clinical metadata / ontology mapping |
+| `isNormal` | No | Boolean | Indicates whether the diagnosis result was normal. `true` means the diagnosis came out normal or no disease/pathological finding was identified. `false` means an abnormal, pathological, or disease-related diagnosis was recorded. | `true` | Clinical metadata / diagnostic report / pathology metadata |
+| `sourceDataset` | No | String | Dataset or cohort from which the diagnosis record was derived. | `TCGA-BRCA` | Metadata |
+
+
+
+
 #### `PathologyDetail`
 | Property | is_key | Data Type | Description | Example | Source / Origin |
 |---|---|---|---|---|---|
 | `pathologyDetailId` | Yes | String | Primary key for a specific pathology, histology, or tissue-level pathology record linked to a diagnosis. | `path_TCGA-BH-A0B3_001` | Derived / pathology metadata |
-| `diagnosisId` | No | String | Mirror ID of the parent disease/diagnosis record; graph traversal should use (:Disease)-[:HAS_PATHOLOGY]->(:PathologyDetail). | `diag_TCGA-BH-A0B3_001` | Derived / clinical metadata |
+| `diagnosisId` | No | String | Mirror ID of the parent diagnosis; graph traversal should use (:Diagnosis)-[:HAS_PATHOLOGY]->(:PathologyDetail). | `diag_TCGA-BH-A0B3_001` | Derived / clinical metadata |
 | `sampleId` | No | String | Optional mirror ID if the pathology record is linked to a specific biospecimen. | `TCGA-BH-A0B3-01A` | Biospecimen / pathology metadata |
 | `tissueCondition` | No | String | General pathological condition of the tissue. | `inflamed` | Pathology metadata |
 | `cellularityPercent` | No | Float | Estimated cellularity percentage of the assessed tissue/sample. | `75.0` | Pathology report / derived metadata |
@@ -1431,24 +1454,18 @@ the disease concept is captured by `diseaseName`, `diagnosisCode`, and `ontology
 
 
 #### `Survival`
-
-Sourced from the TCGA-CDR (Liu et al. 2018, *Cell*), via the cBioPortal PanCanAtlas
-datahub mirror — see `config/mapping/survival.yaml` and `src/extract/survival.py`
-(`python -m src.extract --survival`).
-Not a GDC derivation.
-
 | Property | is_key | Data Type | Description | Example | Source / Origin |
 |---|---|---|---|---|---|
-| `survivalId` | Yes | String | Primary key for a subject-specific survival or time-to-event record. | `b3164f7b-c826-4e08-9ee6-8ff96d29b913:OS` | TCGA-CDR (via cBioPortal mirror) |
-| `subjectId` | No | String | Mirror ID of the subject linked to this survival record; graph traversal should use (:Subject)-[:HAS_SURVIVAL_RECORD]->(:Survival). | `b3164f7b-c826-4e08-9ee6-8ff96d29b913` | TCGA-CDR (via cBioPortal mirror) |
-| `survivalType` | No | String | Type of survival or time-to-event endpoint represented. | `OS`, `DSS`, `PFI`, `DFI` | TCGA-CDR (via cBioPortal mirror) |
-| `timeOrigin` | No | String | Baseline point from which timeToEventDays is calculated. This is essential because survival time may be measured from diagnosis, enrolment, treatment start, surgery, or sample collection. | `diagnosis_date` | Not populated — no source column |
-| `timeToEventDays` | No | Integer | Time from the defined baseline/index point to the event or censoring point, expressed in days. | `1250` | TCGA-CDR (via cBioPortal mirror); converted from months |
-| `eventType` | No | String | Specific event counted for this endpoint. | `death`, `progression`, `recurrence`, `relapse` | Not populated — no source column |
-| `eventOccurred` | No | Boolean | Indicates whether the endpoint event occurred. true means event occurred; false means censored/no event observed by last follow-up. | `true` | TCGA-CDR (via cBioPortal mirror) |
-| `lastFollowUpDays` | No | Integer | Time from timeOrigin to last known follow-up, especially useful when the event did not occur. | `1250` | Not populated — no source column |
-| `censoringReason` | No | String | Reason the record was censored, if known. | `last_follow_up_alive` | Not populated — no source column |
-| `derivationMethod` | No | String | Rule or method used to derive the survival endpoint. | `days_to_death_else_last_follow_up` | Not populated — no source column |
+| `survivalId` | Yes | String | Primary key for a subject-specific survival or time-to-event record. | `surv_TCGA-BH-A0B3_OS` | Derived / clinical metadata |
+| `subjectId` | No | String | Mirror ID of the subject linked to this survival record; graph traversal should use (:Subject)-[:HAS_SURVIVAL_RECORD]->(:Survival). | `TCGA-BH-A0B3` | Clinical metadata |
+| `survivalType` | No | String | Type of survival or time-to-event endpoint represented. | `overall_survival`, `progression_free_survival`, `disease_free_survival` | Clinical metadata / endpoint definition |
+| `timeOrigin` | No | String | Baseline point from which timeToEventDays is calculated. This is essential because survival time may be measured from diagnosis, enrolment, treatment start, surgery, or sample collection. | `diagnosis_date` | Clinical metadata / YAML config / endpoint definition |
+| `timeToEventDays` | No | Integer | Time from the defined baseline/index point to the event or censoring point, expressed in days. | `1250` | Clinical metadata / derived calculation |
+| `eventType` | No | String | Specific event counted for this endpoint. | `death`, `progression`, `recurrence`, `relapse` | Clinical metadata / endpoint definition |
+| `eventOccurred` | No | Boolean | Indicates whether the endpoint event occurred. true means event occurred; false means censored/no event observed by last follow-up. | `true` | Clinical metadata / endpoint definition |
+| `lastFollowUpDays` | No | Integer | Time from timeOrigin to last known follow-up, especially useful when the event did not occur. | `1250` | Clinical follow-up metadata |
+| `censoringReason` | No | String | Reason the record was censored, if known. | `last_follow_up_alive` | Clinical metadata |
+| `derivationMethod` | No | String | Rule or method used to derive the survival endpoint. | `days_to_death_else_last_follow_up` | YAML config / processing rule |
 
 
 
@@ -1471,6 +1488,8 @@ Not a GDC derivation.
 | `startPosition` | No | Integer | Genomic start coordinate of the gene on the specified reference genome. Crucial for spatial/genomic coordinate queries. | `7661779` | Ensembl / GENCODE / RefSeq / genome annotatio |
 | `endPosition` | No | Integer | Genomic end coordinate of the gene on the specified reference genome. Crucial for spatial/genomic coordinate queries. | `7687550` | Ensembl / GENCODE / RefSeq / genome annotatio |
 | `strand` | No | String | DNA strand on which the gene is located. Use `+` for forward strand and `-` for reverse strand. | `-` | Ensembl / GENCODE / RefSeq / genome annotation |
+| `referenceGenome` | No | String | Reference genome assembly on which the gene coordinates are defined. | `GRCh38` | Ensembl / GENCODE / RefSeq |
+| `coordinateSystem` | No | String | Coordinate convention used for the stored start and end positions. | `1_based_closed` | Config files |
 
 
 
@@ -1481,10 +1500,11 @@ Not a GDC derivation.
 | `regionId` | Yes | String | Primary Key; deterministic coordinate-based region identifier. | `region_chr17_7668402_7687550` | Derived |
 | `referenceGenome` | No | String | Reference assembly the coordinates are anchored to. | `GRCh38` | Reference Genome |
 | `chromosome` | No | String | Chromosome name. | `chr17` | Reference Genome |
-| `start` | No | Integer | Start coordinate (1-based). | `7668402` | Reference Genome |
-| `end` | No | Integer | End coordinate. | `7687550` | Reference Genome |
-| `name` | No | String | Full gene name. | `tumor protein p53` | Reference DB |
-| `description` | No | String | Free-text description of the entity. | `Tumor suppressor; regulates cell cycle` | Reference DB |
+| `startPosition` | No | Integer | Start coordinate (1-based). | `7668402` | Reference Genome |
+| `endPosition` | No | Integer | End coordinate. | `7687550` | Reference Genome |
+| `coordinateSystem` | No | String | Coordinate convention used for the stored start and end positions. | `1_based_closed` | Config files |
+| `regionName` | No | String | Human-readable name assigned to the genomic interval, where the source provides one. | `TP53 promoter region` | Genomic annotation / source metadata |
+| `regionDescription` | No | String | Description of the genomic interval itself, not of an associated gene. | `Promoter interval upstream of TP53.` | Genomic annotation / curation |
 
 
 #### `Variant`
@@ -1495,13 +1515,13 @@ Not a GDC derivation.
 | `variantClass` | No | String | Variant class such as `snv`, `indel`, `cnv`, `structural_variant`, or `fusion`. | `snv` | VCF |
 | `referenceGenome` | No | String | Reference assembly the coordinates are anchored to. | `GRCh38` | Reference Genome |
 | `chromosome` | No | String | Chromosome name. | `chr17` | Reference Genome |
-| `positionStart` | No | Integer | Variant start coordinate (1-based). | `7674220` | VCF |
-| `positionEnd` | No | Integer | Variant end coordinate. | `7674220` | VCF |
+| `startPosition` | No | Integer | Variant start coordinate (1-based). | `7674220` | VCF |
+| `endPosition` | No | Integer | Variant end coordinate. | `7674220` | VCF |
+| `coordinateSystem` | No | String | Coordinate convention used for the stored start and end positions. | `1_based_closed` | Config files |
 | `referenceAllele` | No | String | Reference allele. | `C` | VCF |
 | `alternateAllele` | No | String | Alternate allele. | `T` | VCF |
 | `displayName` | No | String | Human-readable variant label. | `TP53 R175H` | Derived |
-| `geneId` | No | String | Gene identifier associated with the variant where available; graph traversal should use active variant-gene relationships such as `(:Variant)-[:IS_WITHIN_GENE]->(:Gene)`. | `ENSG00000141510` | Derived |
-| `regionId` | No | String | ID of the GenomicRegion; represents `(:Variant)-[:LOCATED_IN_REGION]->(:GenomicRegion)` | `region_chr17_7668402_7687550` | Derived |
+
 
 
 #### `RegulatoryElement`
@@ -1529,27 +1549,28 @@ Not a GDC derivation.
 
 | Property | is_key | Data Type | Description | Example | Source / Origin |
 | -------- | ------ | --------- | ----------- | ------- | --------------- |
-| `cpgId` | Yes | String | Primary Key; the standard identifier for the locus. | `cg00000029` | Manifest |
+| `cpgId` | Yes | String | Primary key for the CpG/probe feature in LifeSphere. This should be a platform-qualified identifier generated from the methylation platform code and the source CpG/probe ID using the pattern `{platformCode}_{sourceCpgId}`. This prevents ambiguity when the same source probe ID or feature naming convention appears across methylation platforms or manifests. | `450k_cg00000029` | Derived from methylation platform metadata and manifest |
+| `sourceCpgId` | No | String | Original source-provided CpG/probe identifier from the methylation manifest before LifeSphere platform qualification. | `cg00000029` | Manifest |
+| `platformCode` | No | String | Short platform code used to construct the LifeSphere `cpgId`. Recommended values should be defined in configuration, for example `450k`, `epic`, or `epicv2`. | `450k` | YAML/configuration / assay metadata |
 | `chromosome` | No | String | The chromosome where the CpG is located. | `chr16` | Manifest/Annotation |
-| `startPosition` | No | Integer | 0-based or 1-based start coordinate. | `53468112` | Manifest/Annotation |
+| `startPosition` | No | Integer | start coordinate. | `53468112` | Manifest/Annotation |
 | `endPosition` | No | Integer | End coordinate (usually start + 1 for CpG). | `53468113` | Derived |
+| `coordinateSystem` | No | String | Coordinate convention used for the stored start and end positions. | `1_based_closed` | Config files |
 | `strand` | No | String | The DNA strand (+ or - / F or R). | `F` | Manifest/Annotation |
-| `geneSymbol` | No | String | HGNC symbol of the associated gene; represents `(:CpGSite)-[:MAPS_TO_GENE]->(:Gene)` | `RBL2` | Manifest/Annotation |
-| `ensemblGeneId` | No | String | Stable Ensembl ID; represents `(:CpGSite)-[:MAPS_TO_GENE]->(:Gene)` | `ENSG00000103175` | External DB mapping |
 | `annotationSource` | No | String | The organization/database that supplied this mapping data. | `Illumina` | Config |
 | `annotationVersion` | No | String | Version of the annotation file (e.g., GENCODE v36). | `v1.2` | Config |
-| `genomeBuild` | No | String | The coordinate reference framework used for the mapping. | `GRCh37` | Config / Manifest |
+| `referenceGenome` | No | String | The coordinate reference framework used for the mapping. | `GRCh37` | Config / Manifest |
 
 
 #### `MethylationObservation`
 
 | Property | is_key | Data Type | Description | Example | Source / Origin |
 |---|---|---|---|---|---|
-| `methylationObservationId` | Yes | String | Primary key; deterministic UUID or concatenated string identifying this exact methylation observation. | `obs_TCGA-BH_cg00000029_abs` | Derived |
-| `observationType` | No | String | Defines the methylation measurement type, such as single-CpG beta value, regional methylation value, or gene-associated methylation summary. This should not imply differential methylation analysis in the active schema. | `cpg_beta`, `regional_beta`, `gene_promoter_beta` | YAML/config |
+| `methylationObservationId` | Yes | String | Primary key; deterministic concatenated string `"obs_" + sampleId + "_" + cpgId` identifying this exact methylation observation. | `obs_TCGA-OR-A5JP-01A-11D-A29J-05_cg21870274` | Derived |
+| `observationType` | No | String | Defines the methylation measurement type, such as a single-CpG beta value or regional methylation value. This should not imply differential methylation analysis in the active schema. | `cpg_beta`, `regional_beta` | YAML/config |
 | `sampleId` | No | String | ID of the biospecimen; represents `(:Sample)-[:HAS_METHYLATION_OBSERVATION]->(:MethylationObservation)`. | `TCGA-BH-A0B3-01A` | Metadata |
 | `assayId` | No | String | Mirror ID of the assay that generated or supports this observation. Graph traversal should use `(:Sample)-[:ASSAYED_BY]->(:Assay)`, while observation-level assay provenance is retained through `assayId`. | `assay_HM450_run1` | Derived / assay metadata |
-| `cpgId` | No | String | CpG locus ID; represents `(:MethylationObservation)-[:MEASURES_CPG]->(:CpGSite)`. | `cg00000029` | Methylation matrix / manifest |
+| `cpgId` | No | String | Mirror ID of the measured CpG/probe feature. This must match the platform-qualified `CpGSite.cpgId`, for example `{platformCode}_{sourceCpgId}`. Graph traversal should use `(:MethylationObservation)-[:MEASURES_CPG]->(:CpGSite)`. | `450k_cg00000029` | Derived from methylation matrix / manifest / platform metadata |
 | `betaValue` | No | Float | DNA methylation beta value for the observation. | `0.82` | Methylation matrix |
 | `methylationStatus` | No | String | Derived categorical methylation status, such as hypermethylated, hypomethylated, or intermediate. | `Hypermethylated` | Derived via rule |
 | `methylationStatusMethod` | No | String | Broad category of how the methylation status was assigned. | `absolute_threshold` | YAML/config |
@@ -1676,7 +1697,6 @@ Not a GDC derivation.
 | `proteinId` | Yes | String | Primary key for the protein entity. Prefer UniProt-based IDs where available. | `uniprot:P04637` | UniProt / derived |
 | `uniprotId` | No | String | UniProt accession for the protein. | `P04637` | UniProt |
 | `proteinName` | No | String | Human-readable protein name. | `Cellular tumor antigen p53` | UniProt |
-| `geneId` | No | String | Mirror ID of the gene encoding this protein; graph traversal should use (:Gene)-[:ENCODES]->(:Protein). | `ENSG00000141510` | UniProt / Ensembl mapping |
 | `organismTaxonId` | No | String | NCBI Taxonomy ID of the organism. | `NCBI:txid9606` | UniProt / NCBI Taxonomy |
 | `sequenceLength` | No | Integer | Length of the canonical protein sequence in amino acids. | `393` | UniProt |
 | `proteinFamilies` | No | List | Protein family or domain-family classification, if available. | `["p53 family"]` | UniProt / InterPro / Pfam |
@@ -1705,7 +1725,7 @@ Not a GDC derivation.
 | `pathwayName` | No | String | Human-readable pathway name. | `p53-dependent G1 DNA damage response` | Reactome / GO / KEGG |
 | `description` | No | String | Short pathway description or definition. | `Pathway describing p53-mediated cell-cycle arrest after DNA damage.` | Reactome / GO / curated annotation |
 | `organismTaxonId` | No | String | NCBI Taxonomy ID for the organism context of the pathway. Prefer this over only storing organism. | `NCBI:txid9606` | Reactome / NCBI Taxonomy |
-| `organism` | No | String | Human-readable organism name. | `Homo sapiens` | Reactome / GO / KEGG |
+| `organism` | No | String | Optional cached human-readable organism label corresponding to organismTaxonId. The taxon ID remains authoritative, and the label must not contradict it. | `Homo sapiens` | Reactome / GO / KEGG |
 | `ontologyId` | No | String | External pathway or ontology identifier, if distinct from pathwayId. | `GO:0006977`, `R-HSA-69563` | GO / Reactome |
 | `sourceVocabulary` | No | String | Source vocabulary or pathway database. | `Reactome`, `GO`, `KEGG` | External pathway database |
 | `pathwayType` | No | String | Broad class of pathway or process. | `signalling_pathway`, `metabolic_pathway`, `biological_process` | YAML config / source annotation |
@@ -2062,11 +2082,14 @@ MERGE (i)-[:USES_AGENT {
 
 | Relationship Type | Property | is_key | Data Type | Description | Example |
 |---|---|---|---|---|---|
-| `HAS_CONDITION` | `conditionRole` | No | String | Role of the condition for the sample, such as test, control, untreated, baseline, stimulated, perturbed, exposed, timepoint, or reference group. | `control` |
+| `HAS_EXPERIMENTAL_CONDITION` | `conditionRole` | No | String | Role of the experimental condition for the sample, such as test, control, untreated, baseline, stimulated, exposed, timepoint, or reference group. | `control` |
 | `HAS_PHENOTYPE_OBSERVATION` | `daysToEvent` | No | Integer | Days from the relevant source-defined baseline, such as diagnosis baseline, perturbation start, or experimental baseline, to the phenotype or outcome event. | `365` |
 | `HAS_DIAGNOSIS` | `temporalOrder` | No | Integer | Order of this diagnosis in the subject’s clinical timeline when multiple diagnoses are present. | `1` |
-| `HAS_DIAGNOSIS` | `isPrimaryDiagnosis` | No | Boolean | Indicates whether this diagnosis is the primary diagnosis for the subject. Use only if the source provides this as a Boolean flag; otherwise prefer `Disease.diagnosisRole`. | `true` |
+| `HAS_DIAGNOSIS` | `isPrimaryDiagnosis` | No | Boolean | Indicates whether this diagnosis is the primary diagnosis for the subject. Use only if the source provides this as a Boolean flag; otherwise prefer `Diagnosis.diagnosisRole`. | `true` |
 | `HAS_DIAGNOSIS` | `confidenceScore` | No | Float | Confidence in linking the subject to this diagnosis record, if provided by a source, mapping rule, or curator. Should not be guessed. | `1.0` |
+| `OF_CONDITION` | `mappingMethod` | No | String | Method used to map the source diagnosis code, condition label, ICD code, NCIt term, EFO term, MONDO term, or other source value to the ICD-10-keyed `Condition` node. | `exact_code_match` |
+| `OF_CONDITION` | `ontologyMappingStatus` | No | String | Status of the mapping between the diagnosis record (`Diagnosis`) and the ICD-10-keyed condition concept (`Condition`). | `exact_match` |
+| `OF_CONDITION` | `confidenceScore` | No | Float | Confidence in the diagnosis-to-condition ontology (ICD-10-CM) mapping, only if produced by a documented rule, source score, or curation. | `1.0` |
 | `HAS_PATHOLOGY` | `pathologyRole` | No | String | Role of the pathology record in relation to the diagnosis. | `diagnostic_basis` |
 | `HAS_PATHOLOGY` | `evidenceType` | No | String | Type of pathological evidence supporting or describing the diagnosis. | `histology` |
 | `HAS_PATHOLOGY` | `specimenBasis` | No | String | Type of specimen or material on which the pathology assessment was based. | `biopsy` |
@@ -2079,7 +2102,6 @@ MERGE (i)-[:USES_AGENT {
 | ----------------- | -------- | ------ | --------- | ----------- | ------- |
 | `ASSAYED_BY` | `assayRole` | No | String | Primary profiling vs Replicate. | `Primary Profiling` |
 | `USED_LIBRARY` | `protocolSource` | No | String | Source of the library preparation, protocol, chemistry, kit, or barcoding information for this assay. | `assay_metadata`, `library_metadata`, `source_protocol_record` |
-| `USED_LIBRARY` | `chemistryVersion` | No | String | Version of the assay chemistry, library chemistry, kit, or protocol used for this assay, where available. | `v3.1`, `kit_v2`, `chemistry_v1.1` |
 
 
 ### 8.4 Molecular Observation Relationship Attributes
@@ -2090,7 +2112,6 @@ MERGE (i)-[:USES_AGENT {
 | `MEASURES_GENE`               | `(No properties)`         | No     | None      | For `(:ExpressionObservation)-[:MEASURES_GENE]->(:Gene)`, this is a structural measurement-to-gene link. Expression values and provenance belong on `ExpressionObservation`. | `N/A`                     |
 | `HAS_METHYLATION_OBSERVATION` | `(No properties)`         | No     | None      | Pure structural link between a sample and its methylation observation. Beta values, methylation status, methods, and provenance belong on `MethylationObservation`.          | `N/A`                     |
 | `MEASURES_CPG`                | `mappingConfidence`       | No     | Float     | Certainty that the methylation observation maps to the selected CpG site, if source-provided or produced by a documented mapping rule.                                       | `1.0`                     |
-| `MEASURES_GENE`               | `functionalDomain`        | No     | String    | For `(:MethylationObservation)-[:MEASURES_GENE]->(:Gene)`, indicates the gene-associated region or functional context of the methylation measurement.                        | `Promoter (TSS1500)`      |
 | `HAS_VARIANT_OBSERVATION`     | `(No properties)`         | No     | None      | Pure structural link between a sample and its variant observation. Variant caller, allele frequency, status, and provenance belong on `VariantObservation`.                  | `N/A`                     |
 | `OBSERVED_VARIANT`            | `mappingConfidence`       | No     | Float     | Confidence that the sample-specific variant observation maps to the selected stable `Variant` entity.                                                                        | `1.0`                     |
 | `HAS_PROTEIN_OBSERVATION`     | `(No properties)`         | No     | None      | Pure structural link between a sample and its protein observation. Measurement values, units, quality scores, and provenance belong on `ProteinObservation`.                 | `N/A`                     |
@@ -2118,6 +2139,7 @@ MERGE (i)-[:USES_AGENT {
 | `REGULATES_GENE` | `confidenceScore` | No | Float | Quantitative confidence score of the prediction. | `0.95` |
 | `REGULATES_GENE` | `distanceBp` | No | Integer | Distance from regulatory element to TSS. | `15000` |
 | `REGULATES_GENE` | `tissueContext` | No | String | Optional tissue context in which the regulation occurs. | `liver` |
+| `IS_WITHIN_GENE` | `sourceGeneIdentifier` | No | String | Original gene identifier reported by the source annotation before standardised mapping. | `ENSG00000141510` |
 | `IS_WITHIN_GENE` | `geneRegion` | No | String | Functional region of the gene containing the variant. | `exon`, `intron`, `UTR` |
 | `IS_WITHIN_GENE` | `transcriptId` | No | String | Ensembl transcript ID on which the annotation is based. | `ENST00000269305` |
 | `IS_WITHIN_GENE` | `exonNumber` | No | Integer | Exon number, if applicable. | `5` |
@@ -2125,7 +2147,9 @@ MERGE (i)-[:USES_AGENT {
 | `MAPS_TO_GENE` | `mappingMethod` | No | String | Method or source linking the CpG site to the gene. | `illumina_manifest` |
 | `MAPS_TO_GENE` | `geneContext` | No | String | Genomic context of the CpG site relative to the gene. | `TSS200`, `Body`, `1stExon` |
 | `MAPS_TO_GENE` | `distanceToTSS` | No | Integer | Distance in base pairs to the transcription start site. | `250` |
-| `MAPS_TO_GENE` | `annotationSource` | No | String | Source database or manufacturer array manifest. | `Illumina EPIC v1.0` |
+| `MAPS_TO_GENE` | `sourceGeneSymbol` | No | String | Original gene symbol reported by the source manifest before standardised Gene mapping. | `RBL2` |
+| `MAPS_TO_GENE` | `sourceGeneIdentifier` | No | String | Original gene identifier reported by the source annotation, where available. | `ENSG00000103175` |
+| `MAPS_TO_GENE` | `annotationSource` | No | Version of the annotation or manifest used to establish this CpG-to-gene mapping. | `Illumina EPIC v1.0` |
 | `MAPS_TO_GENE` | `confidenceScore` | No | Float | Confidence in the mapping, if derived via correlation or eQTL. | `1.0` |
 | `LOCATED_IN_REGION` | `overlapPercentage` | No | Float | Percentage of the target region covered by the source entity. | `100.0` |
 
@@ -2194,7 +2218,7 @@ MERGE (i)-[:USES_AGENT {
 | `PROVIDES_EVIDENCE_FOR` | `sourceRole` | No | String | Role of the publication as the source of this evidence. | `primary_source`, `review_source`, `method_source`, `database_source` |
 | `PROVIDES_EVIDENCE_FOR` | `extractionStatus` | No | String | Status of the evidence extraction from this publication. | `extracted`, `curated`, `reviewed` |
 | `PROVIDES_EVIDENCE_FOR` | `confidenceScore` | No | Float | Confidence that this evidence record was correctly extracted from the publication. Use only if produced by a documented extraction or curation method. | `0.98` |
-| `SUPPORTS_ASSOCIATION_WITH` | `entityRole` | No | String | Role of the linked entity in the evidence-supported association. | `affected_gene`, `associated_disease`, `encoded_protein`, `methylation_rule` |
+| `SUPPORTS_ASSOCIATION_WITH` | `entityRole` | No | String | Role of the linked entity in the evidence-supported association. | `affected_gene`, `associated_disease`, `associated_condition`, `encoded_protein`, `methylation_rule` |
 | `SUPPORTS_ASSOCIATION_WITH` | `supportDirection` | No | String | Whether the evidence supports, refutes, mentions, or gives uncertain support. | `supports` |
 | `SUPPORTS_ASSOCIATION_WITH` | `mappingMethod` | No | String | Method used to map the text mention to the graph entity. | `exact_symbol_match`, `uniprot_accession_match`, `rule_id_match` |
 | `SUPPORTS_ASSOCIATION_WITH` | `confidenceScore` | No | Float | Confidence in this evidence-to-entity mapping, if defensible. | `0.95` |
@@ -2203,7 +2227,6 @@ MERGE (i)-[:USES_AGENT {
 
 | Relationship Type | Property | is_key | Data Type | Description | Example |
 | ----------------- | -------- | ------ | --------- | ----------- | ------- |
-| `HOSTS_DATASET` | `repositoryDatasetId` | Yes | String | Dataset ID used by the repository. | `f1a2-b3c4` |
 | `HOSTS_DATASET` | `accessDate` | No | String | Date the dataset was accessed. | `22/06/2026` |
 | `REPRESENTS_STUDY` | `mappingMethod` | No | String | How the digital dataset was mapped to the biological study. | `accession_match` |
 | `REPRESENTS_STUDY` | `sourceAccession` | No | String | Source study accession used for matching. | `GSEXXXXXX` |
@@ -2236,10 +2259,6 @@ MERGE (i)-[:USES_AGENT {
 | `UNDERWENT_INTERVENTION` | `confidenceScore`    | No     | Float     | Confidence in linking the sample to the intervention, if provided by a documented rule or curator. | `1.0`                                                |
 | `USES_AGENT` | `agentRole` | No | String | Role of the agent. | `primary_agent` |
 | `USES_AGENT` | `sequence` | No | Integer | Sequence of the agent. | `1` |
-| `USES_AGENT` | `doseValue` | No | Float | Dose value. | `50.0` |
-| `USES_AGENT` | `doseUnit` | No | String | Dose unit. | `mg` |
-| `USES_AGENT` | `doseFrequency` | No | String | Dose frequency. | `daily` |
-| `USES_AGENT` | `routeOfAdministration` | No | String | Route. | `oral` |
 | `USES_PROCEDURE` | `procedureRole` | No | String | Role of the procedure. | `primary_procedure` |
 | `USES_PROCEDURE` | `sequence` | No | Integer | Sequence of the procedure. | `1` |
 | `USES_PROCEDURE` | `anatomicalSite` | No | String | Site. | `breast` |
@@ -2280,7 +2299,8 @@ For implementation details, see Neo4j documentation on [creating constraints](ht
 
 - **Primary keys:** Add uniqueness constraints for stable primary identifiers such as `sampleId`, `subjectId`, `geneId`, `cellSetId`, and `methylationObservationId`.
 - **Lookup fields:** Add indexes for high-frequency filters such as sample class, source dataset, assay type, gene symbol, ontology ID, and observation mirror IDs.
-- **Ontology fields:** Index ontology-backed identifiers such as `CellType.cellTypeId`, `Disease.ontologyId`, `Tissue.ontologyId`, and ontology-related properties retained directly on observation nodes, such as `PhenotypeObservation.hpoId`.
+- **Ontology fields:** Index ontology-backed identifiers and cross-reference fields such as `Condition.conditionId`, `Condition.externalOntologyIds`, `Condition.mondoId`, `Condition.conditionType`, `Condition.sourceVocabulary`, `CellType.cellTypeId`, `Tissue.tissueId`, and ontology-related properties retained directly on observation nodes, such as `PhenotypeObservation.hpoId`.
+- **Condition fields:** Index `Condition.conditionId`, `Condition.conditionName`, `Condition.conditionType`, `Condition.mondoId`, `Condition.externalOntologyIds`, and `Condition.sourceVocabulary` where disease-level lookup and ontology cross-reference retrieval are expected.
 - **Single-cell fields:** Index `CellSet.cellSetId`, `CellSet.sourceClusterId`, `CellSet.sourceAnnotationField`, `CellSet.sourceAnnotationValue`, `SingleCellDataset.singleCellDatasetId`, and `Repository.repositoryId`.
 - **ProteinObservation fields:** Index `ProteinObservation.sampleId`, `ProteinObservation.proteinId`, `ProteinObservation.observationType`, and `ProteinObservation.sourceDataset`.
 - **MetaboliteObservation fields:** Index `MetaboliteObservation.sampleId`, `MetaboliteObservation.metaboliteId`, `MetaboliteObservation.observationType`, and `MetaboliteObservation.sourceDataset`.
@@ -2292,7 +2312,7 @@ Recommended uniqueness constraints for newly active node types include:
 |---|---|
 | `Program` | `programId` |
 | `Evidence` | `evidenceId` |
-| `Disease` | `diseaseId` |
+| `Diagnosis` | `diagnosisId` |
 | `PathologyDetail` | `pathologyDetailId` |
 | `Survival` | `survivalId` |
 | `Perturbation` | `perturbationId` |
@@ -2332,18 +2352,23 @@ The example queries use Cypher `MATCH` patterns and query variables. See Neo4j d
 - **Avoid unsupported analytical claims:** The agent must not claim that LifeSphere computed differential expression, enrichment, deconvolution, pseudotime, or statistical significance unless the schema explicitly identifies those values as source-provided or future-use.
 - **Resolve names carefully:** The agent should use ontology IDs, stable identifiers, aliases, and full-text search where needed before writing final Cypher.
 - **Respect multi-labelled nodes:** The agent should treat labels such as `Intervention:Drug` as one node with multiple labels, not as separate subtype nodes. 
+- **Distinguish clinical Condition from ExperimentalCondition:** Clinical condition queries should traverse `Diagnosis-[:OF_CONDITION]->Condition`. Experimental group or treatment-context queries should traverse `Sample-[:HAS_EXPERIMENTAL_CONDITION]->ExperimentalCondition`. For cancer diagnoses, tumour subtype and tumour grade are represented through `Diagnosis.conditionSubtype` and `Diagnosis.conditionGrade`. The agent must not search for the removed `Diagnosis.tumorSubtype` or `Diagnosis.tumorGrade` properties.
 
 ### 9.3 Example Cypher Queries
 
-### Example: find samples with methylation observations for a gene
+### Example: find samples with CpG methylation observations mapped to a gene
 
 ```cypher
 MATCH (g:Gene {symbol: $geneSymbol})
-MATCH (mo:MethylationObservation)-[:MEASURES_GENE]->(g)
+MATCH (mo:MethylationObservation)-[:MEASURES_CPG]->(cpg:CpGSite)
+MATCH (cpg)-[:MAPS_TO_GENE]->(g)
 MATCH (s:Sample)-[:HAS_METHYLATION_OBSERVATION]->(mo)
 OPTIONAL MATCH (mo)-[:CLASSIFIED_USING]->(rule:MethylationStatusRule)
 RETURN s.sampleId,
        g.symbol,
+       cpg.cpgId,
+       cpg.sourceCpgId,
+       cpg.platformCode,
        mo.betaValue,
        mo.methylationStatus,
        rule.methylationStatusRuleId,
@@ -2440,7 +2465,8 @@ RETURN st.studyId,
        s.sampleId,
        a.assayId,
        a.assayType,
-       a.libraryStrategy,
+       lib.libraryStrategy,
+       lib.libraryChemistry,
        lib.libraryPreparationId,
        lib.libraryProtocol,
        repo.repositoryName,
@@ -2529,16 +2555,28 @@ LIMIT 50;
 ### Example: retrieve diagnosis, pathology, and outcome phenotype details
 
 ```cypher
-MATCH (sub:Subject)-[:HAS_DIAGNOSIS]->(d:Disease)
-OPTIONAL MATCH (d)-[:HAS_PATHOLOGY]->(path:PathologyDetail)
-OPTIONAL MATCH (d)-[phenoRel:HAS_PHENOTYPE_OBSERVATION]->(pheno:PhenotypeObservation)
+MATCH (sub:Subject)-[:HAS_DIAGNOSIS]->(diag:Diagnosis)
+MATCH (diag)-[mapping:OF_CONDITION]->(c:Condition)
+
+OPTIONAL MATCH (diag)-[:HAS_PATHOLOGY]->(path:PathologyDetail)
+OPTIONAL MATCH (diag)-[phenoRel:HAS_PHENOTYPE_OBSERVATION]
+               ->(pheno:PhenotypeObservation)
+
 RETURN sub.subjectId,
-       d.diseaseId,
-       d.diagnosisRole,
-       d.diseaseSubtype,
-       d.pathologicStage,
-       d.tumorGrade,
-       d.diseaseName,
+       diag.diagnosisId,
+       diag.conditionId,
+       diag.conditionSubtype,
+       diag.pathologicStage,
+       diag.conditionGrade,
+       c.conditionId,
+       c.conditionName,
+       c.conditionType,
+       c.mondoId,
+       c.externalOntologyIds,
+       c.sourceVocabulary,
+       mapping.mappingMethod,
+       mapping.ontologyMappingStatus,
+       mapping.confidenceScore,
        path.pathologyDetailId,
        path.morphologyDescription,
        pheno.phenotypeObservationId,
