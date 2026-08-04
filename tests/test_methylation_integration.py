@@ -67,9 +67,9 @@ def pipeline_dirs(tmp_path: Path):
     _write(f2, BETA_FILE)
 
     entries = [
-        {"path": f1, "sample_id": SAMPLE_ID, "assay_id": ASSAY_ID,
+        {"path": f1, "sample_id": SAMPLE_ID, "assay_id": ASSAY_ID, "platform_code": "450k",
          "source_file": "file-m001", "pipeline_version": "SeSAMe"},
-        {"path": f2, "sample_id": "al-meth-002", "assay_id": ASSAY_ID,
+        {"path": f2, "sample_id": "al-meth-002", "assay_id": ASSAY_ID, "platform_code": "450k",
          "source_file": "file-m002", "pipeline_version": "SeSAMe"},
     ]
 
@@ -134,10 +134,11 @@ class TestOmicsStandardise:
 
     def test_cpg_annotation_on_cpg_site(self, pipeline_dirs):
         rows = _csv_rows(pipeline_dirs["std"] / DATASET / "nodes" / "CpGSite.csv")
-        row = next(r for r in rows if r["cpgId"] == "cg00000001")
+        row = next(r for r in rows if r["sourceCpgId"] == "cg00000001")
+        assert row["cpgId"] == "450k:cg00000001"
+        assert row.get("platformCode") == "450k"
         assert row.get("chromosome") == "chr1"
         assert row.get("startPosition") == "10000"
-        assert row.get("geneSymbol") == "TP53"
 
 # ---------------------------------------------------------------------------
 # Edge CSV assertions

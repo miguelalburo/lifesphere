@@ -184,7 +184,7 @@ class TestVariationOmicsStandardise:
         rows = _csv_rows(pipeline_dirs["std"] / DATASET / "nodes" / "Variant.csv")
         tp53_row = next(r for r in rows if r["variantId"] == "17:7674220:C:T")
         assert tp53_row["chromosome"] == "17"
-        assert tp53_row["positionStart"] == "7674220"
+        assert tp53_row["startPosition"] == "7674220"
         assert tp53_row["referenceAllele"] == "C"
         assert tp53_row["alternateAllele"] == "T"
         assert tp53_row["variantClass"] == "Missense_Mutation"

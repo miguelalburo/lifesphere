@@ -84,6 +84,7 @@ DERIVED_KEYS: dict[str, KeyBuilder] = {
     "MethylationObservation": KeyBuilder(("sample_id", "cpg_id"), obs_id),
     "VariantObservation": KeyBuilder(("sample_id", "variant_id"), obs_id),
     "Survival": KeyBuilder(("case_id", "survival_type"), mint_id),
+    "Condition": KeyBuilder(("icd_10_code",), condition_id),
 }
 ```
 
@@ -125,6 +126,8 @@ through `mint_id`, so the id's *format* follows the standard even though its
 | `MethylationObservation.methylationObservationId` | `sample_id`, `cpg_id` | `:` | `obs_id` via `DERIVED_KEYS` | standardise |
 | `VariantObservation.variantObservationId` | `sample_id`, `variant_id` | `:` | `obs_id` via `DERIVED_KEYS` | standardise |
 | `Survival.survivalId` | `case_id`, `survival_type` | `:` | `mint_id` via `DERIVED_KEYS` | standardise |
+| `Condition.conditionId` | `icd_10_code` | `:` | `observation.condition_id` (`mint_id("ICD10", code)`) via `DERIVED_KEYS` | standardise |
+| `CpGSite.cpgId` | `platform_code`, `source_cpg_id` | `:` | `mint_id` in `extract/omics/methylation.py` (GDC path) or `src/reshape/matrix.py`'s methylation branch, stamped from `assay.platform_code` (traditional path) | extract / reshape |
 | `Assay.assayId` (expression/variation) | `platform`, `experimental_strategy`, `analysis.workflow_type` | `:` | shared `observation.gdc_assay_id` (`mint_id` under the hood), called from `extract/omics/expression.py` and `variation.py` | extract |
 | `Assay.assayId` (methylation) | `platform`, `experimental_strategy`, literal `"Methylation Beta Value"` | `:` | `mint_id` in `extract/omics/methylation.py` | extract |
 | `Variant.variantId` (GDC path) | `chromosome`, `position`, `reference_allele`, `alternate_allele` | `:` | `mint_id` in `extract/omics/variation.py` | extract |

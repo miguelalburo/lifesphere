@@ -56,7 +56,6 @@ nodes:
     # harmless for the GDC path.
     props:
       platform: platform
-      libraryStrategy: library_strategy
       referenceGenome: reference_genome
       geneAnnotationVersion: gene_annotation_version
 
@@ -79,6 +78,12 @@ nodes:
     file: variation_observation.tsv
     key: variant_id
     dedup: true
+    # position_start/position_end (VARIATION_OBS_COLUMNS) don't auto-bind to
+    # startPosition/endPosition — normalizing "position_start" reorders to
+    # "positionstart", not "startposition" — so they need explicit aliases.
+    aliases:
+      position_start: startPosition
+      position_end: endPosition
 
 edges:
   HAS_EXPRESSION_OBSERVATION:

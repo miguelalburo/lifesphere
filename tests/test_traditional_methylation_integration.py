@@ -63,9 +63,12 @@ class TestFusedMethylation:
         rows = _csv_rows(dirs["std"] / DATASET / "nodes" / "MethylationObservation.csv")
         assert len(rows) == 4  # 2 CpGs × 2 samples
 
-    def test_cpg_probe_ids_used_as_is_and_deduped(self, dirs):
+    def test_cpg_probe_ids_platform_qualified_and_deduped(self, dirs):
+        # No assay.platform_code declared in the traditional.yaml methylation
+        # spec -> falls back to "unknown", matching the GDC path's default.
         rows = _csv_rows(dirs["std"] / DATASET / "nodes" / "CpGSite.csv")
-        assert {r["cpgId"] for r in rows} == {"cg00000001", "cg00000002"}
+        assert {r["cpgId"] for r in rows} == {"unknown:cg00000001", "unknown:cg00000002"}
+        assert {r["sourceCpgId"] for r in rows} == {"cg00000001", "cg00000002"}
 
     def test_beta_values_bound(self, dirs):
         rows = _csv_rows(dirs["std"] / DATASET / "nodes" / "MethylationObservation.csv")

@@ -101,10 +101,12 @@ class TestConsolidatedFusedRun:
         assert samples == {"S1", "S2"}          # S_GHOST skipped, not dangling
         assert len(obs) == 4                     # 2 genes × 2 real samples
 
-    # ── methylation: samples_x_genes, CpG as-is, assay omitted ──
+    # ── methylation: samples_x_genes, CpG platform-qualified, assay omitted ──
     def test_methylation_transposed_and_cpg_ids(self, std):
+        # No assay.platform_code declared -> "unknown:" qualification (see
+        # docs/unique_ids.md §4 and config/mapping/traditional.yaml).
         cpgs = {r["cpgId"] for r in _rows(std / "nodes" / "CpGSite.csv")}
-        assert cpgs == {"cg00000001", "cg00000002"}
+        assert cpgs == {"unknown:cg00000001", "unknown:cg00000002"}
         assert len(_rows(std / "nodes" / "MethylationObservation.csv")) == 4
 
     def test_methylation_assay_omitted_but_expression_assay_present(self, std):

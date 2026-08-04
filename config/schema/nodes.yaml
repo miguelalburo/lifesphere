@@ -31,7 +31,7 @@ Program:
 
 Study:
   id: studyId
-  properties: [studyAbbreviation, studyName, description, diseaseType, primarySite, studyDesign, enrollmentCount, studyPhase, sourceDataset, dataAccessLevel, cohortName]
+  properties: [studyAbbreviation, studyName, description, conditionCategory, primarySite, studyDesign, enrollmentCount, studyPhase, sourceDataset, dataAccessLevel, cohortName]
 
 Subject:
   id: subjectId
@@ -43,11 +43,11 @@ Sample:
 
 Assay:
   id: assayId
-  properties: [assayType, platform, libraryStrategy, referenceGenome, geneAnnotationVersion, sourceDataset, sourceFile, assayDate, omicsInfo, chemistry, isSingleCellAssay]
+  properties: [assayType, platform, referenceGenome, geneAnnotationVersion, sourceDataset, sourceFile, assayDate, omicsInfo, assayChemistry, isSingleCellAssay]
 
 LibraryPreparation:
   id: libraryPreparationId
-  properties: [libraryPreparationName, libraryStrategy, libraryProtocol, libraryKit, inputMaterial, selectionMethod, fragmentationMethod, amplificationMethod, barcodeStrategy, libraryLayout, readLength, chemistry, sourceDataset, sourceFile]
+  properties: [libraryPreparationName, libraryStrategy, libraryProtocol, libraryKit, inputMaterial, selectionMethod, fragmentationMethod, amplificationMethod, barcodeStrategy, libraryLayout, readLength, libraryChemistry, sourceDataset, sourceFile]
 
 Organism:
   id: taxonId
@@ -66,19 +66,26 @@ DevelopmentalStage:
   properties: [stageName, ageRange, sourceVocabulary]
 
 ExperimentalCondition:
-  id: conditionId
-  properties: [conditionName, conditionType, conditionLabel, description, dose, doseUnit, duration, durationUnit]
+  id: experimentalConditionId
+  properties: [experimentConditionName, experimentalConditionType, experimentalConditionLabel, description, dose, doseUnit, duration, durationUnit, sourceDataset]
 
 # ─────────────────────── Clinical layer ───────────────────────
 
-# Diagnosis and Disease were merged into a single Disease node at the per-diagnosis
-# grain (one node per GDC diagnosis_id). The former Disease reference dimension
-# (one node per ICD-10 code) and the OF_DISEASE self-edge were removed; its
-# reference fields (diseaseName, ontologyId, sourceVocabulary, diseaseType) now
-# live directly on Disease. The ICD-10 code survives as diagnosisCode / ontologyId.
-Disease:
-  id: diseaseId
-  properties: [subjectId, diseaseType, diseaseName, ontologyId, sourceVocabulary, diagnosisRole, diagnosisCode, diagnosisCodeSystem, diagnosisMethod, ageAtDiagnosisDays, diseaseSubtype, pathologicStage, tumorGrade, tumorSubtype, ageOfOnsetDays, severityScore, severityScale, infectiousAgentId, infectiousAgentName, isNormal, sourceDataset]
+# Diagnosis (per-event) and Condition (stable ICD-10-keyed concept) are split
+# nodes again: Diagnosis is one node per GDC diagnosis_id, carrying the
+# subject-specific clinical record; Condition is one node per distinct ICD-10
+# code, deduplicated across diagnoses, carrying the ontology-backed concept
+# (name, MONDO/EFO/etc cross-references, synonyms). The link between them is
+# (:Diagnosis)-[:OF_CONDITION]->(:Condition). Condition.conditionId is minted
+# at standardise-time as "ICD10:{icd_10_code}" (observation.DERIVED_KEYS) so it
+# is always namespace-qualified regardless of source formatting.
+Diagnosis:
+  id: diagnosisId
+  properties: [subjectId, conditionId, diagnosisRole, diagnosisMethod, ageAtDiagnosisDays, conditionSubtype, pathologicStage, conditionGrade, ageOfOnsetDays, severityScore, severityScale, infectiousAgentId, infectiousAgentName, isNormal, sourceDataset]
+
+Condition:
+  id: conditionId
+  properties: [conditionName, conditionType, mondoId, synonyms, definition, ontologyVersion, externalOntologyIds, sourceVocabulary]
 
 PathologyDetail:
   id: pathologyDetailId
@@ -90,7 +97,7 @@ Survival:
 
 PhenotypeObservation:
   id: phenotypeObservationId
-  properties: [subjectId, sampleId, diagnosisId, perturbationId, hpoId, phenotypeName, category, phenotypeType, value, status, unit, severityScore, severityScale, observationDay, observationDate, sourceDataset, sourceFile]
+  properties: [subjectId, sampleId, diagnosisId, interventionId, perturbationId, hpoId, phenotypeName, category, phenotypeType, value, status, unit, severityScore, severityScale, observationDay, observationDate, sourceDataset, sourceFile]
 
 # ─────────────────────── Evidence layer ───────────────────────
 
@@ -102,15 +109,15 @@ Evidence:
 
 Gene:
   id: geneId
-  properties: [symbol, name, organismTaxonId, ensemblGeneId, hgncId, entrezId, aliases, description, chromosome, startPosition, endPosition, strand]
+  properties: [symbol, name, organismTaxonId, ensemblGeneId, hgncId, entrezId, aliases, description, chromosome, startPosition, endPosition, strand, referenceGenome, coordinateSystem]
 
 GenomicRegion:
   id: regionId
-  properties: [referenceGenome, chromosome, start, end, name, description]
+  properties: [referenceGenome, chromosome, startPosition, endPosition, coordinateSystem, regionName, regionDescription]
 
 Variant:
   id: variantId
-  properties: [variantClass, referenceGenome, chromosome, positionStart, positionEnd, referenceAllele, alternateAllele, displayName, geneId, regionId]
+  properties: [variantClass, referenceGenome, chromosome, startPosition, endPosition, coordinateSystem, referenceAllele, alternateAllele, displayName]
 
 RegulatoryElement:
   id: elementId
@@ -120,7 +127,7 @@ RegulatoryElement:
 
 CpGSite:
   id: cpgId
-  properties: [chromosome, startPosition, endPosition, strand, geneSymbol, ensemblGeneId, annotationSource, annotationVersion, genomeBuild]
+  properties: [sourceCpgId, platformCode, chromosome, startPosition, endPosition, coordinateSystem, strand, annotationSource, annotationVersion, referenceGenome]
 
 MethylationObservation:
   id: methylationObservationId

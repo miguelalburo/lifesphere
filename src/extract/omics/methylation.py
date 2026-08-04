@@ -23,6 +23,15 @@ from .. import gdc_api
 from .download import download_all
 from ...observation import METHYLATION_OBS_COLUMNS, mint_id as _mint_id, obs_id as _obs_id
 
+# Short platform codes used to namespace-qualify CpGSite.cpgId (see
+# platform_code() below and docs/unique_ids.md §4). Add new GDC methylation
+# platform strings here as they're encountered; unrecognised values fall back
+# to "unknown" rather than raising, matching assay_id()'s fallback behaviour.
+_PLATFORM_CODES = {
+    "Illumina Human Methylation 450": "450k",
+    "Illumina Methylation Epic": "epic",
+}
+
 _FILE_FIELDS = [
     "file_id",
     "file_name",
@@ -81,6 +90,16 @@ def pipeline_version(file_meta: dict) -> str:
     return (file_meta.get("analysis") or {}).get("workflow_type", "")
 
 
+def platform_code(file_meta: dict) -> str:
+    """Return the short platform code for a GDC /files response entry's platform.
+
+    Used to namespace-qualify CpGSite.cpgId (``{platform_code}:{source_cpg_id}``)
+    so the same probe naming convention on different array platforms cannot
+    collide into one CpGSite node.
+    """
+    return _PLATFORM_CODES.get(file_meta.get("platform") or "", "unknown")
+
+
 def _parse_beta_file(path: Path) -> Iterator[dict]:
     """Yield one dict per CpG row from a GDC Methylation Beta Value TSV.
 
@@ -118,7 +137,8 @@ def reshape(entries: list[dict], out_path: Path, *, dataset: str = "") -> int:
     """Reshape per-sample beta-value files to observation-grain TSV.
 
     Each entry dict must have: ``path``, ``sample_id``, ``assay_id``.
-    Optional keys: ``source_file``, ``pipeline_version``.
+    Optional keys: ``platform_code`` (defaults to "unknown"), ``source_file``,
+    ``pipeline_version``.
 
     Returns the number of observations written.
     """
@@ -130,12 +150,14 @@ def reshape(entries: list[dict], out_path: Path, *, dataset: str = "") -> int:
         for entry in entries:
             sample_id = entry["sample_id"]
             assay_id = entry["assay_id"]
+            plat_code = entry.get("platform_code", "unknown")
             source_file = entry.get("source_file", "")
             pipeline_version = entry.get("pipeline_version", "")
             for row in _parse_beta_file(entry["path"]):
-                cpg_id = row.get("Composite Element REF", "")
-                if not cpg_id:
+                source_cpg_id = row.get("Composite Element REF", "")
+                if not source_cpg_id:
                     continue
+                cpg_id = _mint_id(plat_code, source_cpg_id)
                 beta_value = row.get("Beta_value", "")
                 chromosome = row.get("Chromosome", "")
                 start_pos = row.get("Start", "")
@@ -151,6 +173,8 @@ def reshape(entries: list[dict], out_path: Path, *, dataset: str = "") -> int:
                     "methylation_observation_id": _obs_id(sample_id, cpg_id),
                     "sample_id": sample_id,
                     "cpg_id": cpg_id,
+                    "source_cpg_id": source_cpg_id,
+                    "platform_code": plat_code,
                     "beta_value": beta_value,
                     "num_cpg_sites": "1",
                     "modification_type": "5mC",
@@ -286,6 +310,7 @@ def extract_methylation(
             "path": downloaded[file_id],
             "sample_id": aliquot_id(f),
             "assay_id": assay_id(f),
+            "platform_code": platform_code(f),
             "source_file": file_id,
             "pipeline_version": pipeline_version(f),
         })

@@ -52,10 +52,15 @@ reshape:
   # ── Methylation matrix: samples on rows, CpG probes on columns (beta) ──
   # Same generic matrix path as expression — no methylation-specific reshaper —
   # here declared in the transposed samples_x_genes orientation to show one melt
-  # handles both layouts. CpG probe ids are carried through as-is (already the
-  # shared CpGSite dimension). The assay: sub-block is optional and omitted here:
-  # observations still emit, while Assay / ASSAYED_BY skip cleanly on the blank
-  # key. Add an assay: block (as in the expression spec) to attach provenance.
+  # handles both layouts. CpGSite.cpgId is namespace-qualified by platform
+  # ("{platform_code}:{probe_id}", docs/unique_ids.md §4) so probes named the
+  # same way on different array platforms don't collide into one CpGSite node.
+  # The assay: sub-block is optional; without it (as here) platform_code
+  # defaults to "unknown" and Assay / ASSAYED_BY still skip cleanly on the
+  # blank assay_id key. Add an assay: block (as in the expression spec) with a
+  # platform_code (e.g. "450k", "epic") to properly scope this dataset's probes
+  # and to attach provenance — matching the platform_code your GDC-path data
+  # (if any) uses is what makes the two paths' CpGSite nodes merge.
   - type: matrix
     input: methylation_matrix.tsv
     output: methylation_observation.tsv

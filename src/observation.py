@@ -44,6 +44,8 @@ METHYLATION_OBS_COLUMNS: list[str] = [
     "methylation_observation_id",
     "sample_id",
     "cpg_id",
+    "source_cpg_id",
+    "platform_code",
     "beta_value",
     "num_cpg_sites",
     "modification_type",
@@ -136,6 +138,11 @@ def gdc_assay_id(file_meta: dict) -> str:
     return mint_id(platform, strategy, workflow)
 
 
+def condition_id(icd_10_code: str) -> str:
+    """Return the namespace-qualified Condition id: ``ICD10:{icd_10_code}``."""
+    return mint_id("ICD10", icd_10_code)
+
+
 def is_zero(value: str | None) -> bool:
     """Return True if *value* parses as a float equal to exactly 0.
 
@@ -219,4 +226,5 @@ DERIVED_KEYS: dict[str, KeyBuilder] = {
     "MethylationObservation": KeyBuilder(("sample_id", "cpg_id"), obs_id),
     "VariantObservation": KeyBuilder(("sample_id", "variant_id"), obs_id),
     "Survival": KeyBuilder(("case_id", "survival_type"), mint_id),
+    "Condition": KeyBuilder(("icd_10_code",), condition_id),
 }

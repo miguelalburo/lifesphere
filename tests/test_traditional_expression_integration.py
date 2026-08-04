@@ -96,7 +96,9 @@ class TestFusedExpression:
         assay = rows[0]
         assert assay["assayId"] == "traditional-rnaseq-grch38"
         assert assay["platform"] == "Illumina NovaSeq"
-        assert assay["libraryStrategy"] == "RNA-Seq"
+        # libraryStrategy moved to LibraryPreparation-only (Assay no longer
+        # declares it); Assay.csv has no such column.
+        assert "libraryStrategy" not in assay
         assert assay["referenceGenome"] == "GRCh38"
         assert assay["geneAnnotationVersion"] == "GENCODE v36"
 

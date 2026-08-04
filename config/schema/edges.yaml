@@ -51,20 +51,24 @@ COLLECTED_AT_STAGE:
 
 # ─────────────────────── Experimental / clinical context (§5.2) ───────────────────────
 
-HAS_CONDITION:
+HAS_EXPERIMENTAL_CONDITION:
   pairs: [[Sample, ExperimentalCondition]]
   properties: [conditionRole]
 
 HAS_DIAGNOSIS:
-  pairs: [[Subject, Disease]]
+  pairs: [[Subject, Diagnosis]]
   properties: [temporalOrder, isPrimaryDiagnosis, confidenceScore]
 
+OF_CONDITION:
+  pairs: [[Diagnosis, Condition]]
+  properties: [mappingMethod, ontologyMappingStatus, confidenceScore]
+
 HAS_PATHOLOGY:
-  pairs: [[Disease, PathologyDetail]]
+  pairs: [[Diagnosis, PathologyDetail]]
   properties: [pathologyRole, evidenceType, specimenBasis]
 
 HAS_PHENOTYPE_OBSERVATION:
-  pairs: [[Disease, PhenotypeObservation], [Perturbation, PhenotypeObservation]]
+  pairs: [[Diagnosis, PhenotypeObservation], [Perturbation, PhenotypeObservation]]
   properties: [daysToEvent]
 
 HAS_SURVIVAL_RECORD:
@@ -127,7 +131,7 @@ MEASURES_METABOLITE:
 
 MAPS_TO_GENE:
   pairs: [[CpGSite, Gene], [Feature, Gene]]
-  properties: [mappingMethod, geneContext, distanceToTSS, annotationSource, confidenceScore]
+  properties: [mappingMethod, geneContext, distanceToTSS, sourceGeneSymbol, sourceGeneIdentifier, annotationSource, confidenceScore]
 
 LOCATED_IN_REGION:
   pairs: [[CpGSite, GenomicRegion], [RegulatoryElement, GenomicRegion], [Variant, GenomicRegion]]
@@ -139,7 +143,7 @@ REGULATES_GENE:
 
 IS_WITHIN_GENE:
   pairs: [[Variant, Gene]]
-  properties: [geneRegion, transcriptId, exonNumber, annotationSource]
+  properties: [sourceGeneIdentifier, geneRegion, transcriptId, exonNumber, annotationSource]
 
 MODULATES_REGULATION_OF:
   pairs: [[Variant, RegulatoryElement]]
@@ -180,7 +184,7 @@ SUPPORTS_ASSOCIATION_WITH:
     - [Evidence, CpGSite]
     - [Evidence, RegulatoryElement]
     - [Evidence, Variant]
-    - [Evidence, Disease]
+    - [Evidence, Condition]
     - [Evidence, GenomicRegion]
     - [Evidence, MethylationStatusRule]
   properties: [entityRole, supportDirection, mappingMethod, confidenceScore]

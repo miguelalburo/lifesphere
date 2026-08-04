@@ -63,28 +63,43 @@ class TestReshape:
         assert rows[1]["beta_value"] == "0.5678"
 
     def test_deterministic_obs_id(self, tmp_path):
+        # No platform_code given -> falls back to "unknown", per the same
+        # missing-platform convention as assay_id().
         beta_path = _write_beta(tmp_path, "beta.tsv", BETA_FILE)
         out = tmp_path / "obs.tsv"
         reshape([{"path": beta_path, "sample_id": "s1", "assay_id": "A1"}], out)
         _, rows = _read_obs(out)
         obs_ids = {r["methylation_observation_id"] for r in rows}
-        assert "s1:cg00000001" in obs_ids
-        assert "s1:cg00000002" in obs_ids
+        assert "s1:unknown:cg00000001" in obs_ids
+        assert "s1:unknown:cg00000002" in obs_ids
 
-    def test_cpg_id_is_composite_element_ref(self, tmp_path):
+    def test_cpg_id_is_platform_qualified(self, tmp_path):
+        beta_path = _write_beta(tmp_path, "beta.tsv", BETA_FILE)
+        out = tmp_path / "obs.tsv"
+        reshape(
+            [{"path": beta_path, "sample_id": "s1", "assay_id": "A1", "platform_code": "450k"}],
+            out,
+        )
+        _, rows = _read_obs(out)
+        cpg_ids = {r["cpg_id"] for r in rows}
+        source_cpg_ids = {r["source_cpg_id"] for r in rows}
+        assert cpg_ids == {"450k:cg00000001", "450k:cg00000002"}
+        assert source_cpg_ids == {"cg00000001", "cg00000002"}
+
+    def test_cpg_id_defaults_to_unknown_platform(self, tmp_path):
         beta_path = _write_beta(tmp_path, "beta.tsv", BETA_FILE)
         out = tmp_path / "obs.tsv"
         reshape([{"path": beta_path, "sample_id": "s1", "assay_id": "A1"}], out)
         _, rows = _read_obs(out)
         cpg_ids = {r["cpg_id"] for r in rows}
-        assert cpg_ids == {"cg00000001", "cg00000002"}
+        assert cpg_ids == {"unknown:cg00000001", "unknown:cg00000002"}
 
     def test_cpg_annotation_inline(self, tmp_path):
         beta_path = _write_beta(tmp_path, "beta.tsv", BETA_FILE)
         out = tmp_path / "obs.tsv"
         reshape([{"path": beta_path, "sample_id": "s1", "assay_id": "A1"}], out)
         _, rows = _read_obs(out)
-        row = next(r for r in rows if r["cpg_id"] == "cg00000001")
+        row = next(r for r in rows if r["source_cpg_id"] == "cg00000001")
         assert row["chromosome"] == "chr1"
         assert row["start_position"] == "10000"
         assert row["gene_symbol"] == "TP53"

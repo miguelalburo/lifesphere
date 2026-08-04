@@ -32,7 +32,7 @@ def test_intervention_multilabelling():
 def test_polymorphic_edge_pairs():
     edge = load_schema().edge("SUPPORTS_ASSOCIATION_WITH")
     assert edge.has_pair("Evidence", "Gene")
-    assert edge.has_pair("Evidence", "Disease")
+    assert edge.has_pair("Evidence", "Condition")
     assert not edge.has_pair("Gene", "Evidence")
 
 

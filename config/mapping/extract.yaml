@@ -13,7 +13,7 @@
 # to see per-entry coverage, sample values, and which columns remain unused.
 #
 # DOCUMENTED GAPS (no GDC source column — no hardcoded literal substitutes):
-#   Study:    diseaseType, primarySite — stored as lists on the GDC project object;
+#   Study:    conditionCategory, primarySite — stored as lists on the GDC project object;
 #             not emittable as scalars. enrollmentCount — not returned by /cases.
 #   Subject:  subjectType, species, ageUnit, geneticAncestry, developmentalStage,
 #             strain, baselineBmi, bloodType, consentStatus, donorId
@@ -22,7 +22,16 @@
 #   PathologyDetail: cellularityPercent, inflammationScore, necrosisPercent,
 #             tissueCondition, morphologyDescription, pathologyMethod, anatomicalSite
 #             — not populated in TCGA pathology_detail records
-#   Disease:  diseaseType, sourceVocabulary, sourceDataset
+#   Diagnosis: conditionGrade, sourceDataset — no GDC source column.
+#             conditionId (FK mirror of the OF_CONDITION target) is deliberately
+#             left unmapped: Condition.conditionId is minted as "ICD10:{code}"
+#             (observation.DERIVED_KEYS) and a plain props/alias copy of
+#             icd_10_code would carry the unqualified code, drifting from the
+#             real Condition id. Traversal should use
+#             (:Diagnosis)-[:OF_CONDITION]->(:Condition), not a mirror property.
+#   Condition: conditionType, mondoId, synonyms, definition, ontologyVersion,
+#             externalOntologyIds, sourceVocabulary — no GDC source column
+#             (needs an external ICD-10<->MONDO mapping file; future work).
 
 profile: extract
 
@@ -44,7 +53,7 @@ nodes:
   # ── Study (GDC project) ───────────────────────────────────────────────────
   # id = project_id (e.g. TCGA-COAD). Dedup collapses one row per case to one
   # per project. program_name is carried for the HAS_STUDY edge.
-  # GAP: diseaseType/primarySite are list fields on GDC project; enrollmentCount
+  # GAP: conditionCategory/primarySite are list fields on GDC project; enrollmentCount
   # is not returned via the /cases endpoint.
   Study:
     file: study.tsv
@@ -78,27 +87,37 @@ nodes:
       gdc_sample_submitter_id: externalSampleId
       tissue_type: sampleClass
 
-  # ── Disease (merged Diagnosis + Disease) ──────────────────────────────────
-  # id = diagnosis_id (per-diagnosis grain). Diagnosis and the former Disease
-  # reference dimension were collapsed into one Disease node. age_at_diagnosis is
-  # already in days. icd_10_code feeds both diagnosisCode and ontologyId;
-  # primary_diagnosis feeds both diseaseName and diseaseSubtype; morphology
-  # (ICD-O-3 code, e.g. "8160/3") maps to tumorSubtype.
-  # GAP: diseaseType / sourceVocabulary / sourceDataset have no GDC source column.
-  Disease:
+  # ── Diagnosis (subject-specific diagnosis event) ──────────────────────────
+  # id = diagnosis_id. age_at_diagnosis is already in days. primary_diagnosis
+  # feeds conditionSubtype (subject-specific subtype/tumour-subtype text).
+  # conditionId is deliberately left unbound here — see the DOCUMENTED GAPS
+  # note above; use the OF_CONDITION edge for the Diagnosis->Condition FK.
+  # GAP: conditionGrade / sourceDataset have no GDC source column.
+  Diagnosis:
     file: diagnosis.tsv
     key: diagnosis_id
     dedup: true
     props:
-      diagnosisCode: icd_10_code
-      ontologyId: icd_10_code
-      diseaseName: primary_diagnosis
-      diseaseSubtype: primary_diagnosis
-      tumorSubtype: morphology
+      conditionSubtype: primary_diagnosis
     aliases:
       age_at_diagnosis: ageAtDiagnosisDays
       ajcc_pathologic_stage: pathologicStage
       method_of_diagnosis: diagnosisMethod
+
+  # ── Condition (stable ICD-10-keyed concept) ───────────────────────────────
+  # One node per distinct icd_10_code, deduplicated across every diagnosis.
+  # conditionName is seeded from primary_diagnosis (the closest GDC text label
+  # to a formal condition name). conditionId is re-minted at standardise-time
+  # as "ICD10:{icd_10_code}" (observation.DERIVED_KEYS) — the key: below is
+  # documentation only, per docs/unique_ids.md §3a.
+  # GAP: conditionType / mondoId / synonyms / definition / ontologyVersion /
+  # externalOntologyIds / sourceVocabulary have no GDC source column.
+  Condition:
+    file: diagnosis.tsv
+    key: icd_10_code
+    dedup: true
+    props:
+      conditionName: primary_diagnosis
 
   # ── PathologyDetail ───────────────────────────────────────────────────────
   # id = pathology_detail_id. diagnosis_id auto-resolves via camel.
@@ -166,21 +185,27 @@ edges:
 
   HAS_DIAGNOSIS:
     file: diagnosis.tsv
-    pair: [Subject, Disease]
+    pair: [Subject, Diagnosis]
     start_key: case_id
     end_key: diagnosis_id
     props:
       isPrimaryDiagnosis: diagnosis_is_primary_disease
 
+  OF_CONDITION:
+    file: diagnosis.tsv
+    pair: [Diagnosis, Condition]
+    start_key: diagnosis_id
+    end_key: icd_10_code
+
   HAS_PATHOLOGY:
     file: pathology_detail.tsv
-    pair: [Disease, PathologyDetail]
+    pair: [Diagnosis, PathologyDetail]
     start_key: diagnosis_id
     end_key: pathology_detail_id
 
   HAS_PHENOTYPE_OBSERVATION:
     file: exposure.tsv
-    pair: [Disease, PhenotypeObservation]
+    pair: [Diagnosis, PhenotypeObservation]
     start_key: diagnosis_id
     end_key: exposure_id
 

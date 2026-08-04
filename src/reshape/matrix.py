@@ -28,6 +28,7 @@ from pathlib import Path
 from ..observation import (
     EXPRESSION_OBS_COLUMNS,
     METHYLATION_OBS_COLUMNS,
+    mint_id,
     obs_id,
     strip_version,
 )
@@ -117,9 +118,20 @@ def melt_matrix(spec: ReshapeSpec, raw_dir: Path, interim_dir: Path, *, dataset:
             if not value.strip():
                 return
             rec = stamp_row(fieldnames, spec.assay, dataset=dataset, source_file=spec.input)
-            rec[profile.id_column] = obs_id(sample, feature)
             rec["sample_id"] = sample
-            rec[profile.feature_column] = feature
+            if spec.observation == "methylation":
+                # CpGSite.cpgId is namespace-qualified by platform (see
+                # docs/unique_ids.md §4) so probe ids from different array
+                # platforms never collide into one CpGSite node. A dataset
+                # without a declared assay.platform_code falls back to
+                # "unknown", matching the GDC path's own missing-platform
+                # fallback (src/extract/omics/methylation.py).
+                plat_code = spec.assay.get("platform_code", "unknown")
+                rec["source_cpg_id"] = feature
+                rec[profile.feature_column] = mint_id(plat_code, feature)
+            else:
+                rec[profile.feature_column] = feature
+            rec[profile.id_column] = obs_id(sample, rec[profile.feature_column])
             rec[profile.value_column] = value
             if profile.unit_column:
                 rec[profile.unit_column] = spec.unit
