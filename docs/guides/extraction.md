@@ -32,6 +32,9 @@ Using `--program` can involve thousands of files; see [When to use SLURM](#when-
 | `--methylation` | DNA-methylation Beta Value files — per-CpG site beta values |
 | `--variation` | Masked Somatic Mutation MAF files — somatic variant calls |
 | `--omics` | Shorthand for `--expression --methylation --variation` combined |
+| `--survival` | TCGA-CDR survival calls (OS/DSS/DFI/PFI) from the cBioPortal PanCanAtlas mirror |
+
+`--survival` ignores `project_id`/`--program` and always pulls the full TCGA pan-cancer study list, writing `survival.tsv` to `--out` (or its default). It requires `subject.tsv` to already exist there, so run `--clinical` first.
 
 Flags can be combined freely. For example, to fetch clinical data and expression only:
 
