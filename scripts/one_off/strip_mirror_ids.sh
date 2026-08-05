@@ -84,22 +84,29 @@ echo "    datasets: ${DATASETS[*]}"
 echo "    dropping: ${MIRROR_PROPS} (never column 1)"
 [[ "${DRY_RUN}" -eq 1 ]] && echo "    DRY RUN — nothing will be written"
 
+# A killed job (SLURM timeout, Ctrl-C) must not leave a half-written temp file
+# the size of the input sitting on /rds.
+CURRENT_TMP=""
+trap 'if [[ -n "${CURRENT_TMP}" ]]; then rm -f "${CURRENT_TMP}"; fi; exit 130' INT TERM
+
 strip_file() {
     local src="$1" tmp="$1.stripped.$$" label; label="$(basename "${src}")"
     local header keep_desc
 
     header="$(head -n 1 "${src}")"
     # Which columns survive? Computed from the header alone, before any I/O.
+    # Fields are '|'-joined: a non-whitespace IFS keeps empty fields (no mirror
+    # columns -> empty middle field), which whitespace IFS would collapse.
     keep_desc="$(awk -F, -v props="${MIRROR_PROPS}" '
         NR == 1 {
             split(props, p, ","); for (i in p) drop[p[i]] = 1
             for (i = 1; i <= NF; i++)
                 if (i == 1 || !($i in drop)) keep = keep (keep ? "," : "") i
                 else removed = removed (removed ? "," : "") $i
-            print keep "\t" removed "\t" NF
+            print keep "|" removed "|" NF
         }' <<< "${header}")"
     local keep_cols removed_names n_fields
-    IFS=$'\t' read -r keep_cols removed_names n_fields <<< "${keep_desc}"
+    IFS='|' read -r keep_cols removed_names n_fields <<< "${keep_desc}"
 
     if [[ -z "${removed_names}" ]]; then
         echo "= skip ${label}: no mirror columns present (already stripped?)"
@@ -121,20 +128,27 @@ strip_file() {
         return 1
     fi
 
-    # Single streaming pass. Aborts (exit 3) on anything awk could mangle.
-    LC_ALL=C awk -F, -v OFS=, -v keep="${keep_cols}" -v nf="${n_fields}" '
+    # Single streaming pass. Aborts (exit 3) on anything awk could mangle; the
+    # partial temp file is removed rather than left on /rds (it is as large as
+    # the work done so far).
+    CURRENT_TMP="${tmp}"
+    if ! LC_ALL=C awk -F, -v OFS=, -v keep="${keep_cols}" -v nf="${n_fields}" '
         BEGIN { n = split(keep, k, ",") }
         index($0, "\"") {
             print "! row " NR " contains a double quote — quoted CSV cannot be " \
-                  "rewritten with awk; aborting" > "/dev/stderr"; exit 3
+                  "rewritten with awk; aborting" > "/dev/stderr"; bad = 1; exit 3
         }
         NF != nf {
             print "! row " NR " has " NF " fields, expected " nf \
-                  " (embedded comma?); aborting" > "/dev/stderr"; exit 3
+                  " (embedded comma?); aborting" > "/dev/stderr"; bad = 1; exit 3
         }
         { for (i = 1; i <= n; i++) printf "%s%s", $k[i], (i < n ? OFS : ORS) }
-        END { print "    rows written (incl. header): " NR > "/dev/stderr" }
-    ' "${src}" > "${tmp}"
+        END { if (!bad) print "    rows written (incl. header): " NR > "/dev/stderr" }
+    ' "${src}" > "${tmp}"; then
+        rm -f "${tmp}"
+        echo "! ${label}: rewrite aborted, original untouched" >&2
+        return 1
+    fi
 
     # Truncation guard: the last input row, transformed, must be the last output
     # row. Cheap (tail only) and catches a short/interrupted write.
@@ -144,6 +158,7 @@ strip_file() {
         { for (i = 1; i <= n; i++) printf "%s%s", $k[i], (i < n ? OFS : ORS) }')"
     got="$(tail -n 1 "${tmp}")"
     if [[ "${want}" != "${got}" ]]; then
+        CURRENT_TMP=""   # keep it: a mismatch is worth inspecting by hand
         echo "! ${label}: last row mismatch — leaving ${tmp} in place for inspection" >&2
         return 1
     fi
@@ -155,6 +170,7 @@ strip_file() {
         rm -f "${src}"
     fi
     mv "${tmp}" "${src}"
+    CURRENT_TMP=""
     echo "    done: $(numfmt --to=iec "${bytes}") -> $(numfmt --to=iec "$(stat -c %s "${src}")")  $(date -Is)"
 }
 
