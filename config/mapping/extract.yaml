@@ -128,6 +128,22 @@ nodes:
     key: pathology_detail_id
     dedup: true
 
+  # ── Survival (TCGA-CDR time-to-event endpoints) ──────────────────────────
+  # id = survival_id, but re-minted in standardise from (case_id, survival_type)
+  # via observation.DERIVED_KEYS — key: below is documentation only, per
+  # docs/unique_ids.md. survivalType auto-resolves via camel (survival_type).
+  # GAP: timeOrigin, eventType, lastFollowUpDays, censoringReason,
+  # derivationMethod have no column in the cBioPortal TCGA-CDR extract
+  # (src/extract/survival.py). eventOccurred carries the raw 1/0 status code
+  # from that source, not a literal true/false string.
+  Survival:
+    file: survival.tsv
+    key: survival_id
+    dedup: true
+    aliases:
+      time_days: timeToEventDays
+      event: eventOccurred
+
   # ── PhenotypeObservation (GDC exposure) ───────────────────────────────────
   # id = exposure_id. subjectId via global case_id alias; diagnosisId auto-
   # resolves via camel. TCGA-CHOL has no exposure records; file is empty.
@@ -208,6 +224,12 @@ edges:
     pair: [Diagnosis, PhenotypeObservation]
     start_key: diagnosis_id
     end_key: exposure_id
+
+  HAS_SURVIVAL_RECORD:
+    file: survival.tsv
+    pair: [Subject, Survival]
+    start_key: case_id
+    end_key: survival_id
 
   UNDERWENT_INTERVENTION:
     file: treatment.tsv
