@@ -47,7 +47,17 @@ On the HPC cluster, submit the extraction jobs via SLURM instead:
 ```bash
 scripts/submit_extract_TCGA.sh      # sbatches the per-layer extraction jobs
 scripts/submit_standardise_TCGA.sh  # sbatches the standardise jobs
+scripts/submit_load_TCGA.sh         # sbatches the driver load (MERGE over bolt)
+scripts/submit_import_TCGA.sh       # offline path: neo4j-admin import → dump → load
 ```
+
+The standardised CSVs live on the cluster filesystem and are not mounted on the
+Neo4j host, so the load runs as a SLURM job and pushes over bolt:
+```bash
+scripts/submit_load_TCGA.sh --database lifesphere_test TCGA_EXPRESSION
+```
+Use the driver load for test databases and top-ups into an existing graph; use
+the offline `submit_import_TCGA.sh` path for a full-scale rebuild.
 
 ## Directory Map
 
