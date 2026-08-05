@@ -43,8 +43,21 @@ set -euo pipefail
 #   scripts/one_off/strip_mirror_ids.sh TCGA_EXPRESSION             # do it
 # ===========================================================================
 
-SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
-source "${SCRIPT_DIR}/../../.env"    # STD_DIR
+# sbatch STAGES a copy of this script into the job spool dir, so ${BASH_SOURCE[0]}
+# does not resolve back into the repo — script-relative paths break under SLURM.
+# Look for the repo root in the submit dir, then cwd, then (plain-bash runs) the
+# script's own location.
+PROJECT_ROOT=""
+for _cand in "${SLURM_SUBMIT_DIR:-}" "${PWD}" \
+             "$(dirname "$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")")"; do
+    if [[ -n "${_cand}" && -f "${_cand}/.env" ]]; then PROJECT_ROOT="${_cand}"; break; fi
+done
+if [[ -z "${PROJECT_ROOT}" ]]; then
+    echo "! cannot find .env (looked in SLURM_SUBMIT_DIR, ${PWD}, and the script's repo). " \
+         "sbatch from the repo root, or set STD_DIR in the environment." >&2
+    exit 2
+fi
+source "${PROJECT_ROOT}/.env"    # STD_DIR
 
 DRY_RUN=0
 KEEP_ORIGINAL=0

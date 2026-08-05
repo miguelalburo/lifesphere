@@ -36,8 +36,6 @@ set -euo pipefail
 # The driver (submit_load_TCGA.sh) sets --job-name / --output / --chdir.
 # ===========================================================================
 
-SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
-
 DATASET="${1:-}"
 DATABASE="${2:-}"
 BATCH_SIZE="${3:-1000}"
@@ -55,7 +53,21 @@ fi
 # PATHS  (all vars must be set in .env — no defaults)
 # ---------------------------------------------------------------------------
 
-source .env    # PROJECT_DIR, VENV_DIR, STD_DIR, NEO4J_URI/USER/PASSWORD
+# sbatch STAGES a copy of this script into the job spool dir, so ${BASH_SOURCE[0]}
+# does not resolve back into the repo — script-relative paths break under SLURM.
+# The driver passes --chdir=${PROJECT_DIR}, so cwd is normally the repo already;
+# fall back to the submit dir, then the script's location (plain-bash runs).
+PROJECT_ROOT=""
+for _cand in "${PWD}" "${SLURM_SUBMIT_DIR:-}" \
+             "$(dirname "$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")")"; do
+    if [[ -n "${_cand}" && -f "${_cand}/.env" ]]; then PROJECT_ROOT="${_cand}"; break; fi
+done
+if [[ -z "${PROJECT_ROOT}" ]]; then
+    echo "! cannot find .env (looked in ${PWD}, SLURM_SUBMIT_DIR, and the script's repo)" >&2
+    exit 2
+fi
+cd "${PROJECT_ROOT}"                 # `python -m src.load` needs the repo as cwd
+source "${PROJECT_ROOT}/.env"        # PROJECT_DIR, VENV_DIR, STD_DIR, NEO4J_URI/USER/PASSWORD
 
 echo "=== LOAD ${DATASET} -> '${DATABASE}' $(date -Is) ==="
 echo "    source:  ${STD_DIR}/${DATASET}"
@@ -101,7 +113,7 @@ else
     for label in ${EXPECT_LABELS[@]+"${EXPECT_LABELS[@]}"}; do
         PREFLIGHT_ARGS+=(--expect-label "${label}")
     done
-    python "${SCRIPT_DIR}/preflight.py" "${PREFLIGHT_ARGS[@]}"
+    python "${PROJECT_ROOT}/scripts/load_TCGA/preflight.py" "${PREFLIGHT_ARGS[@]}"
 fi
 
 # ---------------------------------------------------------------------------
