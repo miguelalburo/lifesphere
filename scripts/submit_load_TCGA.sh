@@ -19,7 +19,7 @@
 #   scripts/submit_load_TCGA.sh [options] [dataset ...]
 #
 # Options:
-#   -d, --database NAME   target database (default: lifesphere_test)
+#   -d, --database NAME   target database (default: lifesphere-test)
 #   -b, --batch-size N    rows per MERGE transaction (default: 1000)
 #       --create-database CREATE DATABASE IF NOT EXISTS when absent (Enterprise).
 #                         Never drops an existing database.
@@ -31,14 +31,19 @@
 # reference dimensions (Sample, Gene, Assay), and concurrent MERGEs on the same
 # nodes deadlock in Neo4j. --parallel only if you know they are disjoint.
 #
+# NOTE ON THE NAME: Neo4j database names take alphanumerics, dots and dashes --
+# NOT underscores. `lifesphere_test` is not a legal database name, so it could
+# never exist and --create-database cannot conjure it; the real database is
+# `lifesphere-test`. Keep the dash.
+#
 # Example (the expression load into the test database):
-#   scripts/submit_load_TCGA.sh --database lifesphere_test TCGA_EXPRESSION
+#   scripts/submit_load_TCGA.sh --database lifesphere-test TCGA_EXPRESSION
 set -euo pipefail
 
 SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 source "${SCRIPT_DIR}/../.env"   # PROJECT_DIR, STD_DIR, LOG_DIR, NEO4J_URI
 
-DATABASE="lifesphere_test"
+DATABASE="lifesphere-test"
 BATCH_SIZE=1000
 CREATE_DB=0
 DRY_RUN=0

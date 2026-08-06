@@ -54,7 +54,7 @@ scripts/submit_import_TCGA.sh       # offline path: neo4j-admin import → dump 
 The standardised CSVs live on the cluster filesystem and are not mounted on the
 Neo4j host, so the load runs as a SLURM job and pushes over bolt:
 ```bash
-scripts/submit_load_TCGA.sh --database lifesphere_test TCGA_EXPRESSION
+scripts/submit_load_TCGA.sh --database lifesphere-test TCGA_EXPRESSION
 ```
 Use the driver load for test databases and top-ups into an existing graph; use
 the offline `submit_import_TCGA.sh` path for a full-scale rebuild.

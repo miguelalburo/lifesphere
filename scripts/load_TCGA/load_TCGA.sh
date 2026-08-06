@@ -28,7 +28,8 @@ set -euo pipefail
 #
 # ARGS
 #   $1   dataset folder name under STD_DIR (e.g. TCGA_EXPRESSION)
-#   $2   target database name             (e.g. lifesphere_test)
+#   $2   target database name             (e.g. lifesphere-test; Neo4j database
+#        names allow dashes but NOT underscores)
 #   $3   batch size for MERGE transactions
 #   $4   "1" to CREATE the database if absent, "0" to fail when it is
 #   $5   "1" for --dry-run (plan only, no connection), "0" to really load
